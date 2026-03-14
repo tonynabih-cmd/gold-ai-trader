@@ -1,0 +1,15 @@
+name: Gold AI Trader Bot
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run trading bot
+        run: |
+          curl -X GET "https://gold-ai-trader-navy.vercel.app/api/cron" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
