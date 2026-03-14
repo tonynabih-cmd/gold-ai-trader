@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gold AI Trader</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --gold: #B8860B; --gold-light: #FFD700; --gold-dim: #8B6914;
+      --bg: #0a0a0a; --bg2: #111111; --bg3: #1a1a1a;
+      --border: rgba(184,134,11,0.2); --border2: rgba(184,134,11,0.4);
+      --text: #e8e0cc; --text2: #8a8070;
+      --green: #4a9e5c; --green-bg: rgba(74,158,92,0.1);
+      --red: #c0392b; --red-bg: rgba(192,57,43,0.1);
+      --font-mono: 'DM Mono', monospace; --font-serif: 'Playfair Display', serif;
+    }
+    body { background: var(--bg); color: var(--text); font-family: var(--font-mono); min-height: 100vh; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; padding:1rem 2rem; border-bottom:0.5px solid var(--border); background:var(--bg); position:sticky; top:0; z-index:10; }
+    .logo { display:flex; align-items:center; gap:10px; }
+    .logo-icon { width:32px; height:32px; border:1px solid var(--gold); border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:16px; }
+    .logo-text { font-family:var(--font-serif); font-size:18px; color:var(--gold-light); }
+    .logo-sub { font-size:10px; color:var(--text2); letter-spacing:0.1em; text-transform:uppercase; margin-top:1px; }
+    .status-pill { display:flex; align-items:center; gap:8px; padding:6px 14px; border:0.5px solid var(--border); border-radius:20px; font-size:11px; color:var(--text2); background:var(--bg2); }
+    .dot { width:7px; height:7px; border-radius:50%; background:var(--text2); }
+    .dot.live { background:var(--green); animation:blink 2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .main { max-width:1100px; margin:0 auto; padding:2rem; display:grid; grid-template-columns:1fr 340px; gap:1.5rem; }
+    .left { display:flex; flex-direction:column; gap:1.25rem; }
+    .right { display:flex; flex-direction:column; gap:1.25rem; }
+    .card { background:var(--bg2); border:0.5px solid var(--border); border-radius:12px; padding:1.25rem; }
+    .card-title { font-size:10px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); margin-bottom:1rem; }
+    .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border:0.5px solid var(--border); border-radius:12px; overflow:hidden; }
+    .metric { background:var(--bg2); padding:1rem 1.25rem; }
+    .metric-label { font-size:10px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text2); margin-bottom:6px; }
+    .metric-value { font-size:20px; font-weight:500; color:var(--text); }
+    .metric-value.gold { color:var(--gold-light); }
+    .metric-value.pos { color:var(--green); }
+    .metric-value.neg { color:var(--red); }
+    .metric-sub { font-size:10px; color:var(--text2); margin-top:3px; }
+    .chart-container { position:relative; width:100%; height:220px; }
+    .cron-banner { background:rgba(74,158,92,0.08); border:0.5px solid var(--green); border-radius:8px; padding:10px 14px; font-size:11px; color:var(--green); display:flex; align-items:center; gap:8px; margin-bottom:1.25rem; }
+    .controls-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:1rem; }
+    .ctrl-label { font-size:10px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text2); margin-bottom:5px; }
+    select { width:100%; background:var(--bg3); border:0.5px solid var(--border2); border-radius:6px; padding:8px 10px; font-size:12px; font-family:var(--font-mono); color:var(--text); outline:none; }
+    select:focus { border-color:var(--gold); }
+    .btn-row { display:flex; gap:8px; flex-wrap:wrap; }
+    button { font-family:var(--font-mono); font-size:12px; padding:9px 18px; border-radius:6px; border:0.5px solid var(--border2); background:transparent; color:var(--text); cursor:pointer; transition:all 0.15s; }
+    button:hover { background:var(--bg3); border-color:var(--gold); }
+    button.refresh { background:var(--gold-dim); border-color:var(--gold); color:var(--gold-light); }
+    button.refresh:hover { background:var(--gold); color:#000; }
+    button.danger { background:rgba(192,57,43,0.15); border-color:var(--red); color:var(--red); }
+    .ai-decision { display:inline-block; font-size:11px; font-weight:500; padding:4px 12px; border-radius:4px; margin-bottom:10px; letter-spacing:0.08em; text-transform:uppercase; }
+    .dec-buy { background:var(--green-bg); color:var(--green); border:0.5px solid var(--green); }
+    .dec-sell { background:var(--red-bg); color:var(--red); border:0.5px solid var(--red); }
+    .dec-hold { background:var(--bg3); color:var(--text2); border:0.5px solid var(--border); }
+    .ai-text { font-size:12px; line-height:1.7; color:var(--text); min-height:60px; }
+    .trade-header { display:grid; grid-template-columns:100px 45px 85px 85px 75px; gap:8px; padding:0 0 8px; border-bottom:0.5px solid var(--border); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); margin-bottom:4px; }
+    .trade-row { display:grid; grid-template-columns:100px 45px 85px 85px 75px; gap:8px; padding:7px 0; border-bottom:0.5px solid rgba(184,134,11,0.07); font-size:11px; align-items:center; }
+    .trade-row:last-child { border-bottom:none; }
+    .t-buy { color:var(--green); font-weight:500; }
+    .t-sell { color:var(--red); font-weight:500; }
+    .t-hold { color:var(--text2); }
+    .t-pos { color:var(--green); }
+    .t-neg { color:var(--red); }
+    .t-muted { color:var(--text2); }
+    .empty-log { text-align:center; padding:2rem 0; font-size:12px; color:var(--text2); }
+    .spinner { display:inline-block; width:10px; height:10px; border:1.5px solid var(--border2); border-top-color:var(--gold); border-radius:50%; animation:spin 0.7s linear infinite; margin-right:6px; vertical-align:middle; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .next-run { font-size:10px; color:var(--text2); margin-top:8px; }
+    @media(max-width:800px) { .main{grid-template-columns:1fr;padding:1rem} .metrics{grid-template-columns:repeat(2,1fr)} }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">Au</div>
+    <div>
+      <div class="logo-text">Gold AI Trader</div>
+      <div class="logo-sub">XAU/USD · 24/7 Auto Trading · Paper</div>
+    </div>
+  </div>
+  <div class="status-pill">
+    <div class="dot live"></div>
+    <span>Running 24/7</span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="left">
+
+    <div class="cron-banner">
+      &#9654; Bot runs 24/7 on Vercel servers — no browser needed. Analyzes every 10 minutes automatically.
+    </div>
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-label">Balance</div>
+        <div class="metric-value" id="balance">Loading...</div>
+        <div class="metric-sub">Virtual cash</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Gold Price</div>
+        <div class="metric-value gold" id="goldPrice">—</div>
+        <div class="metric-sub">XAU/USD live</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Position</div>
+        <div class="metric-value" id="position">—</div>
+        <div class="metric-sub" id="posValue">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Total P&L</div>
+        <div class="metric-value" id="totalPnl">—</div>
+        <div class="metric-sub" id="pnlPct">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">XAU/USD Price History</div>
+      <div class="chart-container"><canvas id="priceChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Settings</div>
+      <div class="controls-grid">
+        <div>
+          <div class="ctrl-label">Strategy</div>
+          <select id="strategy" onchange="updateStrategy()">
+            <option value="conservative">Conservative</option>
+            <option value="aggressive">Aggressive</option>
+            <option value="scalping">Scalping</option>
+            <option value="trend_following">Trend Following</option>
+          </select>
+        </div>
+        <div>
+          <div class="ctrl-label">Schedule</div>
+          <select disabled>
+            <option>Every 10 minutes</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="refresh" onclick="loadState()">&#8635; Refresh Dashboard</button>
+        <button class="danger" onclick="resetBot()">↺ Reset Bot</button>
+      </div>
+      <div class="next-run" id="nextRun">Next analysis: calculating...</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Trade Log</div>
+      <div class="trade-header">
+        <span>Time</span><span>Type</span><span>Size</span><span>Price</span><span>P&L</span>
+      </div>
+      <div id="tradeLog"><div class="empty-log">Loading trades...</div></div>
+    </div>
+
+  </div>
+
+  <div class="right">
+
+    <div class="card">
+      <div class="card-title">Last AI Decision</div>
+      <div id="decisionBadge"></div>
+      <div class="ai-text" id="aiThinking">Loading last analysis...</div>
+      <div style="font-size:10px;color:var(--text2);margin-top:10px;" id="lastRunTime"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Session Stats</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2)">Total decisions</span><span id="statTrades">—</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2)">Buys</span><span id="statBuys" style="color:var(--green)">—</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2)">Sells</span><span id="statSells" style="color:var(--red)">—</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2)">Holds</span><span id="statHolds" style="color:var(--text2)">—</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2)">Win rate</span><span id="statWinRate">—</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2)">Best trade</span><span id="statBest" style="color:var(--green)">—</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--text2)">Worst trade</span><span id="statWorst" style="color:var(--red)">—</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">About</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.8;">
+        <p>Runs 24/7 on Vercel servers. Every 10 minutes it fetches the live XAU/USD price and Claude AI decides BUY, SELL, or HOLD.</p>
+        <br/>
+        <p>All trades are <strong style="color:var(--gold)">paper trades</strong> — no real money.</p>
+        <br/>
+        <p>Price: <strong style="color:var(--text)">Twelve Data</strong><br/>AI: <strong style="color:var(--text)">Claude Haiku</strong></p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let chart;
+
+function initChart() {
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [{ data: [], borderColor: '#B8860B', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true, backgroundColor: 'rgba(184,134,11,0.05)' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { display: false },
+        y: { grid: { color: 'rgba(184,134,11,0.07)' }, ticks: { font: { family: 'DM Mono', size: 10 }, color: '#8a8070', maxTicksLimit: 5, callback: v => '$' + v.toLocaleString() } }
+      }
+    }
+  });
+}
+
+async function loadState() {
+  document.getElementById('balance').innerHTML = '<span class="spinner"></span>';
+  try {
+    const res = await fetch('/api/state');
+    const state = await res.json();
+    renderState(state);
+  } catch(e) {
+    document.getElementById('balance').textContent = 'Error';
+  }
+}
+
+function renderState(state) {
+  const trades = state.trades || [];
+  const lastTrade = [...trades].reverse().find(t => t.type !== 'HOLD') || trades[trades.length - 1];
+  const lastPrice = lastTrade ? lastTrade.price : 0;
+
+  const unrealised = state.position > 0 && lastPrice ? state.position * (lastPrice - state.avgBuyPrice) : 0;
+  const realised = trades.filter(t => t.type === 'SELL').reduce((s, t) => s + (t.pnl || 0), 0);
+  const totalPnl = realised + unrealised;
+  const pnlPct = ((totalPnl / 10000) * 100).toFixed(2);
+
+  document.getElementById('balance').textContent = '$' + state.balance.toFixed(2);
+  document.getElementById('goldPrice').textContent = lastPrice ? '$' + lastPrice.toLocaleString('en', {minimumFractionDigits:2}) : '—';
+  document.getElementById('position').textContent = state.position.toFixed(2) + ' oz';
+  document.getElementById('posValue').textContent = '$' + (state.position * lastPrice).toFixed(2) + ' value';
+
+  const pnlEl = document.getElementById('totalPnl');
+  pnlEl.textContent = (totalPnl >= 0 ? '+' : '') + '$' + totalPnl.toFixed(2);
+  pnlEl.className = 'metric-value ' + (totalPnl >= 0 ? 'pos' : 'neg');
+  document.getElementById('pnlPct').textContent = (totalPnl >= 0 ? '+' : '') + pnlPct + '%';
+
+  if (state.strategy) document.getElementById('strategy').value = state.strategy;
+
+  const priceHistory = state.priceHistory || [];
+  chart.data.labels = priceHistory.map((_, i) => i);
+  chart.data.datasets[0].data = priceHistory;
+  chart.update('none');
+
+  const lastEntry = trades[trades.length - 1];
+  if (lastEntry) {
+    document.getElementById('decisionBadge').innerHTML = `<span class="ai-decision dec-${lastEntry.type.toLowerCase()}">${lastEntry.type}</span>`;
+    document.getElementById('aiThinking').textContent = lastEntry.reasoning || 'No reasoning recorded.';
+    document.getElementById('lastRunTime').textContent = 'Last run: ' + new Date(lastEntry.time).toLocaleString();
+  } else {
+    document.getElementById('aiThinking').textContent = 'No analysis yet — bot will run within 10 minutes.';
+    document.getElementById('decisionBadge').innerHTML = '';
+  }
+
+  const log = document.getElementById('tradeLog');
+  const display = [...trades].reverse().slice(0, 20);
+  if (!display.length) {
+    log.innerHTML = '<div class="empty-log">No trades yet — bot runs every 10 minutes.</div>';
+  } else {
+    log.innerHTML = display.map(t => {
+      const pnlStr = t.pnl != null ? ((t.pnl >= 0 ? '+' : '') + '$' + t.pnl.toFixed(2)) : '—';
+      const pnlClass = t.pnl != null ? (t.pnl >= 0 ? 't-pos' : 't-neg') : 't-muted';
+      const typeClass = t.type === 'BUY' ? 't-buy' : t.type === 'SELL' ? 't-sell' : 't-hold';
+      const timeStr = new Date(t.time).toLocaleTimeString('en', {hour:'2-digit', minute:'2-digit'});
+      return `<div class="trade-row">
+        <span class="t-muted">${timeStr}</span>
+        <span class="${typeClass}">${t.type}</span>
+        <span>${t.size > 0 ? t.size.toFixed(2) + ' oz' : '—'}</span>
+        <span>$${t.price.toLocaleString('en',{minimumFractionDigits:2})}</span>
+        <span class="${pnlClass}">${pnlStr}</span>
+      </div>`;
+    }).join('');
+  }
+
+  const sells = trades.filter(t => t.type === 'SELL');
+  const wins = sells.filter(t => t.pnl > 0);
+  const winRate = sells.length ? ((wins.length / sells.length) * 100).toFixed(0) + '%' : '—';
+  const best = sells.length ? Math.max(...sells.map(t => t.pnl)) : null;
+  const worst = sells.length ? Math.min(...sells.map(t => t.pnl)) : null;
+
+  document.getElementById('statTrades').textContent = trades.length;
+  document.getElementById('statBuys').textContent = trades.filter(t => t.type === 'BUY').length;
+  document.getElementById('statSells').textContent = sells.length;
+  document.getElementById('statHolds').textContent = trades.filter(t => t.type === 'HOLD').length;
+  document.getElementById('statWinRate').textContent = winRate;
+  document.getElementById('statBest').textContent = best !== null ? '+$' + best.toFixed(2) : '—';
+  document.getElementById('statWorst').textContent = worst !== null ? '$' + worst.toFixed(2) : '—';
+}
+
+function updateNextRun() {
+  const now = new Date();
+  const nextMin = Math.ceil((now.getMinutes() + 0.01) / 10) * 10;
+  const next = new Date(now);
+  next.setMinutes(nextMin, 0, 0);
+  if (next <= now) next.setMinutes(next.getMinutes() + 10);
+  const diff = Math.max(0, Math.round((next - now) / 1000));
+  const m = Math.floor(diff / 60);
+  const s = diff % 60;
+  document.getElementById('nextRun').textContent = `Next analysis in: ${m}m ${s.toString().padStart(2,'0')}s`;
+}
+
+async function updateStrategy() {
+  const strategy = document.getElementById('strategy').value;
+  await fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ strategy })
+  });
+}
+
+async function resetBot() {
+  if (!confirm('Reset all trades and balance back to $10,000?')) return;
+  await fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ strategy: 'conservative', reset: true })
+  });
+  await loadState();
+}
+
+initChart();
+loadState();
+setInterval(loadState, 60000);
+setInterval(updateNextRun, 1000);
+</script>
+</body>
+</html>

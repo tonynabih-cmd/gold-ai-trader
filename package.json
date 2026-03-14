@@ -1,0 +1,6 @@
+{
+  "name": "gold-ai-trader",
+  "version": "1.0.0",
+  "description": "AI-powered gold paper trading bot",
+  "engines": { "node": ">=18" }
+}
