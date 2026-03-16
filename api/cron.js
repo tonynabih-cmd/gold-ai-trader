@@ -34,6 +34,8 @@ export default async function handler(req, res) {
       priceHistory: [],
       strategy: 'conservative'
     };
+if (!state.trades) state.trades = [];
+if (!state.priceHistory) state.priceHistory = [];
 
     // 3. Update price history
     state.priceHistory.push(price);
