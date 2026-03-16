@@ -26,7 +26,10 @@ export default async function handler(req, res) {
       headers: { Authorization: `Bearer ${KV_TOKEN}` }
     });
     const stateData = await stateRes.json();
-    let state = stateData.result ? JSON.parse(stateData.result) : {
+    let parsed = stateData.result;
+if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+let state = parsed || {
       balance: 10000,
       position: 0,
       avgBuyPrice: 0,
