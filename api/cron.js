@@ -2,7 +2,7 @@ import { getMarketData } from './market_data.js';
 import { calculateIndicators } from './indicators.js';
 import { generateSignal } from './strategy.js';
 import { checkRisk } from './risk.js';
-import { placeTrade } from './execution.js';
+import { placeTrade, syncBalance } from './execution.js'; // ← combined into one line
 import { saveLog, getLogs } from './logger.js';
 import { loadState, saveState, dailyReset } from './state.js';
 import { heartbeat, sendAlert, checkPerformance } from './monitor.js';
@@ -14,7 +14,7 @@ export default async function handler(req, res) {
 
     // 2. Daily reset
     botState = dailyReset(botState);
-
+botState = await syncBalance(botState);
     // 3. Fetch market data
     const marketData = await getMarketData(botState);
  if (marketData.skip) {
