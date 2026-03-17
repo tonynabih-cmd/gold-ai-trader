@@ -67,4 +67,8 @@ export function dailyReset(botState) {
     botState.lastTradingDay = today;
   }
   return botState;
+  export async function GET(req, res) {
+  const state = await loadState();
+  return Response.json(state);
+}
 }
