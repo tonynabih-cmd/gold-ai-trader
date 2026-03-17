@@ -17,10 +17,11 @@ export default async function handler(req, res) {
 
     // 3. Fetch market data
     const marketData = await getMarketData(botState);
-    if (marketData.skip) {
-      await saveState(botState);
-      return res.json({ skipped: marketData.reason });
-    }
+ if (marketData.skip) {
+  await saveLog({ signal: null, indicators: null, botState, tradeExecuted: false, reason: marketData.reason });
+  await saveState(botState);
+  return res.json({ skipped: marketData.reason });
+}
 
     // 4. Update candle cache in state
     botState.candles5m = marketData.candles5m;
@@ -30,10 +31,11 @@ export default async function handler(req, res) {
       marketData.candles5m,
       marketData.candles1h
     );
-    if (indicators.skip) {
-      await saveState(botState);
-      return res.json({ skipped: indicators.reason });
-    }
+if (indicators.skip) {
+  await saveLog({ signal: null, indicators, botState, tradeExecuted: false, reason: indicators.reason });
+  await saveState(botState);
+  return res.json({ skipped: indicators.reason });
+}
 
     // 6. Generate signal
     const signal = generateSignal(indicators, marketData.candles1m);
