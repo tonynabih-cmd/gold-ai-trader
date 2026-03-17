@@ -1,6 +1,14 @@
 {
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/public/index.html" }
+  "version": 2,
+  "functions": {
+    "api/cron.js": { "maxDuration": 30 },
+    "api/audit.js": { "maxDuration": 30 },
+    "api/market_data.js": { "maxDuration": 10 },
+    "api/execution.js": { "maxDuration": 15 }
+  },
+  "routes": [
+    { "src": "/api/cron", "dest": "/api/cron.js" },
+    { "src": "/api/audit", "dest": "/api/audit.js" },
+    { "src": "/(.*)", "dest": "/public/index.html" }
   ]
 }
