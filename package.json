@@ -1,6 +1,11 @@
 {
   "name": "gold-ai-trader",
-  "version": "1.0.0",
-  "description": "AI-powered gold paper trading bot",
-  "engines": { "node": ">=18" }
+  "version": "2.0.0",
+  "type": "module",
+  "engines": {
+    "node": "18.x"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.28.0"
+  }
 }
