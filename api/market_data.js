@@ -29,25 +29,28 @@ export async function getMarketData(botState) {
 
     let candles5m;
     if (isFirstRunOfDay || !botState.candles5m || botState.candles5m.length < 100) {
-      candles5m = await fetchCandles('5min', 100);
+      // ✅ Fetch 110 to have buffer after dedup
+      candles5m = await fetchCandles('5min', 110);
       if (!candles5m) return { skip: true, reason: 'SKIP: Failed to fetch 5m candles' };
     } else {
       const latest = await fetchCandles('5min', 1);
       if (!latest) return { skip: true, reason: 'SKIP: Failed to fetch latest 5m candle' };
       candles5m = [...botState.candles5m, ...latest];
-      if (candles5m.length > 100) candles5m = candles5m.slice(-100);
     }
 
     const candles1m = await fetchCandles('1min', 5);
     if (!candles1m) return { skip: true, reason: 'SKIP: Failed to fetch 1m candles' };
 
-    // ✅ Deduplicate candles by timestamp — fixes duplicate candle bug
+    // Deduplicate by timestamp
     const seen = new Set();
     candles5m = candles5m.filter(c => {
       if (seen.has(c.time)) return false;
       seen.add(c.time);
       return true;
     });
+
+    // Keep only last 100 after dedup
+    if (candles5m.length > 100) candles5m = candles5m.slice(-100);
 
     // Warmup check
     if (candles5m.length < 100) {
