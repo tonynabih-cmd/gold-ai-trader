@@ -469,9 +469,9 @@ function renderLogs(logs) {
     document.getElementById('lastRunTime').textContent = 'Last run: ' + new Date(last.time).toLocaleString('en-US', { timeZone: 'Asia/Dubai' }) + ' UAE';
 
     // Update gold price from last log
-    if (last.entryPrice) {
-      document.getElementById('goldPrice').textContent = '$' + parseFloat(last.entryPrice).toLocaleString('en', {minimumFractionDigits:3});
-    }
+if (last.entryPrice) {
+  document.getElementById('goldPrice').textContent = '$' + parseFloat(last.entryPrice).toLocaleString('en', {minimumFractionDigits:3});
+}
 
     // Update indicators
     if (last.ema20) document.getElementById('ema20').textContent = parseFloat(last.ema20).toFixed(2);
