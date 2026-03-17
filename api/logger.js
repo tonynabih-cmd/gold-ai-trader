@@ -67,3 +67,7 @@ export async function getLogs() {
     return [];
   }
 }
+export default async function handler(req, res) {
+  const logs = await getLogs();
+  return res.json(logs);
+}
