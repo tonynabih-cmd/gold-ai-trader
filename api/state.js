@@ -72,3 +72,7 @@ export function dailyReset(botState) {
   return Response.json(state);
 }
 }
+export default async function handler(req, res) {
+  const state = await loadState();
+  return res.json(state);
+}
