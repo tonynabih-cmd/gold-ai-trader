@@ -1,10 +1,8 @@
 import { Redis } from '@upstash/redis';
-
 const redis = new Redis({
   url: process.env.KV_REST_API_URL,
   token: process.env.KV_REST_API_TOKEN,
 });
-
 const TWELVE_DATA_KEY = process.env.TWELVE_DATA_API_KEY;
 
 async function fetchCandles(timeframe, outputsize = 1) {
@@ -26,11 +24,9 @@ export async function getMarketData(botState) {
     const today = new Date().toISOString().slice(0, 10);
     const isFirstRunOfDay = botState.lastTradingDay !== today;
 
-    // Fetch 1h candles for trend
     const candles1h = await fetchCandles('1h', 60);
     if (!candles1h) return { skip: true, reason: 'SKIP: Failed to fetch 1h candles' };
 
-    // Fetch 5m candles
     let candles5m;
     if (isFirstRunOfDay || !botState.candles5m || botState.candles5m.length < 100) {
       candles5m = await fetchCandles('5min', 100);
@@ -42,9 +38,16 @@ export async function getMarketData(botState) {
       if (candles5m.length > 100) candles5m = candles5m.slice(-100);
     }
 
-    // Fetch 1m candles for confirmation
     const candles1m = await fetchCandles('1min', 5);
     if (!candles1m) return { skip: true, reason: 'SKIP: Failed to fetch 1m candles' };
+
+    // ✅ Deduplicate candles by timestamp — fixes duplicate candle bug
+    const seen = new Set();
+    candles5m = candles5m.filter(c => {
+      if (seen.has(c.time)) return false;
+      seen.add(c.time);
+      return true;
+    });
 
     // Warmup check
     if (candles5m.length < 100) {
@@ -64,7 +67,6 @@ export async function getMarketData(botState) {
       candles1m,
       latestCandleTime,
     };
-
   } catch (err) {
     return { skip: true, reason: `SKIP: Market data error - ${err.message}` };
   }
