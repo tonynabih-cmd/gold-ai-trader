@@ -14,7 +14,8 @@
     { "src": "/api/audit", "dest": "/api/audit.js" },
     { "src": "/api/dashboard", "dest": "/api/dashboard.js" },
     { "src": "/api/state", "dest": "/api/state.js" },
-    { "src": "/api/logger", "dest": "/api/logger.js" },
+{ "src": "/api/logger", "dest": "/api/logger.js" },
+    { "src": "/api/reset", "dest": "/api/reset.js" },
     { "src": "/(.*)", "dest": "/public/index.html" }
   ]
 }
