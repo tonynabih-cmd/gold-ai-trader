@@ -2,7 +2,6 @@ async function getCapitalSession() {
   const baseUrl = process.env.CAPITAL_ENV === 'demo'
     ? 'https://demo-api-capital.backend-capital.com'
     : 'https://api-capital.backend-capital.com';
-
   const res = await fetch(`${baseUrl}/api/v1/session`, {
     method: 'POST',
     headers: {
@@ -14,20 +13,43 @@ async function getCapitalSession() {
       password: process.env.CAPITAL_PASSWORD,
     }),
   });
-
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Capital.com auth failed: ${err}`);
   }
-
   const cst = res.headers.get('CST');
   const securityToken = res.headers.get('X-SECURITY-TOKEN');
-
   if (!cst || !securityToken) {
     throw new Error('Capital.com session tokens missing');
   }
-
   return { baseUrl, cst, securityToken };
+}
+
+// ✅ NEW — fetch real balance from Capital.com
+export async function syncBalance(botState) {
+  try {
+    const { baseUrl, cst, securityToken } = await getCapitalSession();
+    const res = await fetch(`${baseUrl}/api/v1/accounts`, {
+      headers: {
+        'X-CAP-API-KEY': process.env.CAPITAL_API_KEY,
+        'CST': cst,
+        'X-SECURITY-TOKEN': securityToken,
+      },
+    });
+    if (!res.ok) return botState;
+    const data = await res.json();
+    const account = data.accounts?.[0];
+    if (!account) return botState;
+    const realBalance = parseFloat(account.balance.available);
+    botState.balance = realBalance;
+    if (realBalance > parseFloat(botState.peakBalance)) {
+      botState.peakBalance = realBalance;
+    }
+    return botState;
+  } catch (err) {
+    console.error('Balance sync error:', err.message);
+    return botState;
+  }
 }
 
 export async function placeTrade(signal, botState) {
