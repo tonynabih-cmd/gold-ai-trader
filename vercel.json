@@ -1,21 +1,20 @@
 {
   "version": 2,
   "functions": {
-    "api/cron.js": { "maxDuration": 30 },
-    "api/audit.js": { "maxDuration": 30 },
-    "api/market_data.js": { "maxDuration": 10 },
-    "api/execution.js": { "maxDuration": 15 },
+    "api/cron.js":      { "maxDuration": 30 },
+    "api/audit.js":     { "maxDuration": 30 },
     "api/dashboard.js": { "maxDuration": 10 },
-    "api/state.js": { "maxDuration": 10 },
-    "api/logger.js": { "maxDuration": 10 }
+    "api/reset.js":     { "maxDuration": 10 }
   },
   "routes": [
-    { "src": "/api/cron", "dest": "/api/cron.js" },
-    { "src": "/api/audit", "dest": "/api/audit.js" },
+    { "src": "/api/cron",      "dest": "/api/cron.js" },
+    { "src": "/api/audit",     "dest": "/api/audit.js" },
     { "src": "/api/dashboard", "dest": "/api/dashboard.js" },
-    { "src": "/api/state", "dest": "/api/state.js" },
-{ "src": "/api/logger", "dest": "/api/logger.js" },
-    { "src": "/api/reset", "dest": "/api/reset.js" },
-    { "src": "/(.*)", "dest": "/public/index.html" }
+    { "src": "/api/reset",     "dest": "/api/reset.js" },
+    { "src": "/(.*)",          "dest": "/public/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/cron",  "schedule": "*/5 * * * *" },
+    { "path": "/api/audit", "schedule": "0 17 * * 1-5" }
   ]
 }
