@@ -256,9 +256,39 @@
           <span style="color:var(--text2);font-family:var(--mono)">Skipped</span>
           <span style="color:var(--text2);font-family:var(--mono)" id="statSkipped">—</span>
         </div>
+
+        <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text2);font-family:var(--mono)">Buys</span>
+          <span style="color:var(--green);font-family:var(--mono)" id="statBuys">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text2);font-family:var(--mono)">Sells</span>
+          <span style="color:var(--red);font-family:var(--mono)" id="statSells">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text2);font-family:var(--mono)">Holds</span>
+          <span style="color:var(--text2);font-family:var(--mono)" id="statHolds">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text2);font-family:var(--mono)">Win rate</span>
+          <span style="font-family:var(--mono)" id="statWinRate">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text2);font-family:var(--mono)">Best trade</span>
+          <span style="color:var(--green);font-family:var(--mono)" id="statBestTrade">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text2);font-family:var(--mono)">Worst trade</span>
+          <span style="color:var(--red);font-family:var(--mono)" id="statWorstTrade">—</span>
+        </div>
+
+        <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+
         <div style="display:flex;justify-content:space-between;font-size:12px;">
           <span style="color:var(--text2);font-family:var(--mono)">Strategy</span>
-          <span style="color:var(--gold);font-family:var(--mono)">EMA 20/50 v1.0</span>
+          <span style="color:var(--gold);font-family:var(--mono)">EMA 20/50 v1.1</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px;">
           <span style="color:var(--text2);font-family:var(--mono)">Broker</span>
@@ -505,13 +535,41 @@ function renderLogs(logs) {
 }
 
 function renderStats(logs) {
-  const total = logs.length;
-  const executed = logs.filter(l => l.tradeExecuted).length;
-  const skipped = logs.filter(l => !l.tradeExecuted).length;
+  const total    = logs.length;
+  const executed = logs.filter(l => l.tradeExecuted);
+  const skipped  = logs.filter(l => !l.tradeExecuted).length;
 
-  document.getElementById('statTotal').textContent = total;
-  document.getElementById('statExecuted').textContent = executed;
-  document.getElementById('statSkipped').textContent = skipped;
+  const buys  = executed.filter(l => l.signalDetected === 'BUY').length;
+  const sells = executed.filter(l => l.signalDetected === 'SELL').length;
+  const holds = logs.filter(l => !l.tradeExecuted && l.signalDetected === 'NONE').length;
+
+  // P&L per trade: derive from consecutive balance snapshots
+  const balanceLogs = executed.filter(l => l.balance != null);
+  const pnls = [];
+  for (let i = 1; i < balanceLogs.length; i++) {
+    pnls.push(parseFloat(balanceLogs[i].balance) - parseFloat(balanceLogs[i - 1].balance));
+  }
+
+  const wins = pnls.filter(p => p > 0).length;
+  const winRate = pnls.length > 0 ? ((wins / pnls.length) * 100).toFixed(0) + '%' : '—';
+  const bestTrade  = pnls.length > 0 ? Math.max(...pnls) : null;
+  const worstTrade = pnls.length > 0 ? Math.min(...pnls) : null;
+
+  document.getElementById('statTotal').textContent    = total;
+  document.getElementById('statExecuted').textContent = executed.length;
+  document.getElementById('statSkipped').textContent  = skipped;
+  document.getElementById('statBuys').textContent     = buys;
+  document.getElementById('statSells').textContent    = sells;
+  document.getElementById('statHolds').textContent    = holds;
+  document.getElementById('statWinRate').textContent  = winRate;
+  document.getElementById('statBestTrade').textContent  = bestTrade  !== null ? '+$' + bestTrade.toFixed(2)  : '—';
+  document.getElementById('statWorstTrade').textContent = worstTrade !== null ? '-$' + Math.abs(worstTrade).toFixed(2) : '—';
+
+  // Colour win rate
+  const wrEl = document.getElementById('statWinRate');
+  if (pnls.length > 0) {
+    wrEl.style.color = wins / pnls.length >= 0.5 ? 'var(--green)' : 'var(--red)';
+  }
 }
 
 async function loadAudit() {
