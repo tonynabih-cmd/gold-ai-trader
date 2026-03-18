@@ -1,34 +1,8 @@
-async function getCapitalSession() {
-  const baseUrl = process.env.CAPITAL_ENV === 'demo'
-    ? 'https://demo-api-capital.backend-capital.com'
-    : 'https://api-capital.backend-capital.com';
-  const res = await fetch(`${baseUrl}/api/v1/session`, {
-    method: 'POST',
-    headers: {
-      'X-CAP-API-KEY': process.env.CAPITAL_API_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      identifier: process.env.CAPITAL_EMAIL,
-      password: process.env.CAPITAL_PASSWORD,
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Capital.com auth failed: ${err}`);
-  }
-  const cst = res.headers.get('CST');
-  const securityToken = res.headers.get('X-SECURITY-TOKEN');
-  if (!cst || !securityToken) {
-    throw new Error('Capital.com session tokens missing');
-  }
-  return { baseUrl, cst, securityToken };
-}
+// Session is created once in cron.js and passed in — no auth calls here
 
-// ✅ NEW — fetch real balance from Capital.com
-export async function syncBalance(botState) {
+export async function syncBalance(session, botState) {
   try {
-    const { baseUrl, cst, securityToken } = await getCapitalSession();
+    const { baseUrl, cst, securityToken } = session;
     const res = await fetch(`${baseUrl}/api/v1/accounts`, {
       headers: {
         'X-CAP-API-KEY': process.env.CAPITAL_API_KEY,
@@ -52,9 +26,9 @@ export async function syncBalance(botState) {
   }
 }
 
-export async function placeTrade(signal, botState) {
+export async function placeTrade(session, signal, botState) {
   try {
-    const { baseUrl, cst, securityToken } = await getCapitalSession();
+    const { baseUrl, cst, securityToken } = session;
 
     // Dynamic position sizing - 1% risk
     const balance = parseFloat(botState.balance);
@@ -107,7 +81,7 @@ export async function placeTrade(signal, botState) {
       stopLoss: signal.stopLoss,
       takeProfit: signal.takeProfit,
       openedAt: Date.now(),
-      strategyVersion: 'v1.0',
+      strategyVersion: 'v1.1',
     });
 
     botState.dailyTrades = parseInt(botState.dailyTrades || 0) + 1;
