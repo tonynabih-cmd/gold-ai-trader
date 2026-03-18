@@ -1,22 +1,61 @@
-import { Redis } from '@upstash/redis';
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL,
-  token: process.env.KV_REST_API_TOKEN,
-});
-const TWELVE_DATA_KEY = process.env.TWELVE_DATA_API_KEY;
+// All candle data now fetched from Capital.com directly
+// This ensures price data matches exactly what orders are placed against
 
-async function fetchCandles(timeframe, outputsize = 1) {
-  const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=${timeframe}&outputsize=${outputsize}&apikey=${TWELVE_DATA_KEY}`;
-  const res = await fetch(url);
+async function getCapitalSession() {
+  const baseUrl = process.env.CAPITAL_ENV === 'demo'
+    ? 'https://demo-api-capital.backend-capital.com'
+    : 'https://api-capital.backend-capital.com';
+
+  const res = await fetch(`${baseUrl}/api/v1/session`, {
+    method: 'POST',
+    headers: {
+      'X-CAP-API-KEY': process.env.CAPITAL_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      identifier: process.env.CAPITAL_EMAIL,
+      password: process.env.CAPITAL_PASSWORD,
+    }),
+  });
+
+  if (!res.ok) throw new Error(`Capital.com auth failed: ${await res.text()}`);
+  const cst = res.headers.get('CST');
+  const securityToken = res.headers.get('X-SECURITY-TOKEN');
+  if (!cst || !securityToken) throw new Error('Capital.com session tokens missing');
+
+  const baseUrlFinal = process.env.CAPITAL_ENV === 'demo'
+    ? 'https://demo-api-capital.backend-capital.com'
+    : 'https://api-capital.backend-capital.com';
+
+  return { baseUrl: baseUrlFinal, cst, securityToken };
+}
+
+// Capital.com resolution strings: MINUTE, MINUTE_5, HOUR
+async function fetchCandles(session, resolution, count) {
+  const { baseUrl, cst, securityToken } = session;
+  const res = await fetch(
+    `${baseUrl}/api/v1/prices/XAUUSD?resolution=${resolution}&max=${count}`,
+    {
+      headers: {
+        'X-CAP-API-KEY': process.env.CAPITAL_API_KEY,
+        'CST': cst,
+        'X-SECURITY-TOKEN': securityToken,
+      },
+    }
+  );
+
+  if (!res.ok) throw new Error(`Failed to fetch ${resolution} candles: ${await res.text()}`);
   const data = await res.json();
-  if (!data.values || data.values.length === 0) return null;
-  return data.values.map(c => ({
-    time: new Date(c.datetime).getTime(),
-    open: parseFloat(c.open),
-    high: parseFloat(c.high),
-    low: parseFloat(c.low),
-    close: parseFloat(c.close),
-  })).reverse();
+
+  if (!data.prices || data.prices.length === 0) return null;
+
+  return data.prices.map(p => ({
+    time: new Date(p.snapshotTime).getTime(),
+    open:  (p.openPrice.bid  + p.openPrice.ask)  / 2,
+    high:  (p.highPrice.bid  + p.highPrice.ask)  / 2,
+    low:   (p.lowPrice.bid   + p.lowPrice.ask)   / 2,
+    close: (p.closePrice.bid + p.closePrice.ask) / 2,
+  }));
 }
 
 export async function getMarketData(botState) {
@@ -24,21 +63,26 @@ export async function getMarketData(botState) {
     const today = new Date().toISOString().slice(0, 10);
     const isFirstRunOfDay = botState.lastTradingDay !== today;
 
-    const candles1h = await fetchCandles('1h', 60);
+    // Single session for all fetches
+    const session = await getCapitalSession();
+
+    // 1h candles for trend detection (60 candles)
+    const candles1h = await fetchCandles(session, 'HOUR', 60);
     if (!candles1h) return { skip: true, reason: 'SKIP: Failed to fetch 1h candles' };
 
+    // 5m candles — full fetch on first run of day, otherwise append latest
     let candles5m;
     if (isFirstRunOfDay || !botState.candles5m || botState.candles5m.length < 100) {
-      // ✅ Fetch 110 to have buffer after dedup
-      candles5m = await fetchCandles('5min', 110);
+      candles5m = await fetchCandles(session, 'MINUTE_5', 110);
       if (!candles5m) return { skip: true, reason: 'SKIP: Failed to fetch 5m candles' };
     } else {
-      const latest = await fetchCandles('5min', 1);
+      const latest = await fetchCandles(session, 'MINUTE_5', 3); // fetch last 3 to avoid gaps
       if (!latest) return { skip: true, reason: 'SKIP: Failed to fetch latest 5m candle' };
       candles5m = [...botState.candles5m, ...latest];
     }
 
-    const candles1m = await fetchCandles('1min', 5);
+    // 1m candles for momentum confirmation (last 5)
+    const candles1m = await fetchCandles(session, 'MINUTE', 5);
     if (!candles1m) return { skip: true, reason: 'SKIP: Failed to fetch 1m candles' };
 
     // Deduplicate by timestamp
@@ -49,7 +93,7 @@ export async function getMarketData(botState) {
       return true;
     });
 
-    // Keep only last 100 after dedup
+    // Keep last 100
     if (candles5m.length > 100) candles5m = candles5m.slice(-100);
 
     // Warmup check
@@ -70,6 +114,7 @@ export async function getMarketData(botState) {
       candles1m,
       latestCandleTime,
     };
+
   } catch (err) {
     return { skip: true, reason: `SKIP: Market data error - ${err.message}` };
   }
