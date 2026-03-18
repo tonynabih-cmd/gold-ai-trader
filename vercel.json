@@ -12,9 +12,5 @@
     { "src": "/api/dashboard", "dest": "/api/dashboard.js" },
     { "src": "/api/reset",     "dest": "/api/reset.js" },
     { "src": "/(.*)",          "dest": "/public/index.html" }
-  ],
-  "crons": [
-    { "path": "/api/cron",  "schedule": "*/5 * * * *" },
-    { "path": "/api/audit", "schedule": "0 17 * * 1-5" }
   ]
 }
