@@ -13,7 +13,7 @@ const DEFAULT_STATE = {
   dailyLoss:               0,
   dailyTrades:             0,
   totalDrawdown:           0,
-  peakBalance:             4000,   // matches actual starting balance
+  peakBalance:             4000,
   balance:                 4000,
   lastTradingDay:          '',
   lastHeartbeat:           Date.now(),
@@ -38,10 +38,10 @@ export async function loadState() {
       peakBalance:         parseFloat(saved.peakBalance ?? 4000),
       lastOrderTimestamp:  parseInt(saved.lastOrderTimestamp ?? 0),
       lastProcessedCandle: parseInt(saved.lastProcessedCandle ?? 0),
-      openTrades:          saved.openTrades    || [],
+      openTrades:          saved.openTrades     || [],
       recentTradeIds:      saved.recentTradeIds || [],
-      candles5m:           saved.candles5m     || [],
-      botEnabled:          saved.botEnabled !== false, // preserve disabled state
+      candles5m:           [],
+      botEnabled:          saved.botEnabled !== false,
     };
   } catch (err) {
     console.error('Load state error:', err.message);
@@ -51,7 +51,6 @@ export async function loadState() {
 
 export async function saveState(botState) {
   try {
-    // Don't save candles5m to Redis - too large, fetch fresh each run
     const { candles5m, ...stateToSave } = botState;
     await redis.set('bot_state', stateToSave);
     return true;
@@ -64,8 +63,8 @@ export async function saveState(botState) {
 export function dailyReset(botState) {
   const today = new Date().toISOString().slice(0, 10);
   if (botState.lastTradingDay !== today) {
-    botState.dailyLoss    = 0;
-    botState.dailyTrades  = 0;
+    botState.dailyLoss      = 0;
+    botState.dailyTrades    = 0;
     botState.lastTradingDay = today;
   }
   return botState;
