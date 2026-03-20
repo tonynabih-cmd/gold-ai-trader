@@ -1,63 +1,120 @@
-import { getLogs } from '../lib/logger.js';
+// audit.js — Daily Claude audit triggered at 9PM UAE (17:00 UTC) via GitHub Actions audit.yml.
+// Claude Haiku reviews today's decisions for anomalies, rule violations, and performance.
+// Cost: ~$0.01/day.
+
+import { getLogs }   from '../lib/logger.js';
 import { loadState } from '../lib/state.js';
 import { sendAlert } from '../lib/monitor.js';
-import { Redis } from '@upstash/redis';
+import { Redis }     from '@upstash/redis';
+
+const redis = new Redis({
+  url:   process.env.KV_REST_API_URL,
+  token: process.env.KV_REST_API_TOKEN,
+});
 
 export default async function handler(req, res) {
   try {
-    const logs     = await getLogs();
-    const botState = await loadState();
+    const [logs, botState] = await Promise.all([getLogs(), loadState()]);
 
-    if (logs.length === 0) return res.json({ message: 'No trades to audit today' });
+    if (logs.length === 0) {
+      return res.json({ message: 'No logs found — nothing to audit' });
+    }
 
     const today     = new Date().toISOString().slice(0, 10);
-    const todayLogs = logs.filter(l => l.time.startsWith(today));
+    const todayLogs = logs.filter(l => l.time && l.time.startsWith(today));
 
-    if (todayLogs.length === 0) return res.json({ message: 'No trades today to audit' });
+    if (todayLogs.length === 0) {
+      return res.json({ message: `No decisions logged today (${today})` });
+    }
 
-    // Only include executed trades and meaningful skips in summary
+    // Build compact summary for Claude — include all decisions including skips
     const tradeSummary = todayLogs.map(l =>
-      `Time: ${l.timeUAE} | Signal: ${l.signalDetected} | Executed: ${l.tradeExecuted} | Reason: ${l.reason || 'TRADED'} | EMA20: ${l.ema20?.toFixed(2) ?? 'N/A'} | EMA50: ${l.ema50?.toFixed(2) ?? 'N/A'} | ATR: ${l.atr?.toFixed(2) ?? 'N/A'} | RSI: ${l.rsi?.toFixed(0) ?? 'N/A'} | Score: ${l.score ?? 'N/A'}`
+      [
+        `Time: ${l.timeUAE}`,
+        `Signal: ${l.signalDetected}`,
+        `Type: ${l.entryType || 'N/A'}`,
+        `Executed: ${l.tradeExecuted}`,
+        `Reason: ${l.reason || 'TRADED'}`,
+        `EMA20: ${l.ema20?.toFixed(2) ?? 'N/A'}`,
+        `EMA50: ${l.ema50?.toFixed(2) ?? 'N/A'}`,
+        `ATR: ${l.atr?.toFixed(2) ?? 'N/A'}`,
+        `RSI: ${l.rsi?.toFixed(0) ?? 'N/A'}`,
+        `Score: ${l.score ?? 'N/A'}`,
+        `Spread: ${l.spread?.toFixed(2) ?? 'N/A'}`,
+        `Balance: $${l.balance?.toFixed(2) ?? 'N/A'}`,
+      ].join(' | ')
     ).join('\n');
 
+    const executedToday = todayLogs.filter(l => l.tradeExecuted);
+    const skipsToday    = todayLogs.filter(l => !l.tradeExecuted);
+
+    // Call Claude Haiku for the audit
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'x-api-key':         process.env.ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json',
+        'Content-Type':      'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model:      'claude-haiku-4-5-20251001',
         max_tokens: 1000,
         messages: [{
-          role: 'user',
-          content: `You are auditing a gold trading bot. Review today's decisions and provide a brief analysis.\n\nToday's trade log:\n${tradeSummary}\n\nCurrent state:\n- Balance: $${botState.balance}\n- Daily trades: ${botState.dailyTrades}\n- Daily loss: $${botState.dailyLoss}\n- Total drawdown: ${botState.totalDrawdown}%\n- Open trades: ${botState.openTrades?.length || 0}\n\nPlease analyze:\n1. Were EMA crossover rules followed correctly?\n2. Were skips legitimate?\n3. Any anomalies or concerns?\n4. Performance summary\n5. Recommendation for tomorrow\n\nKeep it concise - max 200 words.`,
+          role:    'user',
+          content: `You are auditing a gold (XAU) algorithmic trading bot that uses EMA 20/50 crossover strategy.
+
+Today's complete decision log (${todayLogs.length} decisions: ${executedToday.length} trades, ${skipsToday.length} skips):
+
+${tradeSummary}
+
+Current account state:
+- Balance: $${parseFloat(botState.balance).toFixed(2)}
+- Peak balance: $${parseFloat(botState.peakBalance).toFixed(2)}
+- Daily trades today: ${botState.dailyTrades}
+- Daily loss today: $${parseFloat(botState.dailyLoss).toFixed(2)}
+- Total drawdown: ${parseFloat(botState.totalDrawdown).toFixed(2)}%
+- Open positions: ${botState.openTrades?.length ?? 0}
+- Bot enabled: ${botState.botEnabled}
+
+Please analyze (be direct and concise, max 200 words):
+1. Were EMA crossover/pullback rules followed correctly?
+2. Were skips legitimate? Any suspicious skip reasons?
+3. Any anomalies in indicator values (ATR spike, RSI extreme, spread outliers)?
+4. Performance summary for the day
+5. One concrete recommendation for tomorrow
+
+Flag any red flags clearly.`,
         }],
       }),
     });
 
-    const data        = await response.json();
-    const auditReport = data.content?.[0]?.text || 'Audit failed - no response';
+    const auditData  = await response.json();
+    const auditReport = auditData.content?.[0]?.text || 'Audit failed — no response from Claude';
 
-    const redis = new Redis({
-      url:   process.env.KV_REST_API_URL,
-      token: process.env.KV_REST_API_TOKEN,
-    });
-
+    // Save audit result to Redis for dashboard display
     await redis.set('last_audit', {
-      date:            today,
-      report:          auditReport,
-      totalDecisions:  todayLogs.length,
-      tradesExecuted:  todayLogs.filter(l => l.tradeExecuted).length,
-      skips:           todayLogs.filter(l => !l.tradeExecuted).length,
+      date:           today,
+      report:         auditReport,
+      totalDecisions: todayLogs.length,
+      tradesExecuted: executedToday.length,
+      skips:          skipsToday.length,
+      generatedAt:    new Date().toISOString(),
     });
 
-    await sendAlert(`📋 Daily Audit Complete:\n${auditReport}`);
+    // Send audit report via email alert
+    await sendAlert(`📋 Daily Audit (${today}):\n\n${auditReport}`);
 
-    return res.json({ success: true, report: auditReport, totalDecisions: todayLogs.length });
+    return res.json({
+      success:        true,
+      date:           today,
+      report:         auditReport,
+      totalDecisions: todayLogs.length,
+      tradesExecuted: executedToday.length,
+      skips:          skipsToday.length,
+    });
 
   } catch (err) {
+    console.error('Audit error:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }
