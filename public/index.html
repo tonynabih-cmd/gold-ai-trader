@@ -322,7 +322,7 @@
         </div>
         <div class="health-row">
           <span class="health-label">Strategy ver</span>
-          <span class="health-val health-ok">v1.0</span>
+          <span class="health-val health-ok">v1.1</span>
         </div>
       </div>
       <div class="btn-row">
@@ -384,9 +384,16 @@ function initChart() {
 
 async function refreshDashboard() {
   try {
-    const res = await fetch('/api/state');
-    const state = await res.json();
-    renderState(state);
+    const res = await fetch('/api/dashboard');
+    const data = await res.json();
+    renderState(data.state);
+    if (data.logs && data.logs.length > 0) {
+      lastLogs = data.logs;
+      renderLogs(data.logs);
+      renderStats(data.logs);
+      renderChartFromLogs(data.logs);
+    }
+    if (data.lastAudit) renderAudit(data.lastAudit);
   } catch(e) {
     console.error('Dashboard error:', e);
   }
@@ -397,11 +404,7 @@ function renderState(state) {
   const balance = parseFloat(state.balance || 100);
   document.getElementById('balance').textContent = '$' + balance.toFixed(2);
 
-  // ✅ Gold price from latest candle in state — always available
-  if (state.candles5m && state.candles5m.length > 0) {
-    const latestCandle = state.candles5m[state.candles5m.length - 1];
-    document.getElementById('goldPrice').textContent = '$' + parseFloat(latestCandle.close).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
+  // Gold price is read from logs in renderChartFromLogs() — nothing needed here
 
   // Daily trades
   const dailyTrades = parseInt(state.dailyTrades || 0);
@@ -458,25 +461,7 @@ function renderState(state) {
   mktEl.textContent = marketActive ? 'ACTIVE (Golden Hour)' : isWeekend ? 'WEEKEND' : 'SLEEPING';
   mktEl.className = 'health-val ' + (marketActive ? 'health-ok' : 'health-warn');
 
-  // ✅ Update chart from candles in state
-  if (state.candles5m && state.candles5m.length > 0) {
-    const prices = state.candles5m.slice(-50).map(c => parseFloat(c.close));
-    chart.data.labels = prices.map((_, i) => i);
-    chart.data.datasets[0].data = prices;
-    chart.update('none');
-  }
-}
-
-async function loadLogs() {
-  try {
-    const res = await fetch('/api/logger');
-    const logs = await res.json();
-    lastLogs = logs;
-    renderLogs(logs);
-    renderStats(logs);
-  } catch(e) {
-    console.error('Log error:', e);
-  }
+  // Chart is updated from logs in renderChartFromLogs() — not from state
 }
 
 function renderLogs(logs) {
@@ -572,16 +557,69 @@ function renderStats(logs) {
   }
 }
 
+// Build price chart from trade logs.
+// Logs contain ema20 on every cycle — we use that as the price proxy since
+// candles5m is no longer stored in KV (it was too large).
+// We also use entryPrice where available for executed trades.
+function renderChartFromLogs(logs) {
+  if (!logs || logs.length === 0) return;
+
+  // Build price series from logs that have ema20 (most logs do)
+  const pricePoints = logs
+    .filter(l => l.ema20 && !isNaN(parseFloat(l.ema20)))
+    .slice(-60) // last 60 data points
+    .map(l => ({
+      time: l.time,
+      price: parseFloat(l.ema20), // ema20 tracks price closely
+    }));
+
+  if (pricePoints.length === 0) return;
+
+  // Update gold price display from most recent log
+  const latest = pricePoints[pricePoints.length - 1];
+  document.getElementById('goldPrice').textContent =
+    '$' + latest.price.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Build chart labels (time) and data (price)
+  const labels = pricePoints.map(p => {
+    const d = new Date(p.time);
+    return d.toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit' });
+  });
+  const prices = pricePoints.map(p => p.price);
+
+  chart.data.labels = labels;
+  chart.data.datasets[0].data = prices;
+
+  // Mark executed trade entry points as a second dataset
+  const tradeLogs = logs
+    .filter(l => l.tradeExecuted && l.entryPrice && !isNaN(parseFloat(l.entryPrice)))
+    .slice(-60);
+
+  // Set y-axis min/max with padding so chart isn't flat at $0
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const pad = (max - min) * 0.1 || 5;
+  chart.options.scales.y.min = min - pad;
+  chart.options.scales.y.max = max + pad;
+
+  chart.update('none');
+}
+
+function renderAudit(lastAudit) {
+  if (!lastAudit || !lastAudit.report) return;
+  document.getElementById('auditCard').style.display = 'block';
+  document.getElementById('auditReport').textContent = lastAudit.report;
+  document.getElementById('auditDate').textContent = 'Audit date: ' + lastAudit.date;
+}
+
+async function loadLogs() {
+  // Logs are now loaded inside refreshDashboard() via /api/dashboard
+  // This function kept for backward compatibility but does nothing extra
+}
+
 async function loadAudit() {
-  try {
-    const res = await fetch('/api/state');
-    const state = await res.json();
-    if (state.lastAudit) {
-      document.getElementById('auditCard').style.display = 'block';
-      document.getElementById('auditReport').textContent = state.lastAudit.report || '—';
-      document.getElementById('auditDate').textContent = 'Audit date: ' + state.lastAudit.date;
-    }
-  } catch(e) {}
+  // Audit is now loaded inside refreshDashboard() via /api/dashboard
+  // This function kept for backward compatibility but does nothing extra
 }
 
 function updateMarketTime() {
