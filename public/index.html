@@ -220,7 +220,7 @@
           <div class="risk-label">Daily Loss</div>
           <div class="risk-value" id="riskDailyLoss">$0.00</div>
           <div class="progress-bar"><div class="progress-fill" id="dailyLossBar" style="width:0%"></div></div>
-          <div style="font-size:9px;color:var(--text2);margin-top:4px;font-family:var(--mono);">Limit: $5.00</div>
+          <div style="font-size:9px;color:var(--text2);margin-top:4px;font-family:var(--mono);">Limit: 5% of balance</div>
         </div>
         <div class="risk-item">
           <div class="risk-label">Drawdown</div>
@@ -422,7 +422,7 @@ function renderState(state) {
 
   // Risk panel
   document.getElementById('riskDailyLoss').textContent = '$' + Math.abs(dailyLoss).toFixed(2);
-  const dailyLossPct = Math.min(100, (Math.abs(dailyLoss) / 5) * 100);
+  const dailyLossPct = Math.min(100, (Math.abs(dailyLoss) / (balance * 0.05)) * 100);
   const dailyLossBar = document.getElementById('dailyLossBar');
   dailyLossBar.style.width = dailyLossPct + '%';
   dailyLossBar.className = 'progress-fill ' + (dailyLossPct > 80 ? 'danger' : 'safe');
