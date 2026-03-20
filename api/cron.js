@@ -1,13 +1,21 @@
-import { getCapitalSession } from '../lib/session.js';
-import { getMarketData } from '../lib/market_data.js';
-import { calculateIndicators } from '../lib/indicators.js';
-import { generateSignal } from '../lib/strategy.js';
-import { checkRisk } from '../lib/risk.js';
-import { placeTrade, syncBalance } from '../lib/execution.js';
-import { saveLog, getLogs } from '../lib/logger.js';
+// cron.js — Main trading pipeline. Triggered every 5 minutes by cron-job.org.
+// GitHub Actions fires every 10 minutes as a backup trigger.
+// Duplicate candle guard in market_data.js prevents double-trading if both fire together.
+
+import { getCapitalSession }               from '../lib/session.js';
+import { getMarketData }                   from '../lib/market_data.js';
+import { calculateIndicators }             from '../lib/indicators.js';
+import { generateSignal }                  from '../lib/strategy.js';
+import { checkRisk }                       from '../lib/risk.js';
+import { placeTrade, syncBalance }         from '../lib/execution.js';
+import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, dailyReset } from '../lib/state.js';
 import { heartbeat, sendAlert, checkPerformance } from '../lib/monitor.js';
 
+// Sync open trades against live Capital.com positions.
+// Removes any trades from botState that have been closed (SL/TP hit or manual close).
+// Uses dealReference — Capital.com includes this in both the order confirmation
+// and the GET /positions response, allowing reliable cross-referencing.
 async function syncOpenTrades(session, botState) {
   try {
     if (!botState.openTrades || botState.openTrades.length === 0) return botState;
@@ -15,50 +23,88 @@ async function syncOpenTrades(session, botState) {
     const { baseUrl, cst, securityToken } = session;
     const res = await fetch(`${baseUrl}/api/v1/positions`, {
       headers: {
-        'X-CAP-API-KEY': process.env.CAPITAL_API_KEY,
-        'CST': cst,
+        'X-CAP-API-KEY':    process.env.CAPITAL_API_KEY,
+        'CST':              cst,
         'X-SECURITY-TOKEN': securityToken,
       },
     });
 
-    if (!res.ok) return botState;
+    if (!res.ok) {
+      // Non-fatal — if positions fetch fails, keep existing state rather than wiping it
+      console.warn(`syncOpenTrades: positions fetch failed (HTTP ${res.status}) — keeping existing state`);
+      return botState;
+    }
 
     const data          = await res.json();
     const livePositions = data.positions || [];
-    const liveDealRefs  = new Set(livePositions.map(p => p.position?.dealReference));
+
+    // Capital.com GET /positions returns position.dealReference (same string as order confirmation)
+    const liveDealRefs = new Set(
+      livePositions
+        .map(p => p.position?.dealReference)
+        .filter(Boolean) // remove undefined/null entries
+    );
 
     const before = botState.openTrades.length;
-    botState.openTrades = botState.openTrades.filter(t =>
-      t.dealReference && liveDealRefs.has(t.dealReference)
-    );
+    botState.openTrades = botState.openTrades.filter(t => {
+      // Keep trade if it has a dealReference AND Capital.com still shows it open
+      if (!t.dealReference) {
+        console.warn(`Trade ${t.tradeId} has no dealReference — removing from state`);
+        return false;
+      }
+      return liveDealRefs.has(t.dealReference);
+    });
+
     const closed = before - botState.openTrades.length;
-    if (closed > 0) console.log(`Synced open trades: removed ${closed} closed position(s)`);
+    if (closed > 0) {
+      console.log(`syncOpenTrades: removed ${closed} closed position(s). Open: ${botState.openTrades.length}`);
+    }
 
     return botState;
   } catch (err) {
     console.error('syncOpenTrades error:', err.message);
-    return botState;
+    return botState; // Non-fatal — always return current state
   }
 }
 
 export default async function handler(req, res) {
   let botState;
 
-  try {
-    botState = await loadState();
-    botState  = dailyReset(botState);
+  // ── Authorization ─────────────────────────────────────────────────────────
+  // Prevents unauthorized parties from triggering the bot if the URL is discovered.
+  // cron-job.org: set custom header Authorization: Bearer <your_secret>
+  // GitHub Actions: stored in repository secrets as CRON_SECRET
+  const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
+  if (process.env.CRON_SECRET && req.headers['authorization'] !== expectedAuth) {
+    console.warn('Unauthorized cron trigger attempt');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
+  try {
+    // ── Step 1: Load state + daily reset ─────────────────────────────────────
+    botState = await loadState();
+    botState = dailyReset(botState);
+
+    // ── Step 2: Authenticate with Capital.com ─────────────────────────────────
     let session;
     try {
       session = await getCapitalSession();
     } catch (err) {
-      await saveLog({ signal: null, indicators: null, botState, tradeExecuted: false, reason: `SKIP: Auth failed - ${err.message}` });
-      return res.json({ skipped: `Auth failed - ${err.message}` });
+      const reason = `SKIP: Capital.com auth failed - ${err.message}`;
+      await saveLog({ signal: null, indicators: null, botState, tradeExecuted: false, reason });
+      await saveState(botState);
+      return res.json({ skipped: reason });
     }
 
+    // ── Step 3: Sync real balance from Capital.com ───────────────────────────
+    // Must happen before risk checks so balance-based limits use real values.
     botState = await syncBalance(session, botState);
+
+    // ── Step 4: Sync open trade positions ────────────────────────────────────
+    // Removes trades that have been closed by SL/TP or manually on Capital.com.
     botState = await syncOpenTrades(session, botState);
 
+    // ── Step 5: Fetch market data ─────────────────────────────────────────────
     const marketData = await getMarketData(session, botState);
 
     if (marketData.skip) {
@@ -68,10 +114,16 @@ export default async function handler(req, res) {
       return res.json({ skipped: marketData.reason });
     }
 
+    // Store candles in botState for this invocation (in-memory only, not saved to KV)
     botState.candles5m           = marketData.candles5m;
     botState.lastProcessedCandle = marketData.latestCandleTime;
 
+    // ── Step 6: Calculate indicators ──────────────────────────────────────────
     const indicators = calculateIndicators(marketData.candles5m, marketData.candles1h);
+
+    // Attach spread to indicators so risk.js can access it
+    // spread comes from market_data.js snapshot fetch — may be null if fetch failed
+    indicators.spread = marketData.spread ?? null;
 
     if (indicators.skip) {
       await saveLog({ signal: null, indicators, botState, tradeExecuted: false, reason: indicators.reason });
@@ -80,7 +132,10 @@ export default async function handler(req, res) {
       return res.json({ skipped: indicators.reason });
     }
 
-    const signal     = generateSignal(indicators, marketData.candles1m);
+    // ── Step 7: Generate signal ───────────────────────────────────────────────
+    const signal = generateSignal(indicators, marketData.candles1m);
+
+    // ── Step 8: Risk checks ───────────────────────────────────────────────────
     const riskResult = checkRisk(signal, botState, indicators);
 
     if (riskResult !== 'APPROVED') {
@@ -90,6 +145,7 @@ export default async function handler(req, res) {
       return res.json({ skipped: riskResult });
     }
 
+    // ── Step 9: Place trade ───────────────────────────────────────────────────
     const tradeResult = await placeTrade(session, signal, botState);
 
     if (!tradeResult.success) {
@@ -99,35 +155,43 @@ export default async function handler(req, res) {
       return res.json({ skipped: tradeResult.reason });
     }
 
+    // ── Step 10: Log success ──────────────────────────────────────────────────
     await saveLog({ signal, indicators, botState, tradeExecuted: true, result: tradeResult, reason: null });
     await saveState(botState);
     await heartbeat(botState);
 
+    // ── Step 11: Performance check (fires every 50 executed trades) ───────────
     const logs = await getLogs();
     await checkPerformance(logs, botState);
 
+    // ── Step 12: Trade alert ──────────────────────────────────────────────────
     await sendAlert(
-      `✅ ${signal.action} GOLD\n` +
+      `✅ ${signal.action} GOLD [${signal.entryType}]\n` +
       `Entry: $${signal.entryPrice.toFixed(2)}\n` +
-      `SL: $${signal.stopLoss.toFixed(2)}\n` +
-      `TP: $${signal.takeProfit.toFixed(2)}\n` +
-      `Size: ${tradeResult.size}oz | Score: ${signal.score}`
+      `SL: $${signal.stopLoss.toFixed(2)} | TP: $${signal.takeProfit.toFixed(2)}\n` +
+      `Size: ${tradeResult.size}oz | Score: ${signal.score} | ATR: ${signal.atr.toFixed(2)}\n` +
+      `Balance: $${parseFloat(botState.balance).toFixed(2)} | Daily trades: ${botState.dailyTrades}/5`
     );
 
     return res.json({
-      success:  true,
-      action:   signal.action,
-      entry:    signal.entryPrice,
-      stopLoss: signal.stopLoss,
-      takeProfit: signal.takeProfit,
-      size:     tradeResult.size,
-      score:    signal.score,
+      success:      true,
+      action:       signal.action,
+      entryType:    signal.entryType,
+      entry:        signal.entryPrice,
+      stopLoss:     signal.stopLoss,
+      takeProfit:   signal.takeProfit,
+      size:         tradeResult.size,
+      score:        signal.score,
+      dealReference: tradeResult.dealReference,
     });
 
   } catch (err) {
-    console.error('Cron error:', err.message);
-    if (botState) try { await saveState(botState); } catch (_) {}
-    await sendAlert(`🚨 Bot error: ${err.message}`).catch(() => {});
+    // Catastrophic error — log, alert, save state if possible
+    console.error('Cron pipeline error:', err.message, err.stack);
+    if (botState) {
+      try { await saveState(botState); } catch (_) {}
+    }
+    await sendAlert(`🚨 Bot pipeline error: ${err.message}`).catch(() => {});
     return res.status(500).json({ error: err.message });
   }
 }
