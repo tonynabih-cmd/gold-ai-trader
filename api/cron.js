@@ -12,6 +12,22 @@ import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, dailyReset } from '../lib/state.js';
 import { heartbeat, sendAlert, checkPerformance } from '../lib/monitor.js';
 
+const FETCH_TIMEOUT_MS = 8000;
+
+async function fetchWithTimeout(url, options) {
+  const controller = new AbortController();
+  const timer      = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error(`Request timed out after ${FETCH_TIMEOUT_MS}ms: ${url}`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Sync open trades against live Capital.com positions.
 // Removes any trades from botState that have been closed (SL/TP hit or manual close).
 // Uses dealReference — Capital.com includes this in both the order confirmation
@@ -21,7 +37,7 @@ async function syncOpenTrades(session, botState) {
     if (!botState.openTrades || botState.openTrades.length === 0) return botState;
 
     const { baseUrl, cst, securityToken } = session;
-    const res = await fetch(`${baseUrl}/api/v1/positions`, {
+    const res = await fetchWithTimeout(`${baseUrl}/api/v1/positions`, {
       headers: {
         'X-CAP-API-KEY':    process.env.CAPITAL_API_KEY,
         'CST':              cst,
