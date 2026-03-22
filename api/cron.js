@@ -100,6 +100,13 @@ export default async function handler(req, res) {
     botState = await loadState();
     botState = dailyReset(botState);
 
+    // ── State kill switch (fast path) ────────────────────────────────────────
+    // Checked here so we never waste Capital.com API calls when bot is disabled
+    // by drawdown or performance threshold (set by risk.js Rule 14 / monitor.js).
+    if (botState.botEnabled === false) {
+      return res.json({ skipped: 'Bot disabled via state (drawdown or performance threshold)' });
+    }
+
     // ── Step 2: Authenticate with Capital.com ─────────────────────────────────
     let session;
     try {

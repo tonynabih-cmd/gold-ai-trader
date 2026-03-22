@@ -459,15 +459,19 @@ function renderState(state) {
   const dailyTrades = parseInt(state.dailyTrades || 0);
   document.getElementById('dailyTrades').textContent = dailyTrades + '/5';
 
-  // Daily P&L
-  const dailyLoss = parseFloat(state.dailyLoss || 0);
+  // Daily P&L — compute from startOfDayBalance so gains show correctly
+  const startOfDay = parseFloat(state.startOfDayBalance || 0);
+  const dailyPnl   = startOfDay > 0 ? balance - startOfDay : 0;
   const pnlEl = document.getElementById('dailyPnl');
-  if (dailyLoss > 0) {
-    pnlEl.textContent = '-$' + dailyLoss.toFixed(2);
+  if (dailyPnl > 0) {
+    pnlEl.textContent = '+$' + dailyPnl.toFixed(2);
+    pnlEl.className = 'metric-value pos';
+  } else if (dailyPnl < 0) {
+    pnlEl.textContent = '-$' + Math.abs(dailyPnl).toFixed(2);
     pnlEl.className = 'metric-value neg';
   } else {
     pnlEl.textContent = '$0.00';
-    pnlEl.className = 'metric-value pos';
+    pnlEl.className = 'metric-value';
   }
   // Drawdown
   const drawdown = parseFloat(state.totalDrawdown || 0);
@@ -563,7 +567,7 @@ function renderLogs(logs) {
     }
     if (last.atr) document.getElementById('atr').textContent = parseFloat(last.atr).toFixed(2);
     if (last.atrAverage) document.getElementById('atrAvg').textContent = 'Avg: ' + parseFloat(last.atrAverage).toFixed(2);
-    if (last.rsi) {
+    if (last.rsi != null) {
       const rsi = parseFloat(last.rsi);
       document.getElementById('rsi').textContent = rsi.toFixed(0);
       document.getElementById('rsiZone').textContent = rsi > 70 ? 'Overbought' : rsi < 30 ? 'Oversold' : 'Neutral';
