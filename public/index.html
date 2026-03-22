@@ -250,6 +250,34 @@
     </div>
 
     <div class="card">
+      <div class="card-title">Margin &amp; Exposure</div>
+      <div class="risk-grid">
+        <div class="risk-item">
+          <div class="risk-label">Available Margin</div>
+          <div class="risk-value" id="marginAvailable">—</div>
+          <div style="font-size:9px;color:var(--text2);margin-top:4px;font-family:var(--mono);">Capital.com free margin</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">Margin Used %</div>
+          <div class="risk-value" id="marginUsedPct">—</div>
+          <div class="progress-bar"><div class="progress-fill" id="marginUsedBar" style="width:0%"></div></div>
+          <div style="font-size:9px;color:var(--text2);margin-top:4px;font-family:var(--mono);">of available balance</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">Leverage (GOLD)</div>
+          <div class="risk-value" id="marginLeverage">20:1</div>
+          <div style="font-size:9px;color:var(--text2);margin-top:4px;font-family:var(--mono);">5% margin rate (retail)</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">Dollar Exposure</div>
+          <div class="risk-value" id="marginExposure">—</div>
+          <div style="font-size:9px;color:var(--text2);margin-top:4px;font-family:var(--mono);">Total open notional</div>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="card">
       <div class="card-title">Session Stats</div>
       <div style="display:flex;flex-direction:column;gap:10px;">
         <div style="display:flex;justify-content:space-between;font-size:12px;">
@@ -444,6 +472,23 @@ function renderState(state) {
   // Drawdown
   const drawdown = parseFloat(state.totalDrawdown || 0);
   document.getElementById('drawdown').textContent = 'Drawdown: ' + drawdown.toFixed(1) + '%';
+
+  // Margin & Exposure panel
+  const availableMargin = parseFloat(state.availableMargin || 0);
+  document.getElementById('marginAvailable').textContent = availableMargin > 0 ? '$' + availableMargin.toFixed(2) : '—';
+
+  // Margin used = sum of marginRequired across open trades
+  const openTrades = Array.isArray(state.openTrades) ? state.openTrades : [];
+  const totalMarginUsed     = openTrades.reduce((sum, t) => sum + (parseFloat(t.marginRequired) || 0), 0);
+  const totalNotionalExposure = openTrades.reduce((sum, t) => sum + (parseFloat(t.notionalValue)   || 0), 0);
+  const marginUsedPct = balance > 0 ? Math.min(100, (totalMarginUsed / balance) * 100) : 0;
+  document.getElementById('marginUsedPct').textContent = marginUsedPct.toFixed(1) + '%';
+  const mBar = document.getElementById('marginUsedBar');
+  mBar.style.width = marginUsedPct + '%';
+  mBar.className = 'progress-fill ' + (marginUsedPct > 50 ? 'danger' : marginUsedPct > 25 ? 'warning' : 'safe');
+  document.getElementById('marginExposure').textContent = totalNotionalExposure > 0
+    ? '$' + totalNotionalExposure.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : '$0.00';
 
   // Risk panel
   document.getElementById('riskDailyLoss').textContent = '$' + Math.abs(dailyLoss).toFixed(2);
