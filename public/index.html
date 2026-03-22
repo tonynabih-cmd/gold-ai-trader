@@ -420,9 +420,13 @@ function renderState(state) {
   // Daily P&L
   const dailyLoss = parseFloat(state.dailyLoss || 0);
   const pnlEl = document.getElementById('dailyPnl');
-  pnlEl.textContent = (dailyLoss >= 0 ? '-' : '+') + '$' + Math.abs(dailyLoss).toFixed(2);
-  pnlEl.className = 'metric-value ' + (dailyLoss > 0 ? 'neg' : 'pos');
-
+  if (dailyLoss > 0) {
+    pnlEl.textContent = '-$' + dailyLoss.toFixed(2);
+    pnlEl.className = 'metric-value neg';
+  } else {
+    pnlEl.textContent = '$0.00';
+    pnlEl.className = 'metric-value pos';
+  }
   // Drawdown
   const drawdown = parseFloat(state.totalDrawdown || 0);
   document.getElementById('drawdown').textContent = 'Drawdown: ' + drawdown.toFixed(1) + '%';
@@ -437,7 +441,7 @@ function renderState(state) {
   document.getElementById('riskDrawdown').textContent = drawdown.toFixed(1) + '%';
   const drawdownBar = document.getElementById('drawdownBar');
   drawdownBar.style.width = Math.min(100, (drawdown / 20) * 100) + '%';
-  drawdownBar.className = 'progress-fill ' + (drawdown > 15 ? 'danger' : drawdown > 10 ? 'progress-fill' : 'safe');
+  drawdownBar.className = 'progress-fill ' + (drawdown > 15 ? 'danger' : drawdown > 10 ? 'danger' : 'safe');
 
   document.getElementById('riskOpenTrades').textContent = (state.openTrades || []).length + '/2';
   document.getElementById('riskPeakBalance').textContent = '$' + parseFloat(state.peakBalance || 100).toFixed(2);
@@ -573,11 +577,11 @@ function renderChartFromLogs(logs) {
 
   // Build price series from logs that have ema20 (most logs do)
   const pricePoints = logs
-    .filter(l => l.ema20 && !isNaN(parseFloat(l.ema20)))
+    .filter(l => (l.goldPrice || l.ema20) && !isNaN(parseFloat(l.goldPrice || l.ema20)))
     .slice(-60) // last 60 data points
     .map(l => ({
       time: l.time,
-      price: parseFloat(l.ema20), // ema20 tracks price closely
+      price: parseFloat(l.goldPrice || l.ema20), // prefer actual gold price, fallback to ema20
     }));
 
   if (pricePoints.length === 0) return;
@@ -619,15 +623,8 @@ function renderAudit(lastAudit) {
   document.getElementById('auditDate').textContent = 'Audit date: ' + lastAudit.date;
 }
 
-async function loadLogs() {
-  // Logs are now loaded inside refreshDashboard() via /api/dashboard
-  // This function kept for backward compatibility but does nothing extra
-}
 
-async function loadAudit() {
-  // Audit is now loaded inside refreshDashboard() via /api/dashboard
-  // This function kept for backward compatibility but does nothing extra
-}
+
 
 function updateMarketTime() {
   const now = new Date();
@@ -646,11 +643,8 @@ function updateMarketTime() {
 // Init
 initChart();
 refreshDashboard();
-loadLogs();
-loadAudit();
 
 setInterval(refreshDashboard, 30000);
-setInterval(loadLogs, 30000);
 setInterval(updateMarketTime, 1000);
 </script>
 </body>

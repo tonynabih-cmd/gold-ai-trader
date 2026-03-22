@@ -10,23 +10,9 @@ import { checkRisk }                       from '../lib/risk.js';
 import { placeTrade, syncBalance }         from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, dailyReset } from '../lib/state.js';
-import { heartbeat, sendAlert, checkPerformance } from '../lib/monitor.js';
+import { sendAlert, checkPerformance }     from '../lib/monitor.js';
+import { fetchWithTimeout }                from '../lib/fetch.js';
 
-const FETCH_TIMEOUT_MS = 8000;
-
-async function fetchWithTimeout(url, options) {
-  const controller = new AbortController();
-  const timer      = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    return res;
-  } catch (err) {
-    if (err.name === 'AbortError') throw new Error(`Request timed out after ${FETCH_TIMEOUT_MS}ms: ${url}`);
-    throw err;
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 // Sync open trades against live Capital.com positions.
 // Removes any trades from botState that have been closed (SL/TP hit or manual close).
@@ -103,6 +89,12 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  // ── Kill switch (fast path) ──────────────────────────────────────────────
+  // Checked here so we never waste API calls when bot is disabled.
+  if (process.env.BOT_ENABLED !== 'true') {
+    return res.json({ skipped: 'Bot disabled via BOT_ENABLED env variable' });
+  }
+
   try {
     // ── Step 1: Load state + daily reset ─────────────────────────────────────
     botState = await loadState();
@@ -147,7 +139,7 @@ export default async function handler(req, res) {
     // If market data skipped OR indicators skipped:
     if (marketData.skip || (indicators && indicators.skip)) {
       const reason = marketData.skip ? marketData.reason : indicators.reason;
-      await heartbeat(botState);
+      botState.lastHeartbeat = Date.now();
       // Pass the fully populated indicators object to saveLog so the dashboard never goes blank
       await saveLog({ signal: null, indicators, botState, tradeExecuted: false, reason });
       await saveState(botState);
@@ -161,9 +153,9 @@ export default async function handler(req, res) {
     const riskResult = checkRisk(signal, botState, indicators);
 
     if (riskResult !== 'APPROVED') {
+      botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: riskResult });
       await saveState(botState);
-      await heartbeat(botState);
       return res.json({ skipped: riskResult });
     }
 
@@ -171,16 +163,16 @@ export default async function handler(req, res) {
     const tradeResult = await placeTrade(session, signal, botState);
 
     if (!tradeResult.success) {
+      botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: tradeResult.reason });
       await saveState(botState);
-      await heartbeat(botState);
       return res.json({ skipped: tradeResult.reason });
     }
 
     // ── Step 10: Log success ──────────────────────────────────────────────────
+    botState.lastHeartbeat = Date.now();
     await saveLog({ signal, indicators, botState, tradeExecuted: true, result: tradeResult, reason: null });
     await saveState(botState);
-    await heartbeat(botState);
 
     // ── Step 11: Performance check (fires every 50 executed trades) ───────────
     const logs = await getLogs();

@@ -13,6 +13,12 @@ const redis = new Redis({
 });
 
 export default async function handler(req, res) {
+  const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
+  const providedAuth = req.headers['authorization'] || req.headers['Authorization'];
+  if (process.env.CRON_SECRET && providedAuth !== expectedAuth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   try {
     const [logs, botState] = await Promise.all([getLogs(), loadState()]);
 

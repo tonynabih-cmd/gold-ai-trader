@@ -11,5 +11,5 @@ jobs:
     steps:
       - name: Run daily Claude audit
         run: |
-          curl -X POST "https://gold-ai-trader-navy.vercel.app/api/audit" \
+          curl -X POST "${{ secrets.BOT_URL }}/api/audit" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

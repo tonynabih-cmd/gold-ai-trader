@@ -5,7 +5,9 @@
     "api/audit.js":     { "maxDuration": 30 },
     "api/dashboard.js": { "maxDuration": 10 },
     "api/reset.js":     { "maxDuration": 10 },
-    "api/test.js":      { "maxDuration": 10 }
+    "api/test.js":      { "maxDuration": 10 },
+    "api/state.js":     { "maxDuration": 10 },
+    "api/logger.js":    { "maxDuration": 10 }
   },
   "routes": [
     { "src": "/api/cron",      "dest": "/api/cron.js" },
