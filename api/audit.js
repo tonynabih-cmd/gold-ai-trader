@@ -2,15 +2,10 @@
 // Claude Haiku reviews today's decisions for anomalies, rule violations, and performance.
 // Cost: ~$0.01/day.
 
-import { getLogs }   from '../lib/logger.js';
-import { loadState } from '../lib/state.js';
-import { sendAlert } from '../lib/monitor.js';
-import { Redis }     from '@upstash/redis';
-
-const redis = new Redis({
-  url:   process.env.KV_REST_API_URL,
-  token: process.env.KV_REST_API_TOKEN,
-});
+import { getLogs }          from '../lib/logger.js';
+import { loadState, saveAudit } from '../lib/state.js';
+import { sendAlert }        from '../lib/monitor.js';
+import { fetchWithTimeout } from '../lib/fetch.js';
 
 export default async function handler(req, res) {
   const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
@@ -55,7 +50,7 @@ export default async function handler(req, res) {
     const skipsToday    = todayLogs.filter(l => !l.tradeExecuted);
 
     // Call Claude Haiku for the audit
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'x-api-key':         process.env.ANTHROPIC_API_KEY,
@@ -108,7 +103,7 @@ Flag any red flags clearly.`,
     const auditReport = auditData.content?.[0]?.text || 'Audit failed — no response from Claude';
 
     // Save audit result to Redis for dashboard display
-    await redis.set('last_audit', {
+    await saveAudit({
       date:           today,
       report:         auditReport,
       totalDecisions: todayLogs.length,

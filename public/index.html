@@ -68,6 +68,7 @@
     .progress-bar { height:3px; background:var(--bg4); border-radius:2px; margin-top:6px; overflow:hidden; }
     .progress-fill { height:100%; border-radius:2px; background:var(--gold); transition:width 0.3s; }
     .progress-fill.danger { background:var(--red); }
+    .progress-fill.warning { background:var(--yellow, #f59e0b); }
     .progress-fill.safe { background:var(--green); }
 
     .trade-header { display:grid; grid-template-columns:90px 50px 70px 90px 70px; gap:8px; padding:0 0 8px; border-bottom:1px solid var(--border); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); font-family:var(--mono); }
@@ -441,7 +442,7 @@ function renderState(state) {
   document.getElementById('riskDrawdown').textContent = drawdown.toFixed(1) + '%';
   const drawdownBar = document.getElementById('drawdownBar');
   drawdownBar.style.width = Math.min(100, (drawdown / 20) * 100) + '%';
-  drawdownBar.className = 'progress-fill ' + (drawdown > 15 ? 'danger' : drawdown > 10 ? 'danger' : 'safe');
+  drawdownBar.className = 'progress-fill ' + (drawdown > 15 ? 'danger' : drawdown > 10 ? 'warning' : 'safe');
 
   document.getElementById('riskOpenTrades').textContent = (state.openTrades || []).length + '/2';
   document.getElementById('riskPeakBalance').textContent = '$' + parseFloat(state.peakBalance || 100).toFixed(2);
