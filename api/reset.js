@@ -11,6 +11,13 @@ const redis = new Redis({
 });
 
 export default async function handler(req, res) {
+  const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
+  const providedAuth = req.headers['authorization'] || req.headers['Authorization'];
+  if (process.env.CRON_SECRET && providedAuth !== expectedAuth) {
+    console.warn('Unauthorized reset trigger attempt');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   try {
     // Require explicit confirmation to prevent accidental reset
     const { confirm } = req.query;

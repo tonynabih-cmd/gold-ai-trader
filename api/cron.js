@@ -51,7 +51,13 @@ async function syncOpenTrades(session, botState) {
       return botState;
     }
 
-    const data          = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch (e) {
+      console.warn(`syncOpenTrades: positions fetch returned invalid JSON (HTTP ${res.status})`);
+      return botState;
+    }
     const livePositions = data.positions || [];
 
     // Capital.com GET /positions returns position.dealReference (same string as order confirmation)

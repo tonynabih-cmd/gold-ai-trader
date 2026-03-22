@@ -88,7 +88,17 @@ Flag any red flags clearly.`,
       }),
     });
 
-    const auditData  = await response.json();
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      return res.status(response.status).json({ error: `Claude API error: ${errText}` });
+    }
+
+    let auditData;
+    try {
+      auditData = await response.json();
+    } catch (e) {
+      return res.status(500).json({ error: 'Invalid JSON from Claude API' });
+    }
     const auditReport = auditData.content?.[0]?.text || 'Audit failed — no response from Claude';
 
     // Save audit result to Redis for dashboard display
