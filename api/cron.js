@@ -127,32 +127,31 @@ export default async function handler(req, res) {
     // Removes trades that have been closed by SL/TP or manually on Capital.com.
     botState = await syncOpenTrades(session, botState);
 
-    // ── Step 5: Fetch market data ─────────────────────────────────────────────
+    // ── Step 5 & 6: Fetch market data and Indicators ─────────────────────────
     const marketData = await getMarketData(session, botState);
 
-    if (marketData.skip) {
-      await heartbeat(botState);
-      await saveLog({ signal: null, indicators: null, botState, tradeExecuted: false, reason: marketData.reason });
-      await saveState(botState);
-      return res.json({ skipped: marketData.reason });
+    let indicators = null;
+    if (marketData.candles5m && marketData.candles1h) {
+      botState.candles5m = marketData.candles5m;
+      // Only advance the processed candle time if we are not skipping due to duplicate
+      if (!marketData.skip) {
+        botState.lastProcessedCandle = marketData.latestCandleTime;
+      }
+
+      // Calculate indicators even on skips (e.g. duplicate candles or weekends)
+      // so the dashboard always has the latest live values for UI display.
+      indicators = calculateIndicators(marketData.candles5m, marketData.candles1h);
+      indicators.spread = marketData.spread ?? null;
     }
 
-    // Store candles in botState for this invocation (in-memory only, not saved to KV)
-    botState.candles5m           = marketData.candles5m;
-    botState.lastProcessedCandle = marketData.latestCandleTime;
-
-    // ── Step 6: Calculate indicators ──────────────────────────────────────────
-    const indicators = calculateIndicators(marketData.candles5m, marketData.candles1h);
-
-    // Attach spread to indicators so risk.js can access it
-    // spread comes from market_data.js snapshot fetch — may be null if fetch failed
-    indicators.spread = marketData.spread ?? null;
-
-    if (indicators.skip) {
-      await saveLog({ signal: null, indicators, botState, tradeExecuted: false, reason: indicators.reason });
-      await saveState(botState);
+    // If market data skipped OR indicators skipped:
+    if (marketData.skip || (indicators && indicators.skip)) {
+      const reason = marketData.skip ? marketData.reason : indicators.reason;
       await heartbeat(botState);
-      return res.json({ skipped: indicators.reason });
+      // Pass the fully populated indicators object to saveLog so the dashboard never goes blank
+      await saveLog({ signal: null, indicators, botState, tradeExecuted: false, reason });
+      await saveState(botState);
+      return res.json({ skipped: reason });
     }
 
     // ── Step 7: Generate signal ───────────────────────────────────────────────
