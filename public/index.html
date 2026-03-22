@@ -334,7 +334,7 @@
         </div>
       </div>
       <div class="btn-row">
-        <button class="primary" onclick="refreshDashboard()">↻ Refresh</button>
+        <button class="primary" id="refreshBtn" onclick="handleRefresh()">↻ Refresh</button>
       </div>
     </div>
 
@@ -388,6 +388,19 @@ function initChart() {
       }
     }
   });
+}
+
+async function handleRefresh() {
+  const btn = document.getElementById('refreshBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Refreshing...';
+  }
+  await refreshDashboard();
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = '↻ Refresh';
+  }
 }
 
 async function refreshDashboard() {
