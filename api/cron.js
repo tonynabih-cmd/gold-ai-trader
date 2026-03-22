@@ -91,7 +91,8 @@ export default async function handler(req, res) {
   // cron-job.org: set custom header Authorization: Bearer <your_secret>
   // GitHub Actions: stored in repository secrets as CRON_SECRET
   const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
-  if (process.env.CRON_SECRET && req.headers['authorization'] !== expectedAuth) {
+  const providedAuth = req.headers['authorization'] || req.headers['Authorization'];
+  if (process.env.CRON_SECRET && providedAuth !== expectedAuth) {
     console.warn('Unauthorized cron trigger attempt');
     return res.status(401).json({ error: 'Unauthorized' });
   }
