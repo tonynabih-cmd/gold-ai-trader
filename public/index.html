@@ -462,6 +462,8 @@ function renderState(state) {
   // Daily P&L — compute from startOfDayBalance so gains show correctly
   const startOfDay = parseFloat(state.startOfDayBalance || 0);
   const dailyPnl   = startOfDay > 0 ? balance - startOfDay : 0;
+  // dailyLoss kept separately for the risk-panel progress bar (shows % of 5% limit consumed)
+  const dailyLoss  = parseFloat(state.dailyLoss || 0);
   const pnlEl = document.getElementById('dailyPnl');
   if (dailyPnl > 0) {
     pnlEl.textContent = '+$' + dailyPnl.toFixed(2);
