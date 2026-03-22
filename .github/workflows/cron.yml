@@ -2,7 +2,8 @@ name: 10-Minute Fallback Trigger
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    # Runs every 10 minutes on weekdays (Monday through Friday)
+    - cron: '*/10 * * * 1-5'
   workflow_dispatch:
 
 jobs:
