@@ -6,6 +6,7 @@
   <title>Gold AI Trader</title>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -103,6 +104,12 @@
     @keyframes spin { to{transform:rotate(360deg)} }
 
     .next-run { font-size:10px; color:var(--text2); margin-top:8px; font-family:var(--mono); }
+    
+    .audit-content { font-size:11px; line-height:1.7; color:var(--text3); font-family:var(--mono); }
+    .audit-content h1, .audit-content h2, .audit-content h3 { font-family:var(--font); color:var(--text); margin-top:12px; margin-bottom:6px; font-size:13px; }
+    .audit-content strong { color:var(--gold-light); font-weight:600; }
+    .audit-content ul, .audit-content ol { margin-left:16px; margin-bottom:12px; }
+    .audit-content p { margin-bottom:8px; }
 
     @media(max-width:900px) {
       .main { grid-template-columns:1fr; padding:12px; }
@@ -332,7 +339,7 @@
 
     <div class="card" id="auditCard" style="display:none">
       <div class="card-title">Claude Daily Audit</div>
-      <div style="font-size:11px;line-height:1.7;color:var(--text3);font-family:var(--mono);" id="auditReport">—</div>
+      <div class="audit-content" id="auditReport">—</div>
       <div style="font-size:10px;color:var(--text2);margin-top:8px;font-family:var(--mono);" id="auditDate">—</div>
     </div>
 
@@ -608,7 +615,7 @@ function renderChartFromLogs(logs) {
 function renderAudit(lastAudit) {
   if (!lastAudit || !lastAudit.report) return;
   document.getElementById('auditCard').style.display = 'block';
-  document.getElementById('auditReport').textContent = lastAudit.report;
+  document.getElementById('auditReport').innerHTML = marked.parse(lastAudit.report);
   document.getElementById('auditDate').textContent = 'Audit date: ' + lastAudit.date;
 }
 
