@@ -1,0 +1,15 @@
+name: 10-Minute Fallback Trigger
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit Vercel Cron Endpoint
+        run: |
+          curl -s -X GET "${{ secrets.BOT_URL }}/api/cron" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
