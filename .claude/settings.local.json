@@ -3,7 +3,10 @@
     "allow": [
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(git push:*)",
+      "Bash(npx vercel:*)",
+      "Bash(curl -s https://gold-ai-trader-navy.vercel.app/api/dashboard -H 'Authorization: Bearer $CRON_SECRET')"
     ]
   }
 }
