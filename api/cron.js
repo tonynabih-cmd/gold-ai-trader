@@ -9,7 +9,7 @@ import { generateSignal }                  from '../lib/strategy.js';
 import { checkRisk }                       from '../lib/risk.js';
 import { placeTrade, syncBalance }         from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
-import { loadState, saveState, dailyReset } from '../lib/state.js';
+import { loadState, saveState, dailyReset, acquireCandleLock } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
 import { fetchWithTimeout }                from '../lib/fetch.js';
 
@@ -134,7 +134,15 @@ export default async function handler(req, res) {
       botState.candles5m = marketData.candles5m;
       // Only advance the processed candle time if we are not skipping due to duplicate
       if (!marketData.skip) {
-        botState.lastProcessedCandle = marketData.latestCandleTime;
+        // Concurrency lock: Ensure only ONE invocations processes this specific candle entirely
+        const locked = await acquireCandleLock(marketData.latestCandleTime);
+        if (!locked) {
+           console.warn(`Concurrency block: Candle ${marketData.latestCandleTime} is already locked by another instance.`);
+           marketData.skip = true;
+           marketData.reason = `SKIP: Concurrency lock active for candle ${marketData.latestCandleTime} - preventing duplicate trades`;
+        } else {
+           botState.lastProcessedCandle = marketData.latestCandleTime;
+        }
       }
 
       // Calculate indicators even on skips (e.g. duplicate candles or weekends)
