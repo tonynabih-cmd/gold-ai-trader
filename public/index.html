@@ -648,24 +648,23 @@ function renderStats(logs, state) {
   const sells = executed.filter(l => l.signalDetected === 'SELL').length;
   const holds = logs.filter(l => !l.tradeExecuted && l.signalDetected === 'NONE').length;
 
-  // Track individual P&Ls by matching ENTRYS (tradeExecuted=true) 
-  // with their next EXIT (openPositions=0)
+  // Track realized P&Ls by matching ENTRY (tradeExecuted=true) 
+  // with its true EXIT (dailyLoss=0 AND openPositions=0)
   const pnls = [];
   const startBal = parseFloat(state?.startOfDayBalance || 0);
   let currentBaseline = startBal;
 
   for (let i = 0; i < logs.length; i++) {
-    // If this log indicates a brand new trade was executed (ENTRY)
     if (logs[i].tradeExecuted === true) {
-      // Look forward to find when this trade CLOSED (EXIT)
-      // The exit is the first log AFTER entry where openPositions is 0
+      // Find the first log after entry where the trade is definitively closed
+      // (dailyLoss goes to 0 AND openPositions is 0)
       let exitLog = null;
       for (let j = i + 1; j < logs.length; j++) {
+        const dl = parseFloat(logs[j].dailyLoss ?? 1); 
         const op = parseInt(logs[j].openPositions ?? 1); 
-        if (op === 0) {
+        if (dl === 0 && op === 0) {
           exitLog = logs[j];
-          // Update outermost loop to continue after this exit to avoid double counting
-          i = j; 
+          i = j; // Advance outer loop past this exit
           break;
         }
       }
