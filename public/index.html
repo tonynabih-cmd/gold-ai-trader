@@ -648,22 +648,33 @@ function renderStats(logs, state) {
   const sells = executed.filter(l => l.signalDetected === 'SELL').length;
   const holds = logs.filter(l => !l.tradeExecuted && l.signalDetected === 'NONE').length;
 
-  // P&L per trade: compare each trade's post-balance to the previous trade's post-balance.
-  // For the first trade, compare its post-balance to the startOfDayBalance.
-  const balanceLogs = executed.filter(l => l.balance != null);
+  // Track individual P&Ls by matching ENTRYS (tradeExecuted=true) 
+  // with their next EXIT (openPositions=0)
   const pnls = [];
-  
   const startBal = parseFloat(state?.startOfDayBalance || 0);
+  let currentBaseline = startBal;
 
-  for (let i = 0; i < balanceLogs.length; i++) {
-    const currentBalance = parseFloat(balanceLogs[i].balance);
-    if (i === 0) {
-      if (startBal > 0) {
-        pnls.push(currentBalance - startBal);
+  for (let i = 0; i < logs.length; i++) {
+    // If this log indicates a brand new trade was executed (ENTRY)
+    if (logs[i].tradeExecuted === true) {
+      // Look forward to find when this trade CLOSED (EXIT)
+      // The exit is the first log AFTER entry where openPositions is 0
+      let exitLog = null;
+      for (let j = i + 1; j < logs.length; j++) {
+        const op = parseInt(logs[j].openPositions ?? 1); 
+        if (op === 0) {
+          exitLog = logs[j];
+          // Update outermost loop to continue after this exit to avoid double counting
+          i = j; 
+          break;
+        }
       }
-    } else {
-      const prevBalance = parseFloat(balanceLogs[i - 1].balance);
-      pnls.push(currentBalance - prevBalance);
+
+      if (exitLog && exitLog.balance != null && currentBaseline > 0) {
+        const exitBalance = parseFloat(exitLog.balance);
+        pnls.push(exitBalance - currentBaseline);
+        currentBaseline = exitBalance;
+      }
     }
   }
 
