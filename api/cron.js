@@ -154,14 +154,14 @@ export default async function handler(req, res) {
     }
 
     // ── Step 7: Generate signal ───────────────────────────────────────────────
-    const signal = generateSignal(indicators, marketData.candles1m);
+    const { signal, debug: signalDebug } = generateSignal(indicators, marketData.candles1m);
 
     // ── Step 8: Risk checks ───────────────────────────────────────────────────
     const riskResult = checkRisk(signal, botState, indicators);
 
     if (riskResult !== 'APPROVED') {
       botState.lastHeartbeat = Date.now();
-      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: riskResult });
+      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: riskResult, signalDebug });
       await saveState(botState);
       return res.json({ skipped: riskResult });
     }
@@ -171,14 +171,14 @@ export default async function handler(req, res) {
 
     if (!tradeResult.success) {
       botState.lastHeartbeat = Date.now();
-      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: tradeResult.reason });
+      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: tradeResult.reason, signalDebug });
       await saveState(botState);
       return res.json({ skipped: tradeResult.reason });
     }
 
     // ── Step 10: Log success ──────────────────────────────────────────────────
     botState.lastHeartbeat = Date.now();
-    await saveLog({ signal, indicators, botState, tradeExecuted: true, result: tradeResult, reason: null });
+    await saveLog({ signal, indicators, botState, tradeExecuted: true, result: tradeResult, reason: null, signalDebug });
     await saveState(botState);
 
     // ── Step 11: Performance check (fires every 50 executed trades) ───────────
