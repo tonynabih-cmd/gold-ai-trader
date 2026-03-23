@@ -648,31 +648,32 @@ function renderStats(logs, state) {
   const sells = executed.filter(l => l.signalDetected === 'SELL').length;
   const holds = logs.filter(l => !l.tradeExecuted && l.signalDetected === 'NONE').length;
 
-  // Track realized P&Ls by matching ENTRY (tradeExecuted=true) 
-  // with its true EXIT (dailyLoss=0 AND openPositions=0)
+  // New logic: Match trade entry with the balance IMMEDIATELY before it,
+  // then find the HIGHEST balance reached before the NEXT trade entry.
   const pnls = [];
   const startBal = parseFloat(state?.startOfDayBalance || 0);
-  let currentBaseline = startBal;
 
   for (let i = 0; i < logs.length; i++) {
     if (logs[i].tradeExecuted === true) {
-      // Find the first log after entry where the trade is definitively closed
-      // (dailyLoss goes to 0 AND openPositions is 0)
-      let exitLog = null;
+      // 1. Find Baseline (balance before this trade)
+      let baseline = startBal;
+      if (i > 0 && logs[i-1].balance != null) {
+        baseline = parseFloat(logs[i-1].balance);
+      }
+
+      // 2. Find Peak (highest balance after this entry and before next entry)
+      let peak = parseFloat(logs[i].balance || baseline);
       for (let j = i + 1; j < logs.length; j++) {
-        const dl = parseFloat(logs[j].dailyLoss ?? 1); 
-        const op = parseInt(logs[j].openPositions ?? 1); 
-        if (dl === 0 && op === 0) {
-          exitLog = logs[j];
-          i = j; // Advance outer loop past this exit
-          break;
+        // Stop if we hit the next trade entry
+        if (logs[j].tradeExecuted === true) break;
+        
+        if (logs[j].balance != null) {
+          peak = Math.max(peak, parseFloat(logs[j].balance));
         }
       }
 
-      if (exitLog && exitLog.balance != null && currentBaseline > 0) {
-        const exitBalance = parseFloat(exitLog.balance);
-        pnls.push(exitBalance - currentBaseline);
-        currentBaseline = exitBalance;
+      if (baseline > 0 && peak > 0) {
+        pnls.push(peak - baseline);
       }
     }
   }
