@@ -146,9 +146,17 @@ export default async function handler(req, res) {
     // If market data skipped OR indicators skipped:
     if (marketData.skip || (indicators && indicators.skip)) {
       const reason = marketData.skip ? marketData.reason : indicators.reason;
+      
+      let signalDebug = undefined;
+      // Evaluate strategy purely for debug telemetry even if this cycle is skipping
+      if (indicators && !indicators.skip && marketData.candles1m) {
+        const generated = generateSignal(indicators, marketData.candles1m);
+        signalDebug = generated.debug;
+      }
+
       botState.lastHeartbeat = Date.now();
-      // Pass the fully populated indicators object to saveLog so the dashboard never goes blank
-      await saveLog({ signal: null, indicators, botState, tradeExecuted: false, reason });
+      // Pass the fully populated indicators & debug object to saveLog so dashboard never goes blank
+      await saveLog({ signal: null, indicators, botState, tradeExecuted: false, reason, signalDebug });
       await saveState(botState);
       return res.json({ skipped: reason });
     }
