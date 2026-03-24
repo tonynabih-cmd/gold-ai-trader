@@ -207,7 +207,7 @@ export default async function handler(req, res) {
       `Entry: $${signal.entryPrice.toFixed(2)}\n` +
       `SL: $${signal.stopLoss.toFixed(2)} | TP: $${signal.takeProfit.toFixed(2)}\n` +
       `Size: ${tradeResult.size}oz | Score: ${signal.score} | ATR: ${signal.atr.toFixed(2)}\n` +
-      `Balance: $${parseFloat(botState.balance).toFixed(2)} | Daily trades: ${botState.dailyTrades}/5`
+      `Balance: $${parseFloat(botState.balance).toFixed(2)} | Daily trades: ${botState.dailyTrades}/10`
     );
 
     return res.json({

@@ -1,0 +1,6 @@
+cd C:\Users\Antho\Downloads\gold-trader
+git add .
+git commit -m "Your Message"
+git pull --rebase origin main
+git push
+npx vercel --prod

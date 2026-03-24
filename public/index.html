@@ -194,7 +194,7 @@
       <div class="metric">
         <div class="metric-label">Daily Trades</div>
         <div class="metric-value" id="dailyTrades">—</div>
-        <div class="metric-sub" id="dailyTradesSub">of 5 max</div>
+        <div class="metric-sub" id="dailyTradesSub">of 10 max</div>
       </div>
       <div class="metric">
         <div class="metric-label">Daily P&L</div>
@@ -490,7 +490,7 @@ function renderState(state) {
 
   // Daily trades
   const dailyTrades = parseInt(state.dailyTrades || 0);
-  document.getElementById('dailyTrades').textContent = dailyTrades + '/5';
+  document.getElementById('dailyTrades').textContent = dailyTrades + '/10';
 
   // Daily P&L — compute from startOfDayBalance so gains show correctly
   const startOfDay = parseFloat(state.startOfDayBalance || 0);
