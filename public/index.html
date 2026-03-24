@@ -655,46 +655,49 @@ function renderStats(logs, state) {
   // Rejected = Signal was detected but skipped for technical/risk reasons
   const rejected = logs.filter(l => !l.tradeExecuted && (l.signalDetected === 'BUY' || l.signalDetected === 'SELL')).length;
 
-  // Realized P&L: Compare balance before a trade to balance before the NEXT trade
+  // Realized P&L: Use actual 'realizedPnl' from closure logs if available.
+  // Fallback to balance deltas only for older logs that don't have closure events.
   const pnls = [];
   const startBal = parseFloat(state?.startOfDayBalance || 0);
 
-  for (let i = 0; i < logs.length; i++) {
-    if (logs[i].tradeExecuted === true) {
-      // 1. Baseline: balance before this trade
-      let baseline = startBal;
-      // Search backwards for the first log with a valid balance before this trade
-      for (let k = i - 1; k >= 0; k--) {
-        if (logs[k].balance != null) {
-          baseline = parseFloat(logs[k].balance);
-          break;
-        }
-      }
+  // 1. First, try to collect all explicitly logged realized P&Ls
+  logs.forEach(l => {
+    if (l.result?.realizedPnl != null) {
+      pnls.push(parseFloat(l.result.realizedPnl));
+    }
+  });
 
-      // 2. Final/Realized: find balance at the end of this trade's "window"
-      // (either at the start of next trade, or at the end of the logs if this is the latest trade)
-      let outcome = baseline;
-      let foundNext = false;
-      for (let j = i + 1; j < logs.length; j++) {
-        if (logs[j].tradeExecuted === true) {
-          // Found next trade! The balance JUST BEFORE it is the result of the previous one
-          if (j > 0 && logs[j-1].balance != null) outcome = parseFloat(logs[j-1].balance);
-          foundNext = true;
-          break;
-        }
-      }
-      if (!foundNext) {
-        // Still in open/last trade window: use latest balance from logs
-        for (let m = logs.length - 1; m > i; m--) {
-          if (logs[m].balance != null) {
-            outcome = parseFloat(logs[m].balance);
+  // 2. If no explicit realized P&Ls are found (older logs), fallback to the delta estimation logic
+  if (pnls.length === 0) {
+    for (let i = 0; i < logs.length; i++) {
+      if (logs[i].tradeExecuted === true) {
+        let baseline = startBal;
+        for (let k = i - 1; k >= 0; k--) {
+          if (logs[k].balance != null) {
+            baseline = parseFloat(logs[k].balance);
             break;
           }
         }
-      }
-
-      if (baseline > 0 && Math.abs(outcome - baseline) > 0.01) {
-        pnls.push(outcome - baseline);
+        let outcome = baseline;
+        let foundNext = false;
+        for (let j = i + 1; j < logs.length; j++) {
+          if (logs[j].tradeExecuted === true) {
+            if (j > 0 && logs[j-1].balance != null) outcome = parseFloat(logs[j-1].balance);
+            foundNext = true;
+            break;
+          }
+        }
+        if (!foundNext) {
+          for (let m = logs.length - 1; m > i; m--) {
+            if (logs[m].balance != null) {
+              outcome = parseFloat(logs[m].balance);
+              break;
+            }
+          }
+        }
+        if (baseline > 0 && Math.abs(outcome - baseline) > 0.01) {
+          pnls.push(outcome - baseline);
+        }
       }
     }
   }

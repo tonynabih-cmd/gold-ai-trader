@@ -1,23 +1,20 @@
-// cron.js — Main trading pipeline. Triggered every 5 minutes by cron-job.org.
-// GitHub Actions fires every 10 minutes as a backup trigger.
-// Duplicate candle guard in market_data.js prevents double-trading if both fire together.
-
 import { getCapitalSession }               from '../lib/session.js';
 import { getMarketData }                   from '../lib/market_data.js';
 import { calculateIndicators }             from '../lib/indicators.js';
 import { generateSignal }                  from '../lib/strategy.js';
 import { checkRisk }                       from '../lib/risk.js';
-import { placeTrade, syncBalance }         from '../lib/execution.js';
+import { placeTrade, syncBalance, fetchClosedTradePnl } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, dailyReset, acquireCandleLock } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
 import { fetchWithTimeout }                from '../lib/fetch.js';
 
 
-// Sync open trades against live Capital.com positions.
-// Removes any trades from botState that have been closed (SL/TP hit or manual close).
-// Uses dealReference — Capital.com includes this in both the order confirmation
-// and the GET /positions response, allowing reliable cross-referencing.
+/**
+ * Syncs the bot's internal openTrades list with the actual positions on Capital.com.
+ * If a trade is found locally but is missing on the broker, it's considered CLOSED.
+ * We then fetch the actual realized P&L and log it.
+ */
 async function syncOpenTrades(session, botState) {
   try {
     if (!botState.openTrades || botState.openTrades.length === 0) return botState;
@@ -32,46 +29,63 @@ async function syncOpenTrades(session, botState) {
     });
 
     if (!res.ok) {
-      // Non-fatal — if positions fetch fails, keep existing state rather than wiping it
       console.warn(`syncOpenTrades: positions fetch failed (HTTP ${res.status}) — keeping existing state`);
       return botState;
     }
 
     let data;
-    try {
-      data = await res.json();
-    } catch (e) {
-      console.warn(`syncOpenTrades: positions fetch returned invalid JSON (HTTP ${res.status})`);
-      return botState;
-    }
+    try { data = await res.json(); } catch (e) { return botState; }
     const livePositions = data.positions || [];
+    const liveDealRefs  = new Set(livePositions.map(p => p.position?.dealReference).filter(Boolean));
 
-    // Capital.com GET /positions returns position.dealReference (same string as order confirmation)
-    const liveDealRefs = new Set(
-      livePositions
-        .map(p => p.position?.dealReference)
-        .filter(Boolean) // remove undefined/null entries
-    );
+    const stillOpen = [];
+    const justClosed = [];
 
-    const before = botState.openTrades.length;
-    botState.openTrades = botState.openTrades.filter(t => {
-      // Keep trade if it has a dealReference AND Capital.com still shows it open
-      if (!t.dealReference) {
-        console.warn(`Trade ${t.tradeId} has no dealReference — removing from state`);
-        return false;
+    for (const trade of botState.openTrades) {
+      if (trade.dealReference && liveDealRefs.has(trade.dealReference)) {
+        stillOpen.push(trade);
+      } else {
+        justClosed.push(trade);
       }
-      return liveDealRefs.has(t.dealReference);
-    });
-
-    const closed = before - botState.openTrades.length;
-    if (closed > 0) {
-      console.log(`syncOpenTrades: removed ${closed} closed position(s). Open: ${botState.openTrades.length}`);
     }
 
+    // Process closed trades
+    for (const closedTrade of justClosed) {
+      console.log(`syncOpenTrades: detected closure of trade ${closedTrade.tradeId} (ref: ${closedTrade.dealReference})`);
+      
+      // Fetch actual P&L if possible
+      const realizedPnl = await fetchClosedTradePnl(session, closedTrade.dealReference);
+      
+      // Log the closure event
+      await saveLog({
+        signal: {
+          id: closedTrade.tradeId,
+          action: closedTrade.action === 'BUY' ? 'SELL' : 'BUY', // "Closing" action
+          entryType: 'closure',
+          entryPrice: null, // we'll use realized P&L instead
+          strategyVersion: closedTrade.strategyVersion || 'v1.1'
+        },
+        indicators: null,
+        botState,
+        tradeExecuted: false, // technically the execution happened on the broker's side (SL/TP)
+        reason: `CLOSED: Realized P&L: ${realizedPnl != null ? '$' + realizedPnl.toFixed(2) : 'Unknown (Not in last 24h history)'}`,
+        result: {
+          realizedPnl: realizedPnl
+        }
+      });
+
+      if (realizedPnl != null) {
+        await sendAlert(`📉 Trade CLOSED: ${closedTrade.action} Gold\nP&L: $${realizedPnl.toFixed(2)}`);
+      } else {
+        await sendAlert(`📉 Trade CLOSED: ${closedTrade.action} Gold (P&L lookup failed)`);
+      }
+    }
+
+    botState.openTrades = stillOpen;
     return botState;
   } catch (err) {
     console.error('syncOpenTrades error:', err.message);
-    return botState; // Non-fatal — always return current state
+    return botState;
   }
 }
 
