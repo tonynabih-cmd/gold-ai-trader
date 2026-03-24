@@ -56,32 +56,41 @@ async function syncOpenTrades(session, botState) {
     for (const closedTrade of justClosed) {
       console.log(`syncOpenTrades: detected closure of trade ${closedTrade.tradeId} (ref: ${closedTrade.dealReference})`);
       
-      // Fetch actual P&L if possible
-      const realizedPnl = await fetchClosedTradePnl(session, closedTrade.dealReference);
+      // Fetch actual P&L if possible. Anchor search to trade's openedAt timestamp for 100% reliability.
+      let realizedPnl = null;
+      try {
+        realizedPnl = await fetchClosedTradePnl(session, closedTrade.dealReference, closedTrade.openedAt);
+      } catch (pnlErr) {
+        console.error(`syncOpenTrades: P&L fetch catastrophic error for ${closedTrade.tradeId}:`, pnlErr.message);
+      }
       
-      // Log the closure event
-      // Now botState.openTrades already excludes this trade, so openPositions in log will be correct.
-      await saveLog({
-        signal: {
-          id: closedTrade.tradeId,
-          action: closedTrade.action === 'BUY' ? 'SELL' : 'BUY', // "Closing" action
-          entryType: 'closure',
-          entryPrice: null, // we'll use realized P&L instead
-          strategyVersion: closedTrade.strategyVersion || 'v1.1'
-        },
-        indicators: null,
-        botState,
-        tradeExecuted: false, // technically the execution happened on the broker's side (SL/TP)
-        reason: `CLOSED: Realized P&L: ${realizedPnl != null ? '$' + realizedPnl.toFixed(2) : 'Unknown (Not in last 24h history)'}`,
-        result: {
-          realizedPnl: realizedPnl
-        }
-      });
+      // Assemble and log the closure event
+      // IMPORTANT: botState.openTrades was updated on line 53, so the log captures the post-update count.
+      try {
+        await saveLog({
+          signal: {
+            id: closedTrade.tradeId,
+            action: closedTrade.action === 'BUY' ? 'SELL' : 'BUY', // "Closing" action
+            entryType: 'closure',
+            entryPrice: null,
+            strategyVersion: closedTrade.strategyVersion || 'v1.1'
+          },
+          indicators: null,
+          botState: { ...botState }, // Pass a snapshot to ensure fields aren't mutated during async log
+          tradeExecuted: false,
+          reason: `CLOSED: Realized P&L: ${realizedPnl != null ? '$' + realizedPnl.toFixed(2) : 'Unknown (Not in history window)'}`,
+          result: {
+            realizedPnl: realizedPnl
+          }
+        });
 
-      if (realizedPnl != null) {
-        await sendAlert(`📉 Trade CLOSED: ${closedTrade.action} Gold\nP&L: $${realizedPnl.toFixed(2)}`);
-      } else {
-        await sendAlert(`📉 Trade CLOSED: ${closedTrade.action} Gold (P&L lookup failed)`);
+        if (realizedPnl != null) {
+          await sendAlert(`📉 Trade CLOSED: ${closedTrade.action} Gold\nP&L: $${realizedPnl.toFixed(2)}`);
+        } else {
+          await sendAlert(`⚠️ Trade CLOSED: ${closedTrade.action} Gold (P&L lookup failed)`);
+        }
+      } catch (logErr) {
+        console.error(`syncOpenTrades: Logging/Alert failed for ${closedTrade.tradeId}:`, logErr.message);
       }
     }
 
