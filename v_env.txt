@@ -1,0 +1,18 @@
+
+ name                               value               environments                        created    
+ MAX_SPREAD                         Encrypted           Production                          13m ago    
+ TELEGRAM_BOT_TOKEN                 Encrypted           Development, Preview, Production    4d ago     
+ TELEGRAM_CHAT_ID                   Encrypted           Development, Preview, Production    4d ago     
+ CAPITAL_API_KEY                    Encrypted           Production, Preview, Development    7d ago     
+ CAPITAL_EMAIL                      Encrypted           Development, Preview, Production    7d ago     
+ CAPITAL_PASSWORD                   Encrypted           Production, Preview, Development    7d ago     
+ CAPITAL_ENV                        Encrypted           Development, Preview, Production    7d ago     
+ BOT_ENABLED                        Encrypted           Development, Preview, Production    7d ago     
+ CRON_SECRET                        Encrypted           Development, Preview, Production    10d ago    
+ KV_REST_API_READ_ONLY_TOKEN        Encrypted           Production, Preview, Development    10d ago    
+ KV_URL                             Encrypted           Production, Preview, Development    10d ago    
+ KV_REST_API_URL                    Encrypted           Production, Preview, Development    10d ago    
+ KV_REST_API_TOKEN                  Encrypted           Production, Preview, Development    10d ago    
+ REDIS_URL                          Encrypted           Production, Preview, Development    10d ago    
+ ANTHROPIC_API_KEY                  Encrypted           Development, Preview, Production    10d ago    
+
