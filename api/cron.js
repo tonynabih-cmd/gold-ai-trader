@@ -49,6 +49,9 @@ async function syncOpenTrades(session, botState) {
       }
     }
 
+    // Update botState.openTrades immediately so subsequent logs show correct count
+    botState.openTrades = stillOpen;
+
     // Process closed trades
     for (const closedTrade of justClosed) {
       console.log(`syncOpenTrades: detected closure of trade ${closedTrade.tradeId} (ref: ${closedTrade.dealReference})`);
@@ -57,6 +60,7 @@ async function syncOpenTrades(session, botState) {
       const realizedPnl = await fetchClosedTradePnl(session, closedTrade.dealReference);
       
       // Log the closure event
+      // Now botState.openTrades already excludes this trade, so openPositions in log will be correct.
       await saveLog({
         signal: {
           id: closedTrade.tradeId,
@@ -81,7 +85,6 @@ async function syncOpenTrades(session, botState) {
       }
     }
 
-    botState.openTrades = stillOpen;
     return botState;
   } catch (err) {
     console.error('syncOpenTrades error:', err.message);
