@@ -11,9 +11,9 @@ async function check() {
 
   // 1. Spread Limit
   const rawSpread = process.env.MAX_SPREAD;
-  const spreadLimit = parseFloat(rawSpread) || 0.50;
-  if (spreadLimit === 0.50) {
-    console.log('[PASS] Spread limit resolves to 0.50 (default or as set)');
+  const spreadLimit = parseFloat(rawSpread) || 0.40;
+  if (spreadLimit === 0.40) {
+    console.log('[PASS] Spread limit resolves to 0.40 (Ultra-Safe default)');
   } else if (spreadLimit < 0.50) {
     console.log(`[PASS] Spread limit resolves to ${spreadLimit} (tight limit)`);
   } else {
