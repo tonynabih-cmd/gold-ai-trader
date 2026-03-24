@@ -655,52 +655,16 @@ function renderStats(logs, state) {
   // Rejected = Signal was detected but skipped for technical/risk reasons
   const rejected = logs.filter(l => !l.tradeExecuted && (l.signalDetected === 'BUY' || l.signalDetected === 'SELL')).length;
 
-  // Realized P&L: Use actual 'realizedPnl' from closure logs if available.
-  // Fallback to balance deltas only for older logs that don't have closure events.
+  // Realized P&L: ONLY use actual 'realizedPnl' from closure logs.
+  // We no longer fallback to balance deltas because they are unreliable due to manual trades.
   const pnls = [];
-  const startBal = parseFloat(state?.startOfDayBalance || 0);
-
-  // 1. First, try to collect all explicitly logged realized P&Ls
+  
+  // Collect all explicitly logged realized P&Ls (from the new closure tracking)
   logs.forEach(l => {
     if (l.result?.realizedPnl != null) {
       pnls.push(parseFloat(l.result.realizedPnl));
     }
   });
-
-  // 2. If no explicit realized P&Ls are found (older logs), fallback to the delta estimation logic
-  if (pnls.length === 0) {
-    for (let i = 0; i < logs.length; i++) {
-      if (logs[i].tradeExecuted === true) {
-        let baseline = startBal;
-        for (let k = i - 1; k >= 0; k--) {
-          if (logs[k].balance != null) {
-            baseline = parseFloat(logs[k].balance);
-            break;
-          }
-        }
-        let outcome = baseline;
-        let foundNext = false;
-        for (let j = i + 1; j < logs.length; j++) {
-          if (logs[j].tradeExecuted === true) {
-            if (j > 0 && logs[j-1].balance != null) outcome = parseFloat(logs[j-1].balance);
-            foundNext = true;
-            break;
-          }
-        }
-        if (!foundNext) {
-          for (let m = logs.length - 1; m > i; m--) {
-            if (logs[m].balance != null) {
-              outcome = parseFloat(logs[m].balance);
-              break;
-            }
-          }
-        }
-        if (baseline > 0 && Math.abs(outcome - baseline) > 0.01) {
-          pnls.push(outcome - baseline);
-        }
-      }
-    }
-  }
 
   const wins = pnls.filter(p => p > 0.01).length;
   const winRate = pnls.length > 0 ? ((wins / pnls.length) * 100).toFixed(0) + '%' : '—';
@@ -713,12 +677,11 @@ function renderStats(logs, state) {
   document.getElementById('statBuys').textContent     = buys;
   document.getElementById('statSells').textContent    = sells;
   document.getElementById('statHolds').textContent    = holds;
-  // If you added a 'statRejected' element to the HTML, update it here.
-  // For now, we'll keep the UI compatible.
   if (document.getElementById('statRejected')) document.getElementById('statRejected').textContent = rejected;
   document.getElementById('statWinRate').textContent  = winRate;
   
-  const formatPnl = (v) => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
+  const currency = 'AED '; // Matches Capital.com account
+  const formatPnl = (v) => (v >= 0 ? '+' : '-') + currency + Math.abs(v).toFixed(2);
   document.getElementById('statBestTrade').textContent  = bestTrade  !== null ? formatPnl(bestTrade)  : '—';
   document.getElementById('statWorstTrade').textContent = worstTrade !== null ? formatPnl(worstTrade) : '—';
 
@@ -726,6 +689,12 @@ function renderStats(logs, state) {
   const wrEl = document.getElementById('statWinRate');
   if (pnls.length > 0) {
     wrEl.style.color = (wins / pnls.length >= 0.5) ? 'var(--green)' : 'var(--red)';
+  } else {
+    wrEl.style.color = 'var(--text2)';
+    // Add a small hint if no trades have closed yet
+    if (executed.length > 0) {
+      document.getElementById('statWinRate').innerHTML = '<span title="Stats will update as soon as the first bot trade closes" style="cursor:help">Waiting...</span>';
+    }
   }
 }
 
