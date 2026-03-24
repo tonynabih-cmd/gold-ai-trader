@@ -341,6 +341,10 @@
           <span style="color:var(--text2);font-family:var(--mono)" id="statHolds">—</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text2);font-family:var(--mono)">Rejected</span>
+          <span style="color:var(--text2);font-family:var(--mono)" id="statRejected">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
           <span style="color:var(--text2);font-family:var(--mono)">Win rate</span>
           <span style="font-family:var(--mono)" id="statWinRate">—</span>
         </div>
@@ -646,39 +650,56 @@ function renderStats(logs, state) {
 
   const buys  = executed.filter(l => l.signalDetected === 'BUY').length;
   const sells = executed.filter(l => l.signalDetected === 'SELL').length;
+  // Holds = No signal detected at all
   const holds = logs.filter(l => !l.tradeExecuted && l.signalDetected === 'NONE').length;
+  // Rejected = Signal was detected but skipped for technical/risk reasons
+  const rejected = logs.filter(l => !l.tradeExecuted && (l.signalDetected === 'BUY' || l.signalDetected === 'SELL')).length;
 
-  // New logic: Match trade entry with the balance IMMEDIATELY before it,
-  // then find the HIGHEST balance reached before the NEXT trade entry.
+  // Realized P&L: Compare balance before a trade to balance before the NEXT trade
   const pnls = [];
   const startBal = parseFloat(state?.startOfDayBalance || 0);
 
   for (let i = 0; i < logs.length; i++) {
     if (logs[i].tradeExecuted === true) {
-      // 1. Find Baseline (balance before this trade)
+      // 1. Baseline: balance before this trade
       let baseline = startBal;
-      if (i > 0 && logs[i-1].balance != null) {
-        baseline = parseFloat(logs[i-1].balance);
-      }
-
-      // 2. Find Peak (highest balance after this entry and before next entry)
-      let peak = parseFloat(logs[i].balance || baseline);
-      for (let j = i + 1; j < logs.length; j++) {
-        // Stop if we hit the next trade entry
-        if (logs[j].tradeExecuted === true) break;
-        
-        if (logs[j].balance != null) {
-          peak = Math.max(peak, parseFloat(logs[j].balance));
+      // Search backwards for the first log with a valid balance before this trade
+      for (let k = i - 1; k >= 0; k--) {
+        if (logs[k].balance != null) {
+          baseline = parseFloat(logs[k].balance);
+          break;
         }
       }
 
-      if (baseline > 0 && peak > 0) {
-        pnls.push(peak - baseline);
+      // 2. Final/Realized: find balance at the end of this trade's "window"
+      // (either at the start of next trade, or at the end of the logs if this is the latest trade)
+      let outcome = baseline;
+      let foundNext = false;
+      for (let j = i + 1; j < logs.length; j++) {
+        if (logs[j].tradeExecuted === true) {
+          // Found next trade! The balance JUST BEFORE it is the result of the previous one
+          if (j > 0 && logs[j-1].balance != null) outcome = parseFloat(logs[j-1].balance);
+          foundNext = true;
+          break;
+        }
+      }
+      if (!foundNext) {
+        // Still in open/last trade window: use latest balance from logs
+        for (let m = logs.length - 1; m > i; m--) {
+          if (logs[m].balance != null) {
+            outcome = parseFloat(logs[m].balance);
+            break;
+          }
+        }
+      }
+
+      if (baseline > 0 && Math.abs(outcome - baseline) > 0.01) {
+        pnls.push(outcome - baseline);
       }
     }
   }
 
-  const wins = pnls.filter(p => p > 0).length;
+  const wins = pnls.filter(p => p > 0.01).length;
   const winRate = pnls.length > 0 ? ((wins / pnls.length) * 100).toFixed(0) + '%' : '—';
   const bestTrade  = pnls.length > 0 ? Math.max(...pnls) : null;
   const worstTrade = pnls.length > 0 ? Math.min(...pnls) : null;
@@ -689,6 +710,9 @@ function renderStats(logs, state) {
   document.getElementById('statBuys').textContent     = buys;
   document.getElementById('statSells').textContent    = sells;
   document.getElementById('statHolds').textContent    = holds;
+  // If you added a 'statRejected' element to the HTML, update it here.
+  // For now, we'll keep the UI compatible.
+  if (document.getElementById('statRejected')) document.getElementById('statRejected').textContent = rejected;
   document.getElementById('statWinRate').textContent  = winRate;
   
   const formatPnl = (v) => (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
@@ -698,7 +722,7 @@ function renderStats(logs, state) {
   // Colour win rate
   const wrEl = document.getElementById('statWinRate');
   if (pnls.length > 0) {
-    wrEl.style.color = wins / pnls.length >= 0.5 ? 'var(--green)' : 'var(--red)';
+    wrEl.style.color = (wins / pnls.length >= 0.5) ? 'var(--green)' : 'var(--red)';
   }
 }
 

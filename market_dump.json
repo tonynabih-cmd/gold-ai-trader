@@ -1,0 +1,96 @@
+{
+  "instrument": {
+    "epic": "GOLD",
+    "symbol": "Gold",
+    "expiry": "-",
+    "name": "Gold",
+    "lotSize": 1,
+    "type": "COMMODITIES",
+    "guaranteedStopAllowed": true,
+    "streamingPricesAvailable": true,
+    "currency": "USD",
+    "marginFactor": 100,
+    "marginFactorUnit": "PERCENTAGE",
+    "openingHours": {
+      "mon": [
+        "00:00 - 20:59",
+        "22:00 - 00:00"
+      ],
+      "tue": [
+        "00:00 - 20:59",
+        "22:00 - 00:00"
+      ],
+      "wed": [
+        "00:00 - 20:59",
+        "22:00 - 00:00"
+      ],
+      "thu": [
+        "00:00 - 20:59",
+        "22:00 - 00:00"
+      ],
+      "fri": [
+        "00:00 - 20:59"
+      ],
+      "sat": [],
+      "sun": [
+        "22:00 - 00:00"
+      ],
+      "zone": "UTC"
+    },
+    "country": "",
+    "overnightFee": {
+      "longRate": -0.0154096,
+      "shortRate": 0.0071896,
+      "swapChargeTimestamp": 1774386000000,
+      "swapChargeInterval": 1440
+    }
+  },
+  "dealingRules": {
+    "minStepDistance": {
+      "unit": "POINTS",
+      "value": 0.01
+    },
+    "minDealSize": {
+      "unit": "POINTS",
+      "value": 0.01
+    },
+    "maxDealSize": {
+      "unit": "POINTS",
+      "value": 50000
+    },
+    "minSizeIncrement": {
+      "unit": "POINTS",
+      "value": 0.01
+    },
+    "minGuaranteedStopDistance": {
+      "unit": "PERCENTAGE",
+      "value": 1
+    },
+    "minStopOrProfitDistance": {
+      "unit": "PERCENTAGE",
+      "value": 0.001
+    },
+    "maxStopOrProfitDistance": {
+      "unit": "PERCENTAGE",
+      "value": 100
+    },
+    "marketOrderPreference": "AVAILABLE_DEFAULT_ON",
+    "trailingStopsPreference": "NOT_AVAILABLE"
+  },
+  "snapshot": {
+    "marketStatus": "TRADEABLE",
+    "netChange": -73.98,
+    "percentageChange": 0.14,
+    "updateTime": "2026-03-24T16:01:38.073",
+    "delayTime": 0,
+    "bid": 4412.71,
+    "offer": 4413.21,
+    "high": 4448.27,
+    "low": 4305.45,
+    "decimalPlacesFactor": 2,
+    "scalingFactor": 1,
+    "marketModes": [
+      "REGULAR"
+    ]
+  }
+}
