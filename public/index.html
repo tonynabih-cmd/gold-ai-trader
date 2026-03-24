@@ -259,7 +259,7 @@
       <div class="risk-grid">
         <div class="risk-item">
           <div class="risk-label">Daily Loss</div>
-          <div class="risk-value" id="riskDailyLoss">$0.00</div>
+          <div class="risk-value" id="riskDailyLoss">AED 0.00</div>
           <div class="progress-bar"><div class="progress-fill" id="dailyLossBar" style="width:0%"></div></div>
           <div style="font-size:9px;color:var(--text2);margin-top:4px;font-family:var(--mono);">Limit: 5% of balance</div>
         </div>
@@ -488,7 +488,7 @@ async function refreshDashboard() {
 function renderState(state) {
   // Balance
   const balance = parseFloat(state.balance || 100);
-  document.getElementById('balance').textContent = '$' + balance.toFixed(2);
+  document.getElementById('balance').textContent = 'AED ' + balance.toFixed(2);
 
   // Gold price is read from logs in renderChartFromLogs() — nothing needed here
 
@@ -503,13 +503,13 @@ function renderState(state) {
   const dailyLoss  = parseFloat(state.dailyLoss || 0);
   const pnlEl = document.getElementById('dailyPnl');
   if (dailyPnl > 0) {
-    pnlEl.textContent = '+$' + dailyPnl.toFixed(2);
+    pnlEl.textContent = '+AED ' + dailyPnl.toFixed(2);
     pnlEl.className = 'metric-value pos';
   } else if (dailyPnl < 0) {
-    pnlEl.textContent = '-$' + Math.abs(dailyPnl).toFixed(2);
+    pnlEl.textContent = '-AED ' + Math.abs(dailyPnl).toFixed(2);
     pnlEl.className = 'metric-value neg';
   } else {
-    pnlEl.textContent = '$0.00';
+    pnlEl.textContent = 'AED 0.00';
     pnlEl.className = 'metric-value';
   }
   // Drawdown
@@ -518,7 +518,7 @@ function renderState(state) {
 
   // Margin & Exposure panel
   const availableMargin = parseFloat(state.availableMargin || 0);
-  document.getElementById('marginAvailable').textContent = availableMargin > 0 ? '$' + availableMargin.toFixed(2) : '—';
+  document.getElementById('marginAvailable').textContent = availableMargin > 0 ? 'AED ' + availableMargin.toFixed(2) : '—';
 
   // Margin used = sum of marginRequired across open trades
   const openTrades = Array.isArray(state.openTrades) ? state.openTrades : [];
@@ -530,11 +530,11 @@ function renderState(state) {
   mBar.style.width = marginUsedPct + '%';
   mBar.className = 'progress-fill ' + (marginUsedPct > 50 ? 'danger' : marginUsedPct > 25 ? 'warning' : 'safe');
   document.getElementById('marginExposure').textContent = totalNotionalExposure > 0
-    ? '$' + totalNotionalExposure.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : '$0.00';
+    ? 'AED ' + totalNotionalExposure.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : 'AED 0.00';
 
   // Risk panel
-  document.getElementById('riskDailyLoss').textContent = '$' + Math.abs(dailyLoss).toFixed(2);
+  document.getElementById('riskDailyLoss').textContent = 'AED ' + Math.abs(dailyLoss).toFixed(2);
   const dailyLossPct = Math.min(100, (Math.abs(dailyLoss) / (balance * 0.05)) * 100);
   const dailyLossBar = document.getElementById('dailyLossBar');
   dailyLossBar.style.width = dailyLossPct + '%';
@@ -546,7 +546,7 @@ function renderState(state) {
   drawdownBar.className = 'progress-fill ' + (drawdown > 15 ? 'danger' : drawdown > 10 ? 'warning' : 'safe');
 
   document.getElementById('riskOpenTrades').textContent = (state.openTrades || []).length + '/2';
-  document.getElementById('riskPeakBalance').textContent = '$' + parseFloat(state.peakBalance || 100).toFixed(2);
+  document.getElementById('riskPeakBalance').textContent = 'AED ' + parseFloat(state.peakBalance || 100).toFixed(2);
 
   // System health
   document.getElementById('healthBot').textContent = state.botEnabled !== false ? 'ENABLED' : 'DISABLED';
