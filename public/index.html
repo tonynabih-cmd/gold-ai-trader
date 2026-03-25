@@ -566,7 +566,7 @@ function renderState(state) {
   const utcHour = now.getUTCHours();
   const utcDay = now.getUTCDay();
   const isWeekend = utcDay === 0 || utcDay === 6;
-  const isGoldenHour = utcHour >= 8 && utcHour < 16;
+  const isGoldenHour = utcHour >= 7 && utcHour < 16;
   const isFridayClose = utcDay === 5 && utcHour >= 16;
   const marketActive = !isWeekend && isGoldenHour && !isFridayClose;
 
