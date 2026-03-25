@@ -25,7 +25,7 @@ const redis = new Redis({
 
 async function run() {
   console.log("Fetching logs from Redis...");
-  const raw = await redis.lrange('trade_logs_list', -50, -1);
+  const raw = await redis.lrange('trade_logs_list', 0, -1);
   const logs = raw.map(entry => {
     if (typeof entry === 'string') {
       try { return JSON.parse(entry); } catch { return entry; }

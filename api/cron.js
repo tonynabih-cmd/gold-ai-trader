@@ -3,7 +3,7 @@ import { getMarketData }                   from '../lib/market_data.js';
 import { calculateIndicators }             from '../lib/indicators.js';
 import { generateSignal }                  from '../lib/strategy.js';
 import { checkRisk }                       from '../lib/risk.js';
-import { placeTrade, syncBalance, fetchClosedTradePnl } from '../lib/execution.js';
+import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, dailyReset, acquireCandleLock } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
@@ -151,6 +151,17 @@ export default async function handler(req, res) {
     // ── Step 4: Sync open trade positions ────────────────────────────────────
     // Removes trades that have been closed by SL/TP or manually on Capital.com.
     botState = await syncOpenTrades(session, botState);
+
+    // ── NEW: Sync actual trade stats from broker ────────────────────────────
+    // This ensures website and daily trade limit are always 100% accurate.
+    const brokerStats = await fetchBrokerTradeStats(session);
+    if (brokerStats) {
+      console.log(`Broker Sync: Today ${brokerStats.todayTrades}, Total ${brokerStats.totalTrades}`);
+      botState.dailyTrades = brokerStats.todayTrades;
+      botState.brokerTotalTrades = brokerStats.totalTrades;
+      botState.brokerTotalPnl = brokerStats.totalPnl;
+      botState.lastBrokerSync = brokerStats.syncedAt;
+    }
 
     // ── Step 5 & 6: Fetch market data and Indicators ─────────────────────────
     const marketData = await getMarketData(session, botState);

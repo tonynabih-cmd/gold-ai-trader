@@ -644,6 +644,8 @@ function renderLogs(logs) {
 }
 
 function renderStats(logs, state) {
+  // Use broker stats if available (more reliable than log history)
+  const executedCount = state.brokerTotalTrades || logs.filter(l => l.tradeExecuted).length;
   const total    = logs.length;
   const executed = logs.filter(l => l.tradeExecuted);
   const skipped  = logs.filter(l => !l.tradeExecuted).length;
@@ -672,7 +674,7 @@ function renderStats(logs, state) {
   const worstTrade = pnls.length > 0 ? Math.min(...pnls) : null;
 
   document.getElementById('statTotal').textContent    = total;
-  document.getElementById('statExecuted').textContent = executed.length;
+  document.getElementById('statExecuted').textContent = executedCount;
   document.getElementById('statSkipped').textContent  = skipped;
   document.getElementById('statBuys').textContent     = buys;
   document.getElementById('statSells').textContent    = sells;
