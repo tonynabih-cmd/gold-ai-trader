@@ -644,10 +644,9 @@ function renderLogs(logs) {
 }
 
 function renderStats(logs, state) {
-  // Use broker stats if available (more reliable than log history)
-  const executedCount = state.brokerTotalTrades || logs.filter(l => l.tradeExecuted).length;
   const total    = logs.length;
   const executed = logs.filter(l => l.tradeExecuted);
+  const executedCount = executed.length;
   const skipped  = logs.filter(l => !l.tradeExecuted).length;
 
   const buys  = executed.filter(l => l.signalDetected === 'BUY').length;
