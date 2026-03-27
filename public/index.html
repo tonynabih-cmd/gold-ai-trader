@@ -309,67 +309,6 @@
       </div>
     </div>
 
-
-    <div class="card">
-      <div class="card-title">Session Stats</div>
-      <div style="display:flex;flex-direction:column;gap:10px;">
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--text2);font-family:var(--mono)">Total decisions</span>
-          <span style="font-family:var(--mono)" id="statTotal">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--text2);font-family:var(--mono)">Trades executed</span>
-          <span style="font-family:var(--mono)" id="statExecuted">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--text2);font-family:var(--mono)">Skipped</span>
-          <span style="color:var(--text2);font-family:var(--mono)" id="statSkipped">—</span>
-        </div>
-
-        <div style="height:1px;background:var(--border);margin:4px 0;"></div>
-
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--text2);font-family:var(--mono)">Buys</span>
-          <span style="color:var(--green);font-family:var(--mono)" id="statBuys">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--text2);font-family:var(--mono)">Sells</span>
-          <span style="color:var(--red);font-family:var(--mono)" id="statSells">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--text2);font-family:var(--mono)">Rejected</span>
-          <span style="color:var(--text2);font-family:var(--mono)" id="statRejected">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--text2);font-family:var(--mono)">Win rate</span>
-          <span style="font-family:var(--mono)" id="statWinRate">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--text2);font-family:var(--mono)">Best trade</span>
-          <span style="color:var(--green);font-family:var(--mono)" id="statBestTrade">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--text2);font-family:var(--mono)">Worst trade</span>
-          <span style="color:var(--red);font-family:var(--mono)" id="statWorstTrade">—</span>
-        </div>
-
-        <div style="height:1px;background:var(--border);margin:4px 0;"></div>
-
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--text2);font-family:var(--mono)">Strategy</span>
-          <span style="color:var(--gold);font-family:var(--mono)">EMA 20/50 v1.1</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--text2);font-family:var(--mono)">Broker</span>
-          <span style="color:var(--text);font-family:var(--mono)">Capital.com Demo</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--text2);font-family:var(--mono)">Data source</span>
-          <span style="color:var(--text);font-family:var(--mono)">Capital.com</span>
-        </div>
-      </div>
-    </div>
-
     <div class="card">
       <div class="card-title">System Health</div>
       <div class="health-grid">
@@ -472,7 +411,6 @@ async function refreshDashboard() {
     if (data.logs && data.logs.length > 0) {
       lastLogs = data.logs;
       renderLogs(data.logs);
-      renderStats(data.stats);
       renderChartFromLogs(data.logs);
     }
     if (data.lastAudit) renderAudit(data.lastAudit);
@@ -486,16 +424,13 @@ function renderState(state) {
   const balance = parseFloat(state.balance || 100);
   document.getElementById('balance').textContent = 'AED ' + balance.toFixed(2);
 
-  // Gold price is read from logs in renderChartFromLogs() — nothing needed here
-
   // Daily trades
   const dailyTrades = parseInt(state.dailyTrades || 0);
   document.getElementById('dailyTrades').textContent = dailyTrades + '/10';
 
-  // Daily P&L — compute from startOfDayBalance so gains show correctly
+  // Daily P&L
   const startOfDay = parseFloat(state.startOfDayBalance || 0);
   const dailyPnl   = startOfDay > 0 ? balance - startOfDay : 0;
-  // dailyLoss kept separately for the risk-panel progress bar (shows % of 5% limit consumed)
   const dailyLoss  = parseFloat(state.dailyLoss || 0);
   const pnlEl = document.getElementById('dailyPnl');
   if (dailyPnl > 0) {
@@ -516,7 +451,6 @@ function renderState(state) {
   const availableMargin = parseFloat(state.availableMargin || 0);
   document.getElementById('marginAvailable').textContent = availableMargin > 0 ? 'AED ' + availableMargin.toFixed(2) : '—';
 
-  // Margin used = sum of marginRequired across open trades
   const openTrades = Array.isArray(state.openTrades) ? state.openTrades : [];
   const totalMarginUsed     = openTrades.reduce((sum, t) => sum + (parseFloat(t.marginRequired) || 0), 0);
   const totalNotionalExposure = openTrades.reduce((sum, t) => sum + (parseFloat(t.notionalValue)   || 0), 0);
@@ -557,7 +491,6 @@ function renderState(state) {
 
   document.getElementById('healthDay').textContent = state.lastTradingDay || '—';
 
-  // Market hours check
   const now = new Date();
   const utcHour = now.getUTCHours();
   const utcDay = now.getUTCDay();
@@ -569,8 +502,6 @@ function renderState(state) {
   const mktEl = document.getElementById('healthMarket');
   mktEl.textContent = marketActive ? 'ACTIVE (Golden Hour)' : isWeekend ? 'WEEKEND' : 'SLEEPING';
   mktEl.className = 'health-val ' + (marketActive ? 'health-ok' : 'health-warn');
-
-  // Chart is updated from logs in renderChartFromLogs() — not from state
 }
 
 function renderLogs(logs) {
@@ -582,7 +513,6 @@ function renderLogs(logs) {
     return;
   }
 
-  // Last decision
   const last = display[0];
   if (last) {
     const action = last.signalDetected || 'SKIP';
@@ -591,7 +521,6 @@ function renderLogs(logs) {
     document.getElementById('lastReason').textContent = last.reason || (last.tradeExecuted ? 'Trade executed on Capital.com' : 'No signal');
     document.getElementById('lastRunTime').textContent = 'Last run: ' + new Date(last.time).toLocaleString('en-US', { timeZone: 'Asia/Dubai' }) + ' UAE';
 
-    // Update indicators from last log
     if (last.ema20) document.getElementById('ema20').textContent = parseFloat(last.ema20).toFixed(2);
     if (last.ema50) document.getElementById('ema50').textContent = parseFloat(last.ema50).toFixed(2);
     if (last.emaSlope) {
@@ -609,7 +538,6 @@ function renderLogs(logs) {
       document.getElementById('rsi').className = 'ind-value ' + (rsi > 70 ? 'down' : rsi < 30 ? 'up' : '');
     }
 
-    // Setup-ready amber banner
     const setupBanner = document.getElementById('setupReadyBanner');
     const setupReason = document.getElementById('setupReadyReason');
     if (last.dbgSetupReady === true) {
@@ -639,68 +567,22 @@ function renderLogs(logs) {
   }).join('');
 }
 
-function renderStats(stats) {
-  // stats is pre-computed server-side by lib/stats.js — single source of truth.
-  // No client-side classification logic — just render the validated numbers.
-
-  if (!stats) return;
-
-  document.getElementById('statTotal').textContent    = stats.totalDecisions;
-  document.getElementById('statExecuted').textContent = stats.executed;
-  document.getElementById('statSkipped').textContent  = stats.totalLogs > 0
-    ? stats.skipped
-    : '—';
-  document.getElementById('statBuys').textContent     = stats.buys;
-  document.getElementById('statSells').textContent    = stats.sells;
-  if (document.getElementById('statRejected')) {
-    document.getElementById('statRejected').textContent = stats.rejected;
-  }
-
-  // Win rate
-  const wrEl = document.getElementById('statWinRate');
-  if (stats.winRate !== null) {
-    wrEl.textContent = stats.winRate.toFixed(1) + '%';
-    wrEl.style.color = stats.winRate >= 50 ? 'var(--green)' : 'var(--red)';
-  } else if (stats.executed > 0) {
-    wrEl.innerHTML = '<span title="Stats will update once the first bot trade closes" style="cursor:help">Waiting...</span>';
-    wrEl.style.color = 'var(--text2)';
-  } else {
-    wrEl.textContent = '—';
-    wrEl.style.color = 'var(--text2)';
-  }
-
-  // Best / worst trade
-  const currency = 'AED ';
-  const formatPnl = (v) => (v >= 0 ? '+' : '-') + currency + Math.abs(v).toFixed(2);
-
-  document.getElementById('statBestTrade').textContent  = stats.bestTrade  !== null ? formatPnl(stats.bestTrade)  : '—';
-  document.getElementById('statWorstTrade').textContent = stats.worstTrade !== null ? formatPnl(stats.worstTrade) : '—';
-}
-
-// Build price chart from trade logs.
-// Logs contain ema20 on every cycle — we use that as the price proxy since
-// candles5m is no longer stored in KV (it was too large).
-// We also use entryPrice where available for executed trades.
 function renderChartFromLogs(logs) {
   if (!logs || logs.length === 0) return;
-
-  // Build price series from logs that have ema20 (most logs do)
   const pricePoints = logs
     .filter(l => (l.goldPrice || l.ema20) && !isNaN(parseFloat(l.goldPrice || l.ema20)))
-    .slice(-60) // last 60 data points
+    .slice(-60)
     .map(l => ({
       time: l.time,
-      price: parseFloat(l.goldPrice || l.ema20), // prefer actual gold price, fallback to ema20
+      price: parseFloat(l.goldPrice || l.ema20),
     }));
 
   if (pricePoints.length === 0) return;
 
-  // Update gold price display from most recent log
   const latest = pricePoints[pricePoints.length - 1];
   document.getElementById('goldPrice').textContent =
     '$' + latest.price.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Build chart labels (time) and data (price)
   const labels = pricePoints.map(p => {
     const d = new Date(p.time);
     return d.toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit' });
@@ -710,12 +592,6 @@ function renderChartFromLogs(logs) {
   chart.data.labels = labels;
   chart.data.datasets[0].data = prices;
 
-  // Mark executed trade entry points as a second dataset
-  const tradeLogs = logs
-    .filter(l => l.tradeExecuted && l.entryPrice && !isNaN(parseFloat(l.entryPrice)))
-    .slice(-60);
-
-  // Set y-axis min/max with padding so chart isn't flat at $0
   const min = Math.min(...prices);
   const max = Math.max(...prices);
   const pad = (max - min) * 0.1 || 5;
@@ -732,9 +608,6 @@ function renderAudit(lastAudit) {
   document.getElementById('auditDate').textContent = 'Audit date: ' + lastAudit.date;
 }
 
-
-
-
 function updateMarketTime() {
   const now = new Date();
   const uaeTime = now.toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour:'2-digit', minute:'2-digit', second:'2-digit' });
@@ -749,10 +622,8 @@ function updateMarketTime() {
   document.getElementById('nextRun').textContent = `Next run in: ${m}m ${s.toString().padStart(2,'0')}s`;
 }
 
-// Init
 initChart();
 refreshDashboard();
-
 setInterval(refreshDashboard, 30000);
 setInterval(updateMarketTime, 1000);
 </script>
