@@ -476,7 +476,7 @@ async function refreshDashboard() {
     if (data.logs && data.logs.length > 0) {
       lastLogs = data.logs;
       renderLogs(data.logs);
-      renderStats(data.logs, data.state);
+      renderStats(data.stats);
       renderChartFromLogs(data.logs);
     }
     if (data.lastAudit) renderAudit(data.lastAudit);
@@ -643,60 +643,43 @@ function renderLogs(logs) {
   }).join('');
 }
 
-function renderStats(logs, state) {
-  const total    = logs.length;
-  const executed = logs.filter(l => l.tradeExecuted);
-  const executedCount = executed.length;
-  const skipped  = logs.filter(l => !l.tradeExecuted).length;
+function renderStats(stats) {
+  // stats is pre-computed server-side by lib/stats.js — single source of truth.
+  // No client-side classification logic — just render the validated numbers.
 
-  const buys  = executed.filter(l => l.signalDetected === 'BUY').length;
-  const sells = executed.filter(l => l.signalDetected === 'SELL').length;
-  // Holds = No signal detected at all
-  const holds = logs.filter(l => !l.tradeExecuted && l.signalDetected === 'NONE').length;
-  // Rejected = Signal was detected but skipped for technical/risk reasons
-  const rejected = logs.filter(l => !l.tradeExecuted && (l.signalDetected === 'BUY' || l.signalDetected === 'SELL')).length;
+  if (!stats) return;
 
-  // Realized P&L: ONLY use actual 'realizedPnl' from closure logs.
-  // We no longer fallback to balance deltas because they are unreliable due to manual trades.
-  const pnls = [];
-  
-  // Collect all explicitly logged realized P&Ls (from the new closure tracking)
-  logs.forEach(l => {
-    if (l.result?.realizedPnl != null) {
-      pnls.push(parseFloat(l.result.realizedPnl));
-    }
-  });
-
-  const wins = pnls.filter(p => p > 0.01).length;
-  const winRate = pnls.length > 0 ? ((wins / pnls.length) * 100).toFixed(0) + '%' : '—';
-  const bestTrade  = pnls.length > 0 ? Math.max(...pnls) : null;
-  const worstTrade = pnls.length > 0 ? Math.min(...pnls) : null;
-
-  document.getElementById('statTotal').textContent    = total;
-  document.getElementById('statExecuted').textContent = executedCount;
-  document.getElementById('statSkipped').textContent  = skipped;
-  document.getElementById('statBuys').textContent     = buys;
-  document.getElementById('statSells').textContent    = sells;
-  document.getElementById('statHolds').textContent    = holds;
-  if (document.getElementById('statRejected')) document.getElementById('statRejected').textContent = rejected;
-  document.getElementById('statWinRate').textContent  = winRate;
-  
-  const currency = 'AED '; // Matches Capital.com account
-  const formatPnl = (v) => (v >= 0 ? '+' : '-') + currency + Math.abs(v).toFixed(2);
-  document.getElementById('statBestTrade').textContent  = bestTrade  !== null ? formatPnl(bestTrade)  : '—';
-  document.getElementById('statWorstTrade').textContent = worstTrade !== null ? formatPnl(worstTrade) : '—';
-
-  // Colour win rate
-  const wrEl = document.getElementById('statWinRate');
-  if (pnls.length > 0) {
-    wrEl.style.color = (wins / pnls.length >= 0.5) ? 'var(--green)' : 'var(--red)';
-  } else {
-    wrEl.style.color = 'var(--text2)';
-    // Add a small hint if no trades have closed yet
-    if (executed.length > 0) {
-      document.getElementById('statWinRate').innerHTML = '<span title="Stats will update as soon as the first bot trade closes" style="cursor:help">Waiting...</span>';
-    }
+  document.getElementById('statTotal').textContent    = stats.totalDecisions;
+  document.getElementById('statExecuted').textContent = stats.executed;
+  document.getElementById('statSkipped').textContent  = stats.totalLogs > 0
+    ? `${stats.skipped + stats.marketSkips}`
+    : '—';
+  document.getElementById('statBuys').textContent     = stats.buys;
+  document.getElementById('statSells').textContent    = stats.sells;
+  document.getElementById('statHolds').textContent    = stats.skipped;
+  if (document.getElementById('statRejected')) {
+    document.getElementById('statRejected').textContent = stats.rejected;
   }
+
+  // Win rate
+  const wrEl = document.getElementById('statWinRate');
+  if (stats.winRate !== null) {
+    wrEl.textContent = stats.winRate.toFixed(1) + '%';
+    wrEl.style.color = stats.winRate >= 50 ? 'var(--green)' : 'var(--red)';
+  } else if (stats.executed > 0) {
+    wrEl.innerHTML = '<span title="Stats will update once the first bot trade closes" style="cursor:help">Waiting...</span>';
+    wrEl.style.color = 'var(--text2)';
+  } else {
+    wrEl.textContent = '—';
+    wrEl.style.color = 'var(--text2)';
+  }
+
+  // Best / worst trade
+  const currency = 'AED ';
+  const formatPnl = (v) => (v >= 0 ? '+' : '-') + currency + Math.abs(v).toFixed(2);
+
+  document.getElementById('statBestTrade').textContent  = stats.bestTrade  !== null ? formatPnl(stats.bestTrade)  : '—';
+  document.getElementById('statWorstTrade').textContent = stats.worstTrade !== null ? formatPnl(stats.worstTrade) : '—';
 }
 
 // Build price chart from trade logs.
