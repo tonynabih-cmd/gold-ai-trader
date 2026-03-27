@@ -20,7 +20,8 @@ export default async function handler(req, res) {
     ]);
 
     // Compute session stats server-side (single source of truth)
-    const stats = computeSessionStats(logs);
+    // Pass broker stats from botState so trade metrics come from Capital.com
+    const stats = computeSessionStats(logs, state);
 
     return res.json({
       state,

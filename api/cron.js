@@ -152,15 +152,21 @@ export default async function handler(req, res) {
     // Removes trades that have been closed by SL/TP or manually on Capital.com.
     botState = await syncOpenTrades(session, botState);
 
-    // ── NEW: Sync actual trade stats from broker ────────────────────────────
-    // This ensures website and daily trade limit are always 100% accurate.
+    // ── Sync actual trade stats from broker ─────────────────────────────────
+    // Single source of truth for win rate, best/worst trade, total P&L.
+    // Fetches directly from Capital.com transaction history (30-day window).
     const brokerStats = await fetchBrokerTradeStats(session);
     if (brokerStats) {
-      console.log(`Broker Sync: Today ${brokerStats.todayTrades}, Total ${brokerStats.totalTrades}`);
-      botState.dailyTrades = brokerStats.todayTrades;
-      botState.brokerTotalTrades = brokerStats.totalTrades;
-      botState.brokerTotalPnl = brokerStats.totalPnl;
-      botState.lastBrokerSync = brokerStats.syncedAt;
+      console.log(`Broker Sync: Today ${brokerStats.todayTrades}, Total ${brokerStats.totalTrades}, Win rate ${brokerStats.winRate}%`);
+      botState.dailyTrades        = brokerStats.todayTrades;
+      botState.brokerTotalTrades  = brokerStats.totalTrades;
+      botState.brokerTotalPnl     = brokerStats.totalPnl;
+      botState.brokerWins         = brokerStats.wins;
+      botState.brokerLosses       = brokerStats.losses;
+      botState.brokerWinRate      = brokerStats.winRate;
+      botState.brokerBestTrade    = brokerStats.bestTrade;
+      botState.brokerWorstTrade   = brokerStats.worstTrade;
+      botState.lastBrokerSync     = brokerStats.syncedAt;
     }
 
     // ── Step 5 & 6: Fetch market data and Indicators ─────────────────────────
