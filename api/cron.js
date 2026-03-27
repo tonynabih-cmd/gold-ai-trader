@@ -180,6 +180,25 @@ export default async function handler(req, res) {
       botState.brokerGrossProfit  = brokerStats.grossProfit;
       botState.brokerGrossLoss    = brokerStats.grossLoss;
       botState.lastBrokerSync     = brokerStats.syncedAt;
+
+      // ── Broker-Based Risk Metrics (Manual Deposit/Withdrawal Proof) ────────────────
+      // Daily loss based on today's realized broker PnL (in AED-equivalent)
+      // Since brokerStats returns $ values, we convert to AED to match botState currency.
+      const USD_AED = 3.6725;
+      const todayPnlAED = brokerStats.todayNetPnl * USD_AED;
+      botState.dailyLoss = todayPnlAED < 0 ? Math.abs(todayPnlAED) : 0;
+
+      // Drawdown based on peak total PnL relative to current total PnL
+      const currentTotalPnl = brokerStats.totalPnl;
+      const peakPnl = parseFloat(botState.peakBrokerPnl) || 0;
+      if (currentTotalPnl > peakPnl) botState.peakBrokerPnl = currentTotalPnl;
+      
+      const pnlDrawdown = (peakPnl > currentTotalPnl) ? (peakPnl - currentTotalPnl) : 0;
+      // Formula: (Drawdown in USD / Current Balance in USD) * 100
+      const currentBalanceUSD = (parseFloat(botState.balance) || 1) / USD_AED;
+      botState.totalDrawdown = parseFloat(((pnlDrawdown / currentBalanceUSD) * 100).toFixed(2));
+      
+      console.log(`Risk Sync: DailyLoss AED ${botState.dailyLoss.toFixed(2)}, TotalDrawdown ${botState.totalDrawdown}%`);
     }
 
     // ── Step 5 & 6: Fetch market data and Indicators ─────────────────────────
