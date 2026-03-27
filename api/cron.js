@@ -17,8 +17,6 @@ import { fetchWithTimeout }                from '../lib/fetch.js';
  */
 async function syncOpenTrades(session, botState) {
   try {
-    if (!botState.openTrades || botState.openTrades.length === 0) return botState;
-
     const { baseUrl, cst, securityToken } = session;
     const res = await fetchWithTimeout(`${baseUrl}/api/v1/positions`, {
       headers: {
@@ -41,7 +39,8 @@ async function syncOpenTrades(session, botState) {
     const stillOpen = [];
     const justClosed = [];
 
-    for (const trade of botState.openTrades) {
+    // Track what we managed to sync from existing botState
+    for (const trade of (botState.openTrades || [])) {
       if (trade.dealReference && liveDealRefs.has(trade.dealReference)) {
         stillOpen.push(trade);
       } else {
@@ -49,51 +48,56 @@ async function syncOpenTrades(session, botState) {
       }
     }
 
-    // Update botState.openTrades immediately so subsequent logs show correct count
-    botState.openTrades = stillOpen;
-
     // Process closed trades
     for (const closedTrade of justClosed) {
       console.log(`syncOpenTrades: detected closure of trade ${closedTrade.tradeId} (ref: ${closedTrade.dealReference})`);
+      let realizedPnl = await fetchClosedTradePnl(session, closedTrade.dealReference, closedTrade.openedAt);
       
-      // Fetch actual P&L if possible. Anchor search to trade's openedAt timestamp for 100% reliability.
-      let realizedPnl = null;
-      try {
-        realizedPnl = await fetchClosedTradePnl(session, closedTrade.dealReference, closedTrade.openedAt);
-      } catch (pnlErr) {
-        console.error(`syncOpenTrades: P&L fetch catastrophic error for ${closedTrade.tradeId}:`, pnlErr.message);
-      }
-      
-      // Assemble and log the closure event
-      // IMPORTANT: botState.openTrades was updated on line 53, so the log captures the post-update count.
-      try {
-        await saveLog({
-          signal: {
-            id: closedTrade.tradeId,
-            action: closedTrade.action === 'BUY' ? 'SELL' : 'BUY', // "Closing" action
-            entryType: 'closure',
-            entryPrice: null,
-            strategyVersion: closedTrade.strategyVersion || 'v1.1'
-          },
-          indicators: null,
-          botState: { ...botState }, // Pass a snapshot to ensure fields aren't mutated during async log
-          tradeExecuted: false,
-          reason: `CLOSED: Realized P&L: ${realizedPnl != null ? '$' + realizedPnl.toFixed(2) : 'Unknown (Not in history window)'}`,
-          result: {
-            realizedPnl: realizedPnl
-          }
-        });
+      await saveLog({
+        signal: {
+          id: closedTrade.tradeId,
+          action: closedTrade.action === 'BUY' ? 'SELL' : 'BUY',
+          entryType: 'closure',
+          entryPrice: null,
+          strategyVersion: closedTrade.strategyVersion || 'v1.1'
+        },
+        indicators: null,
+        botState: { ...botState },
+        tradeExecuted: false,
+        reason: `CLOSED: Realized P&L: ${realizedPnl != null ? '$' + realizedPnl.toFixed(2) : 'Unknown'}`,
+        result: { realizedPnl }
+      });
 
-        if (realizedPnl != null) {
-          await sendAlert(`📉 Trade CLOSED: ${closedTrade.action} Gold\nP&L: $${realizedPnl.toFixed(2)}`);
-        } else {
-          await sendAlert(`⚠️ Trade CLOSED: ${closedTrade.action} Gold (P&L lookup failed)`);
-        }
-      } catch (logErr) {
-        console.error(`syncOpenTrades: Logging/Alert failed for ${closedTrade.tradeId}:`, logErr.message);
+      if (realizedPnl != null) {
+        await sendAlert(`📉 Trade CLOSED: ${closedTrade.action} Gold\nP&L: $${realizedPnl.toFixed(2)}`);
       }
     }
 
+    // DISCOVERY: Find trades on broker that are missing locally
+    const finalOpen = [...stillOpen];
+    for (const pos of livePositions) {
+      const liveRef = pos.position?.dealReference;
+      if (!liveRef) continue;
+      
+      const existsLocally = stillOpen.some(t => t.dealReference === liveRef);
+      if (!existsLocally) {
+        console.log(`syncOpenTrades: discovered trade on broker: ref ${liveRef}`);
+        finalOpen.push({
+          tradeId:         `discovered_${liveRef}`,
+          dealReference:   liveRef,
+          pair:            'GOLD',
+          action:          pos.position?.direction,
+          entry:           parseFloat(pos.position?.level),
+          size:            parseFloat(pos.position?.size),
+          stopLoss:        parseFloat(pos.position?.stopLevel || 0),
+          takeProfit:      parseFloat(pos.position?.limitLevel || 0),
+          openedAt:        new Date(pos.position?.createdDate).getTime(),
+          strategyVersion: 'v1.1 (discovered)',
+        });
+      }
+    }
+
+    botState.openTrades = finalOpen;
     return botState;
   } catch (err) {
     console.error('syncOpenTrades error:', err.message);

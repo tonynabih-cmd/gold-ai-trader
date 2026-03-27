@@ -1,0 +1,56 @@
+--- STARTING DEEP BOT AUDIT ---
+Analyzing 831 unique log entries...
+
+--- AUDIT RESULTS ---
+Total Logs:      831
+Executed Trades: 7
+Signals Found:   44
+Total Skips:     817
+Total Rejections: 0
+Issues Found:    14
+
+--- ISSUES DETECTED ---
+1. [MEDIUM] RISK_VIOLATION: Trade executed with high spread: $0.5 (Limit: $0.40)
+   Time (UAE): 3/25/2026, 3:50:06 PM | Action: BUY | Reason: null
+---
+2. [MEDIUM] DATA_ERROR: Missing indicators without clear data failure reason: CLOSED: Realized P&L: Unknown (Not in history window)
+   Time (UAE): 3/25/2026, 3:55:10 PM | Action: SELL | Reason: CLOSED: Realized P&L: Unknown (Not in history window)
+---
+3. [MEDIUM] RISK_VIOLATION: Trade executed with high spread: $0.5 (Limit: $0.40)
+   Time (UAE): 3/25/2026, 7:10:06 PM | Action: SELL | Reason: null
+---
+4. [MEDIUM] DATA_ERROR: Missing indicators without clear data failure reason: CLOSED: Realized P&L: Unknown (Not in history window)
+   Time (UAE): 3/25/2026, 7:15:11 PM | Action: BUY | Reason: CLOSED: Realized P&L: Unknown (Not in history window)
+---
+5. [MEDIUM] RISK_VIOLATION: Trade executed with high spread: $0.5 (Limit: $0.40)
+   Time (UAE): 3/26/2026, 12:00:10 PM | Action: SELL | Reason: null
+---
+6. [MEDIUM] DATA_ERROR: Missing indicators without clear data failure reason: CLOSED: Realized P&L: Unknown (Not in history window)
+   Time (UAE): 3/26/2026, 12:05:10 PM | Action: BUY | Reason: CLOSED: Realized P&L: Unknown (Not in history window)
+---
+7. [MEDIUM] RISK_VIOLATION: Trade executed with high spread: $0.5 (Limit: $0.40)
+   Time (UAE): 3/26/2026, 1:00:11 PM | Action: SELL | Reason: null
+---
+8. [MEDIUM] DATA_ERROR: Missing indicators without clear data failure reason: CLOSED: Realized P&L: Unknown (Not in history window)
+   Time (UAE): 3/26/2026, 1:05:10 PM | Action: BUY | Reason: CLOSED: Realized P&L: Unknown (Not in history window)
+---
+9. [MEDIUM] RISK_VIOLATION: Trade executed with high spread: $0.5 (Limit: $0.40)
+   Time (UAE): 3/26/2026, 2:40:06 PM | Action: SELL | Reason: null
+---
+10. [MEDIUM] DATA_ERROR: Missing indicators without clear data failure reason: CLOSED: Realized P&L: Unknown (Not in history window)
+   Time (UAE): 3/26/2026, 2:45:11 PM | Action: BUY | Reason: CLOSED: Realized P&L: Unknown (Not in history window)
+---
+11. [MEDIUM] RISK_VIOLATION: Trade executed with high spread: $0.5 (Limit: $0.40)
+   Time (UAE): 3/26/2026, 5:40:07 PM | Action: SELL | Reason: null
+---
+12. [MEDIUM] DATA_ERROR: Missing indicators without clear data failure reason: CLOSED: Realized P&L: Unknown (Not in history window)
+   Time (UAE): 3/26/2026, 5:45:11 PM | Action: BUY | Reason: CLOSED: Realized P&L: Unknown (Not in history window)
+---
+13. [MEDIUM] RISK_VIOLATION: Trade executed with high spread: $0.5 (Limit: $0.40)
+   Time (UAE): 3/26/2026, 7:00:11 PM | Action: BUY | Reason: null
+---
+14. [MEDIUM] DATA_ERROR: Missing indicators without clear data failure reason: CLOSED: Realized P&L: Unknown (Not in history window)
+   Time (UAE): 3/26/2026, 7:03:55 PM | Action: SELL | Reason: CLOSED: Realized P&L: Unknown (Not in history window)
+---
+
+--- CONSISTENCY CHECK ---
