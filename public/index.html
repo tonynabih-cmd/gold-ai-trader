@@ -337,10 +337,6 @@
           <span style="color:var(--red);font-family:var(--mono)" id="statSells">—</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px;">
-          <span style="color:var(--text2);font-family:var(--mono)">Holds</span>
-          <span style="color:var(--text2);font-family:var(--mono)" id="statHolds">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;">
           <span style="color:var(--text2);font-family:var(--mono)">Rejected</span>
           <span style="color:var(--text2);font-family:var(--mono)" id="statRejected">—</span>
         </div>
@@ -652,11 +648,10 @@ function renderStats(stats) {
   document.getElementById('statTotal').textContent    = stats.totalDecisions;
   document.getElementById('statExecuted').textContent = stats.executed;
   document.getElementById('statSkipped').textContent  = stats.totalLogs > 0
-    ? `${stats.skipped + stats.marketSkips}`
+    ? stats.skipped
     : '—';
   document.getElementById('statBuys').textContent     = stats.buys;
   document.getElementById('statSells').textContent    = stats.sells;
-  document.getElementById('statHolds').textContent    = stats.skipped;
   if (document.getElementById('statRejected')) {
     document.getElementById('statRejected').textContent = stats.rejected;
   }
