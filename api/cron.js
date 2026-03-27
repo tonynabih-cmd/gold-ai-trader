@@ -177,6 +177,8 @@ export default async function handler(req, res) {
       botState.brokerWinRate      = brokerStats.winRate;
       botState.brokerBestTrade    = brokerStats.bestTrade;
       botState.brokerWorstTrade   = brokerStats.worstTrade;
+      botState.brokerGrossProfit  = brokerStats.grossProfit;
+      botState.brokerGrossLoss    = brokerStats.grossLoss;
       botState.lastBrokerSync     = brokerStats.syncedAt;
     }
 
