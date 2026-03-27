@@ -162,6 +162,10 @@ section('Every log classified into exactly one bucket');
 section('Win rate calculation');
 {
   const logs = [
+    makeExecutedLog('BUY'),
+    makeExecutedLog('SELL'),
+    makeExecutedLog('BUY'),
+    makeExecutedLog('SELL'),
     makeClosureLog(10.00),   // win
     makeClosureLog(5.00),    // win
     makeClosureLog(-3.00),   // loss
@@ -170,6 +174,7 @@ section('Win rate calculation');
 
   const stats = computeSessionStats(logs);
   assert(stats.closedTrades === 4, `closedTrades = 4 (got ${stats.closedTrades})`);
+  assert(stats.executed === 4, `executed = 4 (got ${stats.executed})`);
   assert(stats.wins === 2, `wins = 2 (got ${stats.wins})`);
   assert(stats.losses === 1, `losses = 1 (got ${stats.losses})`);
   assert(stats.winRate === 50.0, `winRate = 50.0% (got ${stats.winRate})`);
@@ -186,7 +191,7 @@ section('Win rate = null when no closures');
   ];
 
   const stats = computeSessionStats(logs);
-  assert(stats.winRate === null, `winRate = null when no closures (got ${stats.winRate})`);
+  assert(stats.winRate === 0, `winRate = 0 when no closures but executed > 0 (got ${stats.winRate})`);
   assert(stats.bestTrade === null, `bestTrade = null when no closures (got ${stats.bestTrade})`);
   assert(stats.worstTrade === null, `worstTrade = null when no closures (got ${stats.worstTrade})`);
 }
@@ -286,7 +291,7 @@ section('Realistic mixed workload');
   assert(stats.closures === 2, `closures = 2 (got ${stats.closures})`);
   assert(stats.buys === 2, `buys = 2 (got ${stats.buys})`);
   assert(stats.sells === 1, `sells = 1 (got ${stats.sells})`);
-  assert(stats.winRate === 50.0, `winRate = 50.0% (got ${stats.winRate})`);
+  assert(stats.winRate === 33.3, `winRate = 33.3% (got ${stats.winRate})`);
   assert(stats.bestTrade === 8.50, `bestTrade = 8.50 (got ${stats.bestTrade})`);
   assert(stats.worstTrade === -3.20, `worstTrade = -3.20 (got ${stats.worstTrade})`);
   assert(stats.valid === true, 'All invariants pass');
@@ -308,100 +313,49 @@ section('Realistic mixed workload');
 }
 
 
-section('Broker stats override closure logs');
+section('Raw logs win rate and metrics calculation');
 {
-  // Simulate: closure logs have incomplete P&L, but broker stats have the real data
   const logs = [
     makeExecutedLog('BUY'),
     makeExecutedLog('SELL'),
-    makeClosureLog(5.0),   // only 1 closure log with P&L
-    makeSkippedLog(),
+    makeExecutedLog('BUY'),
+    makeClosureLog(10.00),  // win
+    makeClosureLog(-5.00),  // loss
   ];
 
-  // Broker stats from Capital.com (the real source of truth)
-  const brokerStats = {
-    brokerTotalTrades: 17,
-    brokerWins: 8,
-    brokerLosses: 9,
-    brokerWinRate: 47.06,
-    brokerBestTrade: 120.50,
-    brokerWorstTrade: -45.30,
-    brokerTotalPnl: 449.24,
-  };
-
-  const stats = computeSessionStats(logs, brokerStats);
-
-  assert(stats.winRate === 47.06, `Broker winRate = 47.06% (got ${stats.winRate})`);
-  assert(stats.closedTrades === 17, `Broker closedTrades = 17 (got ${stats.closedTrades})`);
-  assert(stats.bestTrade === 120.50, `Broker bestTrade = 120.50 (got ${stats.bestTrade})`);
-  assert(stats.worstTrade === -45.30, `Broker worstTrade = -45.30 (got ${stats.worstTrade})`);
-  assert(stats.totalPnl === 449.24, `Broker totalPnl = 449.24 (got ${stats.totalPnl})`);
-  assert(stats.wins === 8, `Broker wins = 8 (got ${stats.wins})`);
-  assert(stats.losses === 9, `Broker losses = 9 (got ${stats.losses})`);
-  assert(stats.source === 'broker', `Source = broker (got ${stats.source})`);
-
-  // Log classification should still work independently
-  assert(stats.executed === 2, `executed still = 2 (got ${stats.executed})`);
-  assert(stats.closures === 1, `closures still = 1 (got ${stats.closures})`);
-  assert(stats.valid === true, 'Invariants still pass');
+  const stats = computeSessionStats(logs);
+  
+  // 3 executed trades, 2 closed trades (1 win, 1 loss)
+  // Win rate = winning trades / executed trades * 100 = 1 / 3 * 100 = 33.3%
+  assert(stats.winRate === 33.3, `Raw logs winRate = 33.3% (got ${stats.winRate})`);
+  assert(stats.bestTrade === 10.00, `Raw logs bestTrade = 10.00 (got ${stats.bestTrade})`);
+  assert(stats.worstTrade === -5.00, `Raw logs worstTrade = -5.00 (got ${stats.worstTrade})`);
+  assert(stats.closedTrades === 2, `Raw logs closedTrades = 2 (got ${stats.closedTrades})`);
+  assert(stats.source === 'raw_logs', `Source = raw_logs (got ${stats.source})`);
 }
 
-section('Capital.com screenshot match (17 trades, 47.06% win rate, +AED 449.24)');
-{
-  // Exact values from user's Capital.com screenshot
-  const brokerStats = {
-    brokerTotalTrades: 17,
-    brokerWins: 8,
-    brokerLosses: 9,
-    brokerWinRate: 47.06,
-    brokerBestTrade: 150.00,
-    brokerWorstTrade: -80.00,
-    brokerTotalPnl: 449.24,
-  };
-
-  const logs = [makeSkippedLog()]; // minimal logs
-  const stats = computeSessionStats(logs, brokerStats);
-
-  assert(stats.winRate === 47.06, `Win rate matches Capital.com: 47.06% (got ${stats.winRate})`);
-  assert(stats.closedTrades === 17, `Total trades matches Capital.com: 17 (got ${stats.closedTrades})`);
-  assert(stats.totalPnl === 449.24, `P&L matches Capital.com: +AED 449.24 (got ${stats.totalPnl})`);
-  assert(stats.bestTrade !== null, `Best trade is NOT null (got ${stats.bestTrade})`);
-  assert(stats.worstTrade !== null, `Worst trade is NOT null (got ${stats.worstTrade})`);
-  assert(stats.source === 'broker', `Data source is broker (got ${stats.source})`);
-}
-
-section('Broker stats with empty logs');
-{
-  const brokerStats = {
-    brokerTotalTrades: 5,
-    brokerWins: 3,
-    brokerLosses: 2,
-    brokerWinRate: 60.0,
-    brokerBestTrade: 50.00,
-    brokerWorstTrade: -20.00,
-    brokerTotalPnl: 100.00,
-  };
-
-  const stats = computeSessionStats([], brokerStats);
-  assert(stats.winRate === 60.0, `Broker winRate with empty logs = 60.0% (got ${stats.winRate})`);
-  assert(stats.bestTrade === 50.00, `Broker bestTrade with empty logs = 50.00 (got ${stats.bestTrade})`);
-  assert(stats.source === 'broker', `Source = broker even with empty logs (got ${stats.source})`);
-}
-
-section('No broker stats → falls back to closure logs');
+section('Missing trade metrics failure');
 {
   const logs = [
-    makeClosureLog(10.00),
-    makeClosureLog(-5.00),
+    makeExecutedLog('BUY'),
+    {
+      time: new Date().toISOString(),
+      signal: { action: 'SELL', entryType: 'closure' },
+      tradeExecuted: false,
+      reason: 'CLOSED: Unknown',
+      // no result or realizedPnl
+    }
   ];
 
-  const stats = computeSessionStats(logs, null);
-  assert(stats.winRate === 50.0, `Fallback winRate from closure logs = 50.0% (got ${stats.winRate})`);
-  assert(stats.bestTrade === 10.00, `Fallback bestTrade = 10.00 (got ${stats.bestTrade})`);
-  assert(stats.worstTrade === -5.00, `Fallback worstTrade = -5.00 (got ${stats.worstTrade})`);
-  assert(stats.source === 'logs', `Source = logs (got ${stats.source})`);
+  let threw = false;
+  try {
+    computeSessionStats(logs);
+  } catch (e) {
+    threw = true;
+    assert(e.message.includes('trade metrics failed calculating'), 'Throws descriptive strict trade metric validation error');
+  }
+  assert(threw, 'Should throw error when closedTrades > 0 but metrics are null');
 }
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SUMMARY
