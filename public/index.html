@@ -149,10 +149,10 @@
 
 <div class="topbar">
   <div class="logo">
-    <div class="logo-icon">Au</div>
+    <div class="logo-icon" id="logoIcon">Au</div>
     <div>
       <div class="logo-text">Gold AI Trader</div>
-      <div class="logo-sub">XAU/USD · 24/7 Auto Trading · Demo</div>
+      <div class="logo-sub" id="logoSub">XAU/USD · 24/7 Auto Trading · Demo</div>
     </div>
   </div>
   <div class="topbar-right">
@@ -169,7 +169,7 @@
 
     <div class="banner">
       <div class="banner-dot"></div>
-      <span>EMA 20/50 strategy · Capital.com demo · Triggers every 5 min via cron-job.org + GitHub Actions backup</span>
+      <span id="bannerText">EMA 20/50 strategy · Capital.com demo · Triggers every 5 min via cron-job.org + GitHub Actions backup</span>
     </div>
 
     <div class="setup-banner" id="setupReadyBanner">
@@ -184,7 +184,7 @@
       <div class="metric">
         <div class="metric-label">Balance</div>
         <div class="metric-value" id="balance">—</div>
-        <div class="metric-sub">Demo account</div>
+        <div class="metric-sub" id="balanceSub">Demo account</div>
       </div>
       <div class="metric">
         <div class="metric-label">Gold Price</div>
@@ -408,6 +408,7 @@ async function refreshDashboard() {
     const res = await fetch('/api/dashboard');
     const data = await res.json();
     renderState(data.state);
+    renderEnv(data.env || 'demo');
     if (data.logs && data.logs.length > 0) {
       lastLogs = data.logs;
       renderLogs(data.logs);
@@ -417,6 +418,30 @@ async function refreshDashboard() {
   } catch(e) {
     console.error('Dashboard error:', e);
   }
+}
+
+function renderEnv(env) {
+  const isLive = env === 'live';
+  
+  // Logo
+  const logoSub = document.getElementById('logoSub');
+  logoSub.textContent = isLive ? 'XAU/USD · 24/7 Auto Trading · LIVE' : 'XAU/USD · 24/7 Auto Trading · Demo';
+  logoSub.style.color = isLive ? 'var(--gold-light)' : 'var(--text2)';
+
+  // Icon
+  const logoIcon = document.getElementById('logoIcon');
+  logoIcon.style.borderColor = isLive ? 'var(--gold-light)' : 'var(--gold)';
+  logoIcon.style.color = isLive ? 'var(--gold-light)' : 'var(--gold)';
+  logoIcon.style.boxShadow = isLive ? '0 0 15px rgba(201,168,76,0.3)' : 'none';
+
+  // Banner
+  const bannerText = document.getElementById('bannerText');
+  bannerText.textContent = isLive ? 'EMA 20/50 strategy · Capital.com LIVE · Triggers every 5 min via Vercel Cron' : 'EMA 20/50 strategy · Capital.com demo · Triggers every 5 min via cron-job.org';
+
+  // Balance Metric
+  const balanceSub = document.getElementById('balanceSub');
+  balanceSub.textContent = isLive ? 'Real money account' : 'Demo account';
+  balanceSub.style.color = isLive ? 'var(--green)' : 'var(--text2)';
 }
 
 function renderState(state) {

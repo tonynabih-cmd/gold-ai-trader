@@ -22,6 +22,7 @@ export default async function handler(req, res) {
       state,
       logs,
       lastAudit: lastAudit || null,
+      env:       process.env.CAPITAL_ENV || 'demo',
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
