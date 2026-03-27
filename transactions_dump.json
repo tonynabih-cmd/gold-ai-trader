@@ -1,0 +1,74 @@
+[
+  {
+    "date": "2026-03-26T19:57:26.059",
+    "dateUtc": "2026-03-26T15:57:26.059",
+    "instrumentName": "GOLD",
+    "transactionType": "TRADE",
+    "note": "Trade closed",
+    "reference": "123309010437760",
+    "size": "-23.83",
+    "currency": "AEDd",
+    "status": "PROCESSED",
+    "dealId": "00601567-0055-311e-0000-00008468be68"
+  },
+  {
+    "date": "2026-03-26T17:44:58.530",
+    "dateUtc": "2026-03-26T13:44:58.530",
+    "instrumentName": "GOLD",
+    "transactionType": "TRADE",
+    "note": "Trade closed",
+    "reference": "123300676333322",
+    "size": "-21.08",
+    "currency": "AEDd",
+    "status": "PROCESSED",
+    "dealId": "00601567-0055-311e-0000-00008468840a"
+  },
+  {
+    "date": "2026-03-26T15:20:15.615",
+    "dateUtc": "2026-03-26T11:20:15.615",
+    "instrumentName": "GOLD",
+    "transactionType": "TRADE",
+    "note": "Trade closed",
+    "reference": "123291571542575",
+    "size": "-20.39",
+    "currency": "AEDd",
+    "status": "PROCESSED",
+    "dealId": "00601567-0055-311e-0000-0000846831b2"
+  },
+  {
+    "date": "2026-03-26T15:20:10.834",
+    "dateUtc": "2026-03-26T11:20:10.834",
+    "instrumentName": "GOLD",
+    "transactionType": "TRADE",
+    "note": "Trade closed",
+    "reference": "123291566299503",
+    "size": "-23.66",
+    "currency": "AEDd",
+    "status": "PROCESSED",
+    "dealId": "00601567-0055-311e-0000-000084680a40"
+  },
+  {
+    "date": "2026-03-26T12:43:36.686",
+    "dateUtc": "2026-03-26T08:43:36.686",
+    "instrumentName": "GOLD",
+    "transactionType": "TRADE",
+    "note": "Trade closed",
+    "reference": "123281715994309",
+    "size": "35.97",
+    "currency": "AEDd",
+    "status": "PROCESSED",
+    "dealId": "00601567-0055-311e-0000-00008467ef53"
+  },
+  {
+    "date": "2026-03-25T23:08:49.086",
+    "dateUtc": "2026-03-25T19:08:49.086",
+    "instrumentName": "GOLD",
+    "transactionType": "TRADE",
+    "note": "Trade closed",
+    "reference": "123230454259187",
+    "size": "35.94",
+    "currency": "AEDd",
+    "status": "PROCESSED",
+    "dealId": "00601567-0055-311e-0000-000084669e52"
+  }
+]

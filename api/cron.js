@@ -157,8 +157,15 @@ export default async function handler(req, res) {
     // Fetches directly from Capital.com transaction history (30-day window).
     const brokerStats = await fetchBrokerTradeStats(session);
     if (brokerStats) {
-      console.log(`Broker Sync: Today ${brokerStats.todayTrades}, Total ${brokerStats.totalTrades}, Win rate ${brokerStats.winRate}%`);
+      console.log(`Broker Sync: Today ${brokerStats.todayTrades}, Win rate ${brokerStats.todayWinRate}%`);
       botState.dailyTrades        = brokerStats.todayTrades;
+      botState.todayTrades        = brokerStats.todayTrades; // Unify for stats.js
+      botState.todayBuys          = brokerStats.todayBuys;
+      botState.todaySells         = brokerStats.todaySells;
+      botState.todayWinRate       = brokerStats.todayWinRate;
+      botState.todayBest          = brokerStats.todayBest;
+      botState.todayWorst         = brokerStats.todayWorst;
+
       botState.brokerTotalTrades  = brokerStats.totalTrades;
       botState.brokerTotalPnl     = brokerStats.totalPnl;
       botState.brokerWins         = brokerStats.wins;
