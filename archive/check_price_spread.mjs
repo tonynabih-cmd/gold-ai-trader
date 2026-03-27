@@ -1,0 +1,43 @@
+import fs from 'fs';
+import { getCapitalSession } from '../lib/session.js';
+import { fetchWithTimeout } from '../lib/fetch.js';
+
+// Simple .env.local loader
+try {
+  const envText = fs.readFileSync('.env.local', 'utf-8');
+  envText.split('\n').forEach(line => {
+    if (line.trim() && !line.startsWith('#')) {
+      const idx = line.indexOf('=');
+      if (idx !== -1) {
+        const k = line.substring(0, idx).trim();
+        const v = line.substring(idx + 1).trim().replace(/^['"]|['"]$/g, '');
+        process.env[k] = v;
+      }
+    }
+  });
+} catch (e) {
+  console.log("Could not load .env.local:", e.message);
+}
+
+async function run() {
+  const session = await getCapitalSession();
+  const url = `${session.baseUrl}/api/v1/prices/GOLD?resolution=MINUTE&max=5`;
+
+  const res = await fetchWithTimeout(url, {
+    headers: {
+      'X-CAP-API-KEY':    process.env.CAPITAL_API_KEY,
+      'CST':              session.cst,
+      'X-SECURITY-TOKEN': session.securityToken,
+    },
+  });
+
+  const data = await res.json();
+  console.log(JSON.stringify(data.prices.map(p => ({
+    time: p.snapshotTime,
+    bid: p.closePrice.bid,
+    ask: p.closePrice.ask,
+    spread: parseFloat((p.closePrice.ask - p.closePrice.bid).toFixed(4))
+  })), null, 2));
+}
+
+run().catch(console.error);
