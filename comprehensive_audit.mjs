@@ -1,180 +1,168 @@
 import './load_env.js';
 import { getLogs } from './lib/logger.js';
+import { computeSessionStats } from './lib/stats.js';
+import { getCapitalSession } from './lib/session.js';
+import { fetchWithTimeout } from './lib/fetch.js';
 
 const USD_AED_PEG = 3.6725;
 
-async function runAudit() {
-  console.log('Fetching logs for comprehensive audit...');
-  const logs = await getLogs();
-  if (!logs || logs.length === 0) {
-    console.log('No logs found.');
-    return;
-  }
-
-  const trades = new Map();
-  const violations = [];
-  const stats = {
-    totalTrades: 0,
-    wins: 0,
-    losses: 0,
-    totalProfit: 0,
-    totalLoss: 0,
-    maxDrawdown: 0,
-    maxDailyLoss: 0,
-  };
-
-  // Group logs by trade session (dealReference)
-  logs.forEach(log => {
-    const ref = log.dealReference || log.tradeId;
-    if (ref && ref !== 'NO_SIGNAL') {
-      if (!trades.has(ref)) trades.set(ref, []);
-      trades.get(ref).push(log);
+function validateIndicatorLogic(log) {
+    if (!log.indicators) return true;
+    const { currEMA20, currEMA50, ema20arr, ema50arr, slopePercent } = log.indicators;
+    let valid = true;
+    
+    // EMA math array verification
+    if (ema20arr && ema20arr.length > 0) {
+        const lastEmA20 = ema20arr[ema20arr.length - 1];
+        if (Math.abs(currEMA20 - lastEmA20) > 0.01) {
+            console.error(`  [X] EMA MATH FAILED: currEMA20 (${currEMA20}) doesn't match end of array (${lastEmA20})`);
+            valid = false;
+        }
     }
-  });
-
-  console.log(`Analyzing ${trades.size} individual trade sessions...`);
-
-  // Track daily P&L and other stats
-  const dailyPnl = new Map(); // Date string -> P&L
-  let peakBalance = 0;
-  let concurrentTrades = 0;
-
-  // Process logs chronologically to check sequence and risk rules
-  for (let i = 0; i < logs.length; i++) {
-    const log = logs[i];
-    const balance = parseFloat(log.balance) || 0;
-    if (balance > peakBalance) peakBalance = balance;
-
-    // Check Drawdown Accuracy
-    if (peakBalance > 0) {
-      const calculatedDrawdown = parseFloat(((peakBalance - balance) / peakBalance * 100).toFixed(2));
-      const reportedDrawdown = parseFloat(log.totalDrawdown) || 0;
-      if (Math.abs(calculatedDrawdown - reportedDrawdown) > 0.05 && balance < peakBalance) {
-        violations.push({
-          type: 'DRAWDOWN_MISMATCH',
-          time: log.timeUAE,
-          message: `Calculated: ${calculatedDrawdown}%, Reported: ${reportedDrawdown}%`
-        });
-      }
-      if (calculatedDrawdown > stats.maxDrawdown) stats.maxDrawdown = calculatedDrawdown;
-    }
-
-    // Check Position Limits
-    if (log.tradeExecuted) {
-      const openPositions = parseInt(log.openPositions) || 0;
-      if (openPositions > 2) {
-        violations.push({
-          type: 'POSITION_LIMIT_EXCEEDED',
-          time: log.timeUAE,
-          message: `Open trades: ${openPositions} (Limit: 2)`
-        });
-      }
-    }
-
-    // Check Duplicate Signal IDs
-    if (log.tradeExecuted && i > 0) {
-        const prevLogs = logs.slice(Math.max(0, i - 10), i);
-        if (prevLogs.some(pl => pl.tradeId === log.tradeId && pl.tradeExecuted)) {
-            violations.push({
-                type: 'DUPLICATE_SIGNAL_ID',
-                time: log.timeUAE,
-                message: `Signal ID ${log.tradeId} executed multiple times.`
-            });
+    if (ema50arr && ema50arr.length > 0) {
+        const lastEmA50 = ema50arr[ema50arr.length - 1];
+        if (Math.abs(currEMA50 - lastEmA50) > 0.01) {
+            console.error(`  [X] EMA MATH FAILED: currEMA50 (${currEMA50}) doesn't match end of array (${lastEmA50})`);
+            valid = false;
         }
     }
 
-    // Check Risk per Trade (Rule 15/Rule 19 logic)
-    if (log.tradeExecuted && log.entryPrice && log.stopLoss && log.balance) {
-      const stopDistance = Math.abs(log.entryPrice - log.stopLoss);
-      const riskRatio = (stopDistance * (parseFloat(log.size) || 0) * USD_AED_PEG) / balance;
-      if (riskRatio > 0.021) { // 2% + small buffer for rounding
-        violations.push({
-          type: 'EXCESSIVE_RISK',
-          time: log.timeUAE,
-          message: `Risk: ${(riskRatio * 100).toFixed(2)}% of balance (Limit: 2%)`
-        });
-      }
+    // Signal logic validation
+    if (log.signalDetected === 'BUY') {
+        if (currEMA20 <= currEMA50) {
+            console.error(`  [X] EMA LOGIC FAILED: BUY signal but EMA20 (${currEMA20}) <= EMA50 (${currEMA50})`);
+            valid = false;
+        }
+    } else if (log.signalDetected === 'SELL') {
+        if (currEMA20 >= currEMA50) {
+            console.error(`  [X] EMA LOGIC FAILED: SELL signal but EMA20 (${currEMA20}) >= EMA50 (${currEMA50})`);
+            valid = false;
+        }
     }
-  }
+    return valid;
+}
 
-  // Analyze individual trades for math correctness
-  trades.forEach((sessionLogs, ref) => {
-    const entry = sessionLogs.find(l => l.tradeExecuted);
-    const closure = sessionLogs.find(l => l.reason?.includes('CLOSED') || l.reason?.includes('HIT'));
+async function runAudit() {
+    console.log('\n==================================================');
+    console.log('         COMPREHENSIVE BOT AUDIT & VERIFICATION    ');
+    console.log('==================================================\n');
+
+    console.log('1. Loading raw logs from persistence...');
+    const logs = await getLogs();
+    if (!logs || logs.length === 0) {
+        console.log('No logs found for audit.');
+        return;
+    }
+    console.log(`-> Loaded ${logs.length} total logs.\n`);
+
+    console.log('2. Recalculating Session Statistics (Local Engine)...');
+    const localStats = computeSessionStats(logs);
     
-    if (entry && closure) {
-      stats.totalTrades++;
-      const direction = entry.signalDetected; // BUY or SELL
-      const entryPrice = parseFloat(entry.entryPrice);
-      const exitPrice = parseFloat(closure.goldPrice) || parseFloat(closure.indicators?.lastCandle?.close);
-      const size = parseFloat(entry.size);
-      
-      if (!entryPrice || !exitPrice || !size) return;
+    console.log('--- LOCAL ENGINE INTERMEDIATE TOTALS ---');
+    console.log(`Total Decisions: ${localStats.totalDecisions}`);
+    console.log(` - Executed:    ${localStats.executed}`);
+    console.log(` - Skipped:     ${localStats.skipped}`);
+    console.log(` - Rejected:    ${localStats.rejected}`);
+    console.log(` - Buys:        ${localStats.buys}`);
+    console.log(` - Sells:       ${localStats.sells}`);
+    console.log(` - Holds:       ${localStats.skipped} (Mapped as skipped)`);
+    console.log(`Total Closures:  ${localStats.closures}`);
+    console.log(`Closed Trades:   ${localStats.closedTrades}`);
+    console.log(`Win Rate:        ${localStats.winRate ?? 'N/A'}%`);
+    console.log(`Best Trade PnL:  ${localStats.bestTrade ?? 'N/A'}`);
+    console.log(`Worst Trade PnL: ${localStats.worstTrade ?? 'N/A'}`);
+    console.log('');
 
-      // TRADE MATH
-      let pnlUSD = 0;
-      if (direction === 'BUY') {
-        pnlUSD = (exitPrice - entryPrice) * size;
-      } else {
-        pnlUSD = (entryPrice - exitPrice) * size;
-      }
-      
-      const pnlAED = parseFloat((pnlUSD * USD_AED_PEG).toFixed(2));
-      const reportedPnl = parseFloat(closure.result?.realizedPnl) || 0;
-
-      if (reportedPnl !== 0 && Math.abs(pnlAED - reportedPnl) > 0.5) {
-        violations.push({
-          type: 'PNL_MATH_ERROR',
-          tradeId: ref,
-          message: `Calculated P&L: ${pnlAED} AED, Reported P&L: ${reportedPnl} AED`
-        });
-      }
-
-      if (pnlAED > 0) {
-        stats.wins++;
-        stats.totalProfit += pnlAED;
-      } else {
-        stats.losses++;
-        stats.totalLoss += Math.abs(pnlAED);
-      }
-
-      // Risk-Reward Ratio
-      const stopDistance = Math.abs(entryPrice - parseFloat(entry.stopLoss));
-      const targetDistance = Math.abs(parseFloat(entry.takeProfit) - entryPrice);
-      const rr = targetDistance / stopDistance;
-      const actualRR = Math.abs(exitPrice - entryPrice) / stopDistance;
-      
-      // If the trade was closed early not by SL/TP, actual RR might differ from planned RR.
-      // But we can still flag if planned RR is suspicious (e.g. < 1)
-      if (rr < 1) {
-          violations.push({
-              type: 'LOW_RR_RATIO',
-              tradeId: ref,
-              message: `Planned R:R: ${rr.toFixed(2)}`
-          });
-      }
-    }
-  });
-
-  const winRate = stats.totalTrades > 0 ? (stats.wins / stats.totalTrades * 100).toFixed(2) : 0;
-  const profitFactor = stats.totalLoss > 0 ? (stats.totalProfit / stats.totalLoss).toFixed(2) : 'Infinity';
-
-  console.log('\n--- AUDIT SUMMARY ---');
-  console.log(`Total Trades: ${stats.totalTrades}`);
-  console.log(`Win Rate:     ${winRate}%`);
-  console.log(`Profit Factor: ${profitFactor}`);
-  console.log(`Max Drawdown:  ${stats.maxDrawdown}%`);
-  console.log(`Total Profit:  AED ${stats.totalProfit.toFixed(2)}`);
-  console.log(`Total Loss:    AED ${stats.totalLoss.toFixed(2)}`);
-  
-  if (violations.length > 0) {
-    console.log('\n--- VIOLATIONS DETECTED ---');
-    violations.forEach(v => {
-      console.log(`[${v.type}] ${v.time || v.tradeId}: ${v.message}`);
+    console.log('3. Validating EMA and Indicators in Executed Trades...');
+    const executedLogs = logs.filter(l => l.tradeExecuted);
+    let indicatorsPassed = 0;
+    executedLogs.forEach(log => {
+        const isValid = validateIndicatorLogic(log);
+        if (isValid) indicatorsPassed++;
     });
-  } else {
-    console.log('\n✅ No major risk or math violations detected.');
-  }
+    console.log(`-> Indicator Validation: ${indicatorsPassed}/${executedLogs.length} trades passed internal math verification.\n`);
+
+    console.log('4. Cross-Checking against Capital.com (Live Broker Snapshot)...');
+    let brokerWins = 0;
+    let brokerLosses = 0;
+    let brokerTotalTrades = 0;
+    let brokerBestTrade = null;
+    let brokerWorstTrade = null;
+    let brokerTotalPnl = 0;
+
+    try {
+        const session = await getCapitalSession();
+        // Set fromDate to start of current UAE day
+        const fromDate = new Date();
+        fromDate.setHours(fromDate.getHours() + 4); // convert to UAE
+        fromDate.setHours(0,0,0,0); // start of day UAE
+        fromDate.setHours(fromDate.getHours() - 4); // back to UTC
+        
+        const url = `${session.baseUrl}/api/v1/history/transactions?from=${fromDate.toISOString().split('.')[0]}&to=${new Date().toISOString().split('.')[0]}`;
+        const res = await fetchWithTimeout(url, {
+            headers: {
+                'X-CAP-API-KEY': process.env.CAPITAL_API_KEY,
+                'CST': session.cst,
+                'X-SECURITY-TOKEN': session.securityToken,
+            },
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            const txs = data.transactions || [];
+            
+            // Only consider executed trades with real P&L in the current day
+            const trades = txs.filter(t => t.profitAndLoss !== undefined && t.profitAndLoss !== null && t.profitAndLoss !== 0);
+            brokerTotalTrades = trades.length;
+            
+            const pnls = trades.map(t => {
+                // Return numerical P&L (assumed to be account currency)
+                return parseFloat(t.profitAndLoss);
+            });
+            
+            if (pnls.length > 0) {
+                brokerBestTrade = Math.max(...pnls);
+                brokerWorstTrade = Math.min(...pnls);
+                brokerTotalPnl = pnls.reduce((a, b) => a + b, 0);
+                brokerWins = pnls.filter(p => p > 0.001).length;
+                brokerLosses = pnls.filter(p => p < -0.001).length;
+            }
+            
+            console.log('--- BROKER SNAPSHOT STATS ---');
+            console.log(`Closed Trades:   ${brokerTotalTrades}`);
+            console.log(`Wins:            ${brokerWins}`);
+            console.log(`Losses:          ${brokerLosses}`);
+            console.log(`Best Trade:      ${brokerBestTrade ?? 'N/A'}`);
+            console.log(`Worst Trade:     ${brokerWorstTrade ?? 'N/A'}`);
+            console.log(`Total PNL:       ${brokerTotalPnl.toFixed(2)}`);
+
+            console.log('\n--- METRIC COMPARISONS (Local vs Broker) ---');
+            
+            // Because broker gives 0s for some transaction fees, we strictly match actual trades.
+            // If the local calculation exactly equals the broker, they match.
+            const closedMatch = (localStats.closedTrades || 0) === brokerTotalTrades;
+            const winsMatch = (localStats.wins || 0) === brokerWins;
+            const lossesMatch = (localStats.losses || 0) === brokerLosses;
+            const bestMatch = (localStats.bestTrade || 0).toFixed(2) === (brokerBestTrade || 0).toFixed(2);
+            const worstMatch = (localStats.worstTrade || 0).toFixed(2) === (brokerWorstTrade || 0).toFixed(2);
+
+            console.log(`Closed Trades Match: ${closedMatch ? '✅' : '❌'} (Local: ${localStats.closedTrades || 0}, Broker: ${brokerTotalTrades})`);
+            console.log(`Wins Match:          ${winsMatch ? '✅' : '❌'} (Local: ${localStats.wins || 0}, Broker: ${brokerWins})`);
+            console.log(`Losses Match:        ${lossesMatch ? '✅' : '❌'} (Local: ${localStats.losses || 0}, Broker: ${brokerLosses})`);
+            console.log(`Best Trade Match:    ${bestMatch ? '✅' : '❌'} (Local: ${localStats.bestTrade ?? 'N/A'}, Broker: ${brokerBestTrade ?? 'N/A'})`);
+            console.log(`Worst Trade Match:   ${worstMatch ? '✅' : '❌'} (Local: ${localStats.worstTrade ?? 'N/A'}, Broker: ${brokerWorstTrade ?? 'N/A'})`);
+
+        } else {
+            console.log('-> FAILED to fetch from Capital.com (Network/Auth Error). Snapshot compare skipped. HTTP Status:', res.status);
+        }
+
+    } catch(err) {
+        console.error('-> ERROR cross-checking Capital.com:', err.message);
+    }
+    
+    console.log('\n==================================================');
+    console.log('               AUDIT COMPLETE                      ');
+    console.log('==================================================\n');
 }
 
 runAudit().catch(console.error);
