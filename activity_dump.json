@@ -1,5 +1,41 @@
 [
   {
+    "date": "2026-03-26T19:57:25.988",
+    "dateUTC": "2026-03-26T15:57:25.988",
+    "epic": "GOLD",
+    "dealId": "00601567-0055-311e-0000-00008468be68",
+    "source": "SL",
+    "type": "POSITION",
+    "status": "ACCEPTED"
+  },
+  {
+    "date": "2026-03-26T19:57:25.988",
+    "dateUTC": "2026-03-26T15:57:25.988",
+    "epic": "GOLD",
+    "dealId": "00601567-0055-311e-0000-00008468dc0e",
+    "source": "SL",
+    "type": "WORKING_ORDER",
+    "status": "EXECUTED"
+  },
+  {
+    "date": "2026-03-26T19:00:11.610",
+    "dateUTC": "2026-03-26T15:00:11.610",
+    "epic": "GOLD",
+    "dealId": "00601567-0055-311e-0000-00008468be68",
+    "source": "USER",
+    "type": "POSITION",
+    "status": "ACCEPTED"
+  },
+  {
+    "date": "2026-03-26T19:00:11.610",
+    "dateUTC": "2026-03-26T15:00:11.610",
+    "epic": "GOLD",
+    "dealId": "00601567-0055-311e-0000-00008468be67",
+    "source": "USER",
+    "type": "WORKING_ORDER",
+    "status": "EXECUTED"
+  },
+  {
     "date": "2026-03-26T17:44:58.492",
     "dateUTC": "2026-03-26T13:44:58.492",
     "epic": "GOLD",
@@ -139,42 +175,6 @@
     "dateUTC": "2026-03-26T08:00:10.780",
     "epic": "GOLD",
     "dealId": "00601567-0055-311e-0000-00008467ef52",
-    "source": "USER",
-    "type": "WORKING_ORDER",
-    "status": "EXECUTED"
-  },
-  {
-    "date": "2026-03-25T23:08:48.783",
-    "dateUTC": "2026-03-25T19:08:48.783",
-    "epic": "GOLD",
-    "dealId": "00601567-0055-311e-0000-000084669e52",
-    "source": "TP",
-    "type": "POSITION",
-    "status": "ACCEPTED"
-  },
-  {
-    "date": "2026-03-25T23:08:48.783",
-    "dateUTC": "2026-03-25T19:08:48.783",
-    "epic": "GOLD",
-    "dealId": "00601567-0055-311e-0000-000084670b9a",
-    "source": "TP",
-    "type": "WORKING_ORDER",
-    "status": "EXECUTED"
-  },
-  {
-    "date": "2026-03-25T19:10:06.289",
-    "dateUTC": "2026-03-25T15:10:06.289",
-    "epic": "GOLD",
-    "dealId": "00601567-0055-311e-0000-000084669e52",
-    "source": "USER",
-    "type": "POSITION",
-    "status": "ACCEPTED"
-  },
-  {
-    "date": "2026-03-25T19:10:06.289",
-    "dateUTC": "2026-03-25T15:10:06.289",
-    "epic": "GOLD",
-    "dealId": "00601567-0055-311e-0000-000084669e51",
     "source": "USER",
     "type": "WORKING_ORDER",
     "status": "EXECUTED"

@@ -58,17 +58,5 @@
     "currency": "AEDd",
     "status": "PROCESSED",
     "dealId": "00601567-0055-311e-0000-00008467ef53"
-  },
-  {
-    "date": "2026-03-25T23:08:49.086",
-    "dateUtc": "2026-03-25T19:08:49.086",
-    "instrumentName": "GOLD",
-    "transactionType": "TRADE",
-    "note": "Trade closed",
-    "reference": "123230454259187",
-    "size": "35.94",
-    "currency": "AEDd",
-    "status": "PROCESSED",
-    "dealId": "00601567-0055-311e-0000-000084669e52"
   }
 ]

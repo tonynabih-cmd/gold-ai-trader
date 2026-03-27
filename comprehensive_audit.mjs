@@ -92,11 +92,10 @@ async function runAudit() {
 
     try {
         const session = await getCapitalSession();
-        // Set fromDate to start of current UAE day
+        // Set fromDate to start of YESTERDAY UAE day
         const fromDate = new Date();
-        fromDate.setHours(fromDate.getHours() + 4); // convert to UAE
-        fromDate.setHours(0,0,0,0); // start of day UAE
-        fromDate.setHours(fromDate.getHours() - 4); // back to UTC
+        fromDate.setHours(fromDate.getHours() + 2); // UAE is +4, but we want to look back 48h just to be safe
+        fromDate.setTime(fromDate.getTime() - 48 * 60 * 60 * 1000); 
         
         const url = `${session.baseUrl}/api/v1/history/transactions?from=${fromDate.toISOString().split('.')[0]}&to=${new Date().toISOString().split('.')[0]}`;
         const res = await fetchWithTimeout(url, {
