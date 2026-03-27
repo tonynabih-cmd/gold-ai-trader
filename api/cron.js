@@ -151,6 +151,9 @@ export default async function handler(req, res) {
     // ── Step 3: Sync real balance from Capital.com ───────────────────────────
     // Must happen before risk checks so balance-based limits use real values.
     botState = await syncBalance(session, botState);
+    if (botState.balance > botState.peakBalance) {
+      botState.peakBalance = botState.balance;
+    }
 
     // ── Step 4: Sync open trade positions ────────────────────────────────────
     // Removes trades that have been closed by SL/TP or manually on Capital.com.
