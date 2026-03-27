@@ -4,7 +4,7 @@ import fs from 'fs';
 async function main() {
   const logs = await getLogs();
   const last15 = logs.slice(-15);
-  fs.writeFileSync('C:/Users/Antho/.gemini/antigravity/brain/42698779-8cc0-44e0-81bb-e1733cc552ac/trade_logs_latest_15.md', 
+  fs.writeFileSync('./trade_logs_latest_15.md', 
     '# Last 15 Trade Logs from Upstash KV\n\n```json\n' + JSON.stringify(last15, null, 2) + '\n```\n'
   );
   console.log('Successfully wrote logs to artifact.');
