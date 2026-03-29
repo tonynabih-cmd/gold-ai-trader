@@ -185,21 +185,18 @@ export default async function handler(req, res) {
       botState.lastBrokerSync     = brokerStats.syncedAt;
 
       // ── Broker-Based Risk Metrics (Manual Deposit/Withdrawal Proof) ────────────────
-      // Daily loss based on today's realized broker PnL (in AED-equivalent)
-      // Since brokerStats returns $ values, we convert to AED to match botState currency.
-      const USD_AED = 3.6725;
-      const todayPnlAED = brokerStats.todayNetPnl * USD_AED;
+      // Daily loss based on today's realized broker PnL (already in account currency: AED)
+      const todayPnlAED = brokerStats.todayNetPnl;
       botState.dailyLoss = todayPnlAED < 0 ? Math.abs(todayPnlAED) : 0;
 
-      // Drawdown based on peak total PnL relative to current total PnL
+      // Drawdown based on peak total PnL relative to current total PnL (AED vs AED)
       const currentTotalPnl = brokerStats.totalPnl;
       const peakPnl = parseFloat(botState.peakBrokerPnl) || 0;
       if (currentTotalPnl > peakPnl) botState.peakBrokerPnl = currentTotalPnl;
       
-      const pnlDrawdown = (peakPnl > currentTotalPnl) ? (peakPnl - currentTotalPnl) : 0;
-      // Formula: (Drawdown in USD / Current Balance in USD) * 100
-      const currentBalanceUSD = (parseFloat(botState.balance) || 1) / USD_AED;
-      botState.totalDrawdown = parseFloat(((pnlDrawdown / currentBalanceUSD) * 100).toFixed(2));
+      const pnlDrawdownAED = (peakPnl > currentTotalPnl) ? (peakPnl - currentTotalPnl) : 0;
+      const currentBalanceAED = parseFloat(botState.balance) || 1;
+      botState.totalDrawdown = parseFloat(((pnlDrawdownAED / currentBalanceAED) * 100).toFixed(2));
       
       console.log(`Risk Sync: DailyLoss AED ${botState.dailyLoss.toFixed(2)}, TotalDrawdown ${botState.totalDrawdown}%`);
     }
