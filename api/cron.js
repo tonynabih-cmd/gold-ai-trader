@@ -251,6 +251,9 @@ export default async function handler(req, res) {
     const riskResult = checkRisk(signal, botState, indicators);
 
     if (riskResult !== 'APPROVED') {
+      if (riskResult.startsWith('STOP:') || riskResult.startsWith('DISABLE:')) {
+        await sendAlert(`🚨 ${riskResult}`).catch(() => {});
+      }
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: riskResult, signalDebug });
       await saveState(botState);
