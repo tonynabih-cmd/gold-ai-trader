@@ -1,0 +1,28 @@
+[Upstash Redis] The 'url' property is missing or undefined in your Redis config.
+[Upstash Redis] The 'token' property is missing or undefined in your Redis config.
+[Upstash Redis] The 'url' property is missing or undefined in your Redis config.
+[Upstash Redis] The 'token' property is missing or undefined in your Redis config.
+Starting Test Run...
+[Upstash Redis] Redis client was initialized without url or token. Failed to execute command.
+[STATE] Load error: Failed to parse URL from /pipeline
+[STATE] Daily reset applied for 2026-03-30 (UAE Time)
+[EXEC] Balance synced: balance=AED 197.77 | equity=AED 197.77 | margin=AED 197.77 | unrealizedPnL=AED 0.00
+[SYNC] Reconciliation complete: {"localBefore":0,"brokerPositions":0,"stillOpen":0,"closed":0,"adopted":0,"localAfter":0}
+[EXEC] fetchBrokerTradeStats: TodayExecuted 7 | WR 0%
+[CRON] Broker Sync: Today 7, Win rate 0%
+[CRON] Risk Sync: DailyLoss AED 0.00, TotalDrawdown 0%
+[DATA] Discarding live 5m candle (2026-03-30T18:40:00.000Z -> 2026-03-30T18:45:00.000Z)
+[DATA] Execution Timing: 209.1s since candle close ΓÇö OK
+[Upstash Redis] Redis client was initialized without url or token. Failed to execute command.
+Redis lock error: Failed to parse URL from /pipeline
+[CRON] Concurrency block: Candle 1774895700000 already locked
+EMA/ATR CHECK: EMA20=4520.94, EMA50=4529.32, ATR=7.08
+[Upstash Redis] Redis client was initialized without url or token. Failed to execute command.
+saveLog error: Failed to parse URL from /pipeline
+[Upstash Redis] Redis client was initialized without url or token. Failed to execute command.
+[STATE] Save error: Failed to parse URL from /pipeline
+--- CRON RESPONSE ---
+{
+  "skipped": "SKIP: Concurrency lock active for candle 1774895700000 - preventing duplicate trades"
+}
+---------------------
