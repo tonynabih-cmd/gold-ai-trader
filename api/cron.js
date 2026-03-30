@@ -3,56 +3,63 @@ import { getMarketData }                   from '../lib/market_data.js';
 import { calculateIndicators }             from '../lib/indicators.js';
 import { generateSignal }                  from '../lib/strategy.js';
 import { checkRisk }                       from '../lib/risk.js';
-import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats } from '../lib/execution.js';
+import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
-import { loadState, saveState, dailyReset, acquireCandleLock } from '../lib/state.js';
+import { loadState, saveState, saveStateCritical, dailyReset, acquireCandleLock } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
 import { fetchWithTimeout }                from '../lib/fetch.js';
 
 
 /**
- * Syncs the bot's internal openTrades list with the actual positions on Capital.com.
- * If a trade is found locally but is missing on the broker, it's considered CLOSED.
- * We then fetch the actual realized P&L and log it.
+ * Reconciles local openTrades with broker's actual open positions.
+ * 
+ * DESIGN PRINCIPLES:
+ * 1. Broker is the source of truth — if it's not on the broker, it's closed.
+ * 2. If a position exists on broker but NOT locally, ADOPT it (not "discover" it).
+ *    This means rebuilding local state from broker data so it's properly tracked.
+ * 3. Every state change (close detected, position adopted) triggers an immediate save.
+ * 4. All transitions are logged with structured [SYNC] prefix.
  */
-async function syncOpenTrades(session, botState) {
+async function reconcilePositions(session, botState) {
   try {
-    const { baseUrl, cst, securityToken } = session;
-    const res = await fetchWithTimeout(`${baseUrl}/api/v1/positions`, {
-      headers: {
-        'X-CAP-API-KEY':    process.env.CAPITAL_API_KEY,
-        'CST':              cst,
-        'X-SECURITY-TOKEN': securityToken,
-      },
-    });
-
-    if (!res.ok) {
-      console.warn(`syncOpenTrades: positions fetch failed (HTTP ${res.status}) — keeping existing state`);
+    const livePositions = await fetchBrokerPositions(session);
+    
+    if (livePositions === null) {
+      console.warn('[SYNC] Could not fetch broker positions — keeping existing local state');
       return botState;
     }
 
-    let data;
-    try { data = await res.json(); } catch (e) { return botState; }
-    const livePositions = data.positions || [];
-    const liveDealRefs  = new Set(livePositions.map(p => p.position?.dealReference).filter(Boolean));
+    // Build lookup of live deal references
+    const liveDealRefs = new Map();
+    for (const pos of livePositions) {
+      const ref = pos.position?.dealReference;
+      if (ref) liveDealRefs.set(ref, pos);
+    }
 
+    const localTrades = Array.isArray(botState.openTrades) ? botState.openTrades : [];
     const stillOpen = [];
     const justClosed = [];
 
-    // Track what we managed to sync from existing botState
-    for (const trade of (botState.openTrades || [])) {
+    // ── Phase 1: Check which local trades are still open on broker ────────────
+    for (const trade of localTrades) {
       if (trade.dealReference && liveDealRefs.has(trade.dealReference)) {
         stillOpen.push(trade);
+        // Remove from live map so Phase 2 only contains truly untracked positions
+        liveDealRefs.delete(trade.dealReference);
       } else {
         justClosed.push(trade);
       }
     }
 
-    // Process closed trades
+    // ── Phase 2: Process detected closures ────────────────────────────────────
     for (const closedTrade of justClosed) {
-      console.log(`syncOpenTrades: detected closure of trade ${closedTrade.tradeId} (ref: ${closedTrade.dealReference})`);
+      console.log(`[SYNC] ❌ TRADE CLOSED: ${closedTrade.action} ${closedTrade.size}oz GOLD | ref=${closedTrade.dealReference} | entry=${closedTrade.entry}`);
+      
       let realizedPnl = await fetchClosedTradePnl(session, closedTrade.dealReference, closedTrade.openedAt);
       
+      const pnlStr = realizedPnl != null ? `$${realizedPnl.toFixed(2)}` : 'Unknown';
+      console.log(`[SYNC] P&L for ${closedTrade.dealReference}: ${pnlStr}`);
+
       await saveLog({
         signal: {
           id: closedTrade.tradeId,
@@ -64,43 +71,79 @@ async function syncOpenTrades(session, botState) {
         indicators: null,
         botState: { ...botState },
         tradeExecuted: false,
-        reason: `CLOSED: Realized P&L: ${realizedPnl != null ? '$' + realizedPnl.toFixed(2) : 'Unknown'}`,
+        reason: `CLOSED: Realized P&L: ${pnlStr} | entry=${closedTrade.entry} | ref=${closedTrade.dealReference}`,
         result: { realizedPnl }
       });
 
       if (realizedPnl != null) {
-        await sendAlert(`📉 Trade CLOSED: ${closedTrade.action} Gold\nP&L: $${realizedPnl.toFixed(2)}`);
+        await sendAlert(
+          `📉 Trade CLOSED: ${closedTrade.action} Gold\n` +
+          `Entry: $${closedTrade.entry?.toFixed(2) ?? '?'}\n` +
+          `P&L: ${pnlStr}\n` +
+          `Ref: ${closedTrade.dealReference}`
+        );
       }
     }
 
-    // DISCOVERY: Find trades on broker that are missing locally
-    const finalOpen = [...stillOpen];
-    for (const pos of livePositions) {
-      const liveRef = pos.position?.dealReference;
-      if (!liveRef) continue;
-      
-      const existsLocally = stillOpen.some(t => t.dealReference === liveRef);
-      if (!existsLocally) {
-        console.log(`syncOpenTrades: discovered trade on broker: ref ${liveRef}`);
-        finalOpen.push({
-          tradeId:         `discovered_${liveRef}`,
-          dealReference:   liveRef,
-          pair:            'GOLD',
-          action:          pos.position?.direction,
-          entry:           parseFloat(pos.position?.level),
-          size:            parseFloat(pos.position?.size),
-          stopLoss:        parseFloat(pos.position?.stopLevel || 0),
-          takeProfit:      parseFloat(pos.position?.limitLevel || 0),
-          openedAt:        new Date(pos.position?.createdDate).getTime(),
-          strategyVersion: 'v1.1 (discovered)',
-        });
-      }
+    // ── Phase 3: Adopt any broker positions missing from local state ──────────
+    // This replaces the old "discovered" logic — positions are ADOPTED, not discovered.
+    // They become fully managed with proper tracking from this point forward.
+    const adoptedPositions = [];
+    for (const [ref, pos] of liveDealRefs) {
+      const posData = pos.position;
+      if (!posData) continue;
+
+      const adopted = {
+        tradeId:         `adopted_${ref}_${Date.now()}`,
+        dealReference:   ref,
+        pair:            'GOLD',
+        action:          posData.direction,
+        entry:           parseFloat(posData.level),
+        size:            parseFloat(posData.size),
+        stopLoss:        parseFloat(posData.stopLevel || 0),
+        takeProfit:      parseFloat(posData.limitLevel || 0),
+        openedAt:        posData.createdDate ? new Date(posData.createdDate).getTime() : Date.now(),
+        strategyVersion: 'v1.1 (adopted)',
+        adoptedAt:       Date.now(),
+      };
+
+      adoptedPositions.push(adopted);
+      console.log(
+        `[SYNC] ⚠️ ADOPTED position from broker: ${adopted.action} ${adopted.size}oz @ ${adopted.entry} | ref=${ref} | ` +
+        `SL=${adopted.stopLoss} TP=${adopted.takeProfit}`
+      );
+
+      await sendAlert(
+        `⚠️ Adopted untracked position:\n` +
+        `${adopted.action} ${adopted.size}oz GOLD @ $${adopted.entry.toFixed(2)}\n` +
+        `Ref: ${ref}\n` +
+        `This position was on broker but missing locally. Now tracked.`
+      );
     }
 
-    botState.openTrades = finalOpen;
+    // ── Phase 4: Rebuild openTrades from reconciled data ──────────────────────
+    botState.openTrades = [...stillOpen, ...adoptedPositions];
+    botState.lastStateSyncAt = Date.now();
+
+    // Log summary
+    const summary = {
+      localBefore: localTrades.length,
+      brokerPositions: livePositions.length,
+      stillOpen: stillOpen.length,
+      closed: justClosed.length,
+      adopted: adoptedPositions.length,
+      localAfter: botState.openTrades.length,
+    };
+    console.log(`[SYNC] Reconciliation complete: ${JSON.stringify(summary)}`);
+
+    // ── CRITICAL SAVE if any state changed ────────────────────────────────────
+    if (justClosed.length > 0 || adoptedPositions.length > 0) {
+      await saveStateCritical(botState, `reconcile:closed=${justClosed.length},adopted=${adoptedPositions.length}`);
+    }
+
     return botState;
   } catch (err) {
-    console.error('syncOpenTrades error:', err.message);
+    console.error('[SYNC] reconcilePositions error:', err.message);
     return botState;
   }
 }
@@ -109,9 +152,6 @@ export default async function handler(req, res) {
   let botState;
 
   // ── Authorization ─────────────────────────────────────────────────────────
-  // Prevents unauthorized parties from triggering the bot if the URL is discovered.
-  // cron-job.org: set custom header Authorization: Bearer <your_secret>
-  // GitHub Actions: stored in repository secrets as CRON_SECRET
   const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
   const providedAuth = req.headers['authorization'] || req.headers['Authorization'];
   if (process.env.CRON_SECRET && providedAuth !== expectedAuth) {
@@ -120,7 +160,6 @@ export default async function handler(req, res) {
   }
 
   // ── Kill switch (fast path) ──────────────────────────────────────────────
-  // Checked here so we never waste API calls when bot is disabled.
   if (process.env.BOT_ENABLED !== 'true') {
     return res.json({ skipped: 'Bot disabled via BOT_ENABLED env variable' });
   }
@@ -130,9 +169,14 @@ export default async function handler(req, res) {
     botState = await loadState();
     botState = dailyReset(botState);
 
+    // ── State integrity check ─────────────────────────────────────────────────
+    if (botState.stateIntegrityOk === false) {
+      console.error('[CRON] ⚠️ State integrity compromised — halting until manual review');
+      await sendAlert('🚨 Bot halted: State integrity compromised. Check Upstash and reset stateIntegrityOk=true after review.').catch(() => {});
+      return res.json({ skipped: 'State integrity compromised — manual review required' });
+    }
+
     // ── State kill switch (fast path) ────────────────────────────────────────
-    // Checked here so we never waste Capital.com API calls when bot is disabled
-    // by drawdown or performance threshold (set by risk.js Rule 14 / monitor.js).
     if (botState.botEnabled === false) {
       return res.json({ skipped: 'Bot disabled via state (drawdown or performance threshold)' });
     }
@@ -148,25 +192,25 @@ export default async function handler(req, res) {
       return res.json({ skipped: reason });
     }
 
-    // ── Step 3: Sync real balance from Capital.com ───────────────────────────
-    // Must happen before risk checks so balance-based limits use real values.
+    // ── Step 3: Sync real balance AND equity from Capital.com ─────────────────
     botState = await syncBalance(session, botState);
     if (botState.balance > botState.peakBalance) {
       botState.peakBalance = botState.balance;
     }
 
-    // ── Step 4: Sync open trade positions ────────────────────────────────────
-    // Removes trades that have been closed by SL/TP or manually on Capital.com.
-    botState = await syncOpenTrades(session, botState);
+    // ── Step 4: Reconcile positions (replaces old syncOpenTrades) ─────────────
+    // This is the CORE fix for "discovered" trades.
+    // - Detects closures → logs P&L → removes from local state → saves immediately
+    // - Detects untracked broker positions → adopts them → saves immediately
+    // - Zero tolerance for unmanaged positions
+    botState = await reconcilePositions(session, botState);
 
     // ── Sync actual trade stats from broker ─────────────────────────────────
-    // Single source of truth for win rate, best/worst trade, total P&L.
-    // Fetches directly from Capital.com transaction history (30-day window).
     const brokerStats = await fetchBrokerTradeStats(session);
     if (brokerStats) {
-      console.log(`Broker Sync: Today ${brokerStats.todayTrades}, Win rate ${brokerStats.todayWinRate}%`);
+      console.log(`[CRON] Broker Sync: Today ${brokerStats.todayTrades}, Win rate ${brokerStats.todayWinRate}%`);
       botState.dailyTrades        = brokerStats.todayTrades;
-      botState.todayTrades        = brokerStats.todayTrades; // Unify for stats.js
+      botState.todayTrades        = brokerStats.todayTrades;
       botState.todayBuys          = brokerStats.todayBuys;
       botState.todaySells         = brokerStats.todaySells;
       botState.todayWinRate       = brokerStats.todayWinRate;
@@ -184,12 +228,10 @@ export default async function handler(req, res) {
       botState.brokerGrossLoss    = brokerStats.grossLoss;
       botState.lastBrokerSync     = brokerStats.syncedAt;
 
-      // ── Broker-Based Risk Metrics (Manual Deposit/Withdrawal Proof) ────────────────
-      // Daily loss based on today's realized broker PnL (already in account currency: AED)
+      // ── Broker-Based Risk Metrics ────────────────────────────────────────────
       const todayPnlAED = brokerStats.todayNetPnl;
       botState.dailyLoss = todayPnlAED < 0 ? Math.abs(todayPnlAED) : 0;
 
-      // Drawdown based on peak total PnL relative to current total PnL (AED vs AED)
       const currentTotalPnl = brokerStats.totalPnl;
       const peakPnl = parseFloat(botState.peakBrokerPnl) || 0;
       if (currentTotalPnl > peakPnl) botState.peakBrokerPnl = currentTotalPnl;
@@ -198,7 +240,7 @@ export default async function handler(req, res) {
       const currentBalanceAED = parseFloat(botState.balance) || 1;
       botState.totalDrawdown = parseFloat(((pnlDrawdownAED / currentBalanceAED) * 100).toFixed(2));
       
-      console.log(`Risk Sync: DailyLoss AED ${botState.dailyLoss.toFixed(2)}, TotalDrawdown ${botState.totalDrawdown}%`);
+      console.log(`[CRON] Risk Sync: DailyLoss AED ${botState.dailyLoss.toFixed(2)}, TotalDrawdown ${botState.totalDrawdown}%`);
     }
 
     // ── Step 5 & 6: Fetch market data and Indicators ─────────────────────────
@@ -209,10 +251,10 @@ export default async function handler(req, res) {
       botState.candles5m = marketData.candles5m;
       // Only advance the processed candle time if we are not skipping due to duplicate
       if (!marketData.skip) {
-        // Concurrency lock: Ensure only ONE invocations processes this specific candle entirely
+        // Concurrency lock: Ensure only ONE invocation processes this specific candle entirely
         const locked = await acquireCandleLock(marketData.latestCandleTime);
         if (!locked) {
-           console.warn(`Concurrency block: Candle ${marketData.latestCandleTime} is already locked by another instance.`);
+           console.warn(`[CRON] Concurrency block: Candle ${marketData.latestCandleTime} already locked`);
            marketData.skip = true;
            marketData.reason = `SKIP: Concurrency lock active for candle ${marketData.latestCandleTime} - preventing duplicate trades`;
         } else {
@@ -220,8 +262,7 @@ export default async function handler(req, res) {
         }
       }
 
-      // Calculate indicators even on skips (e.g. duplicate candles or weekends)
-      // so the dashboard always has the latest live values for UI display.
+      // Calculate indicators even on skips for dashboard live values
       indicators = calculateIndicators(marketData.candles5m, marketData.candles1h);
       indicators.spread = marketData.spread ?? null;
     }
@@ -238,7 +279,6 @@ export default async function handler(req, res) {
       }
 
       botState.lastHeartbeat = Date.now();
-      // Pass the fully populated indicators & debug object to saveLog so dashboard never goes blank
       await saveLog({ signal: null, indicators, botState, tradeExecuted: false, reason, signalDebug });
       await saveState(botState);
       return res.json({ skipped: reason });
@@ -261,6 +301,9 @@ export default async function handler(req, res) {
     }
 
     // ── Step 9: Place trade ───────────────────────────────────────────────────
+    // placeTrade() now calls saveStateCritical() internally right after trade opens.
+    // This means if the Vercel function times out AFTER the trade is placed but
+    // BEFORE we reach Step 10, the trade is STILL saved to Redis.
     const tradeResult = await placeTrade(session, signal, botState);
 
     if (!tradeResult.success) {
@@ -285,7 +328,7 @@ export default async function handler(req, res) {
       `Entry: $${signal.entryPrice.toFixed(2)}\n` +
       `SL: $${signal.stopLoss.toFixed(2)} | TP: $${signal.takeProfit.toFixed(2)}\n` +
       `Size: ${tradeResult.size}oz | Score: ${signal.score} | ATR: ${signal.atr.toFixed(2)}\n` +
-      `Balance: $${parseFloat(botState.balance).toFixed(2)} | Daily trades: ${botState.dailyTrades}/10`
+      `Balance: AED ${parseFloat(botState.balance).toFixed(2)} | Equity: AED ${parseFloat(botState.equity || botState.balance).toFixed(2)} | Daily trades: ${botState.dailyTrades}/10`
     );
 
     return res.json({
@@ -302,7 +345,7 @@ export default async function handler(req, res) {
 
   } catch (err) {
     // Catastrophic error — log, alert, save state if possible
-    console.error('Cron pipeline error:', err.message, err.stack);
+    console.error('[CRON] Pipeline error:', err.message, err.stack);
     if (botState) {
       try { await saveState(botState); } catch (_) {}
     }
