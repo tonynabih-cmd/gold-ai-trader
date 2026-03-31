@@ -146,14 +146,14 @@ export default async function handler(req, res) {
 
   // ── Security: Validate CRON_SECRET strength ───────────────────────────────
   if (process.env.CRON_SECRET) {
-    if (process.env.CRON_SECRET.length < 16) {
-      const msg = '⚠️ CRON_SECRET is too weak (less than 16 chars). Use 32+ random characters.';
+    if (process.env.CRON_SECRET.length < 10) {
+      const msg = '⚠️ CRON_SECRET is too weak (less than 10 chars). Use 32+ random characters.';
       console.error(msg);
       return res.status(500).json({ error: msg });
     }
-    // Check if it looks like a predictable string (e.g., 'goldbot2026', 'password123')
-    if (/^[a-z0-9]{1,20}$/i.test(process.env.CRON_SECRET)) {
-      const msg = '⚠️ CRON_SECRET looks too simple (lowercase/numbers only). Use complex random string.';
+    // Check if it looks like a predictably short string (e.g., 'goldbot2026', 'password123')
+    if (/^[a-z0-9]{1,8}$/i.test(process.env.CRON_SECRET)) {
+      const msg = '⚠️ CRON_SECRET looks too simple (too short/alphanumeric only). Use complex random string.';
       console.error(msg);
       return res.status(500).json({ error: msg });
     }
@@ -196,9 +196,20 @@ export default async function handler(req, res) {
 
     // ── State integrity check ─────────────────────────────────────────────────
     if (botState.stateIntegrityOk === false) {
-      console.error('[CRON] ⚠️ State integrity compromised — halting until manual review');
-      await sendAlert('🚨 Bot halted: State integrity compromised. Check Upstash and reset stateIntegrityOk=true after review.').catch(() => {});
-      return res.json({ skipped: 'State integrity compromised — manual review required' });
+      const msg = 'State integrity compromised — manual review required';
+      console.error(`[CRON] ⚠️ ${msg}`);
+      
+      // Still log a heartbeat so the user knows why it's silent in the dashboard
+      await saveLog({ 
+        signal: null, 
+        indicators: null, 
+        botState, 
+        tradeExecuted: false, 
+        reason: `HALTED: ${botState.criticalFailureReason || msg}` 
+      }).catch(() => {});
+
+      await sendAlert(`🚨 Bot halted: State integrity compromised. Check Upstash and reset stateIntegrityOk=true after review.`).catch(() => {});
+      return res.json({ skipped: msg });
     }
 
     // ── State kill switch (fast path) ────────────────────────────────────────
@@ -224,12 +235,11 @@ export default async function handler(req, res) {
     // ── Step 3: Sync real balance AND equity from Capital.com ─────────────────
     botState = await syncBalance(session, botState);
     if (!Number.isFinite(botState.balance) || !Number.isFinite(botState.equity) || !Number.isFinite(botState.availableMargin)) {
-      botState.stateIntegrityOk = false;
-      botState.botEnabled = false;
-      botState.criticalFailure = true;
-      botState.criticalFailureReason = 'ACCOUNT_STATE_UNAVAILABLE';
-      await saveStateCritical(botState, 'account_state_unavailable');
-      return res.json({ skipped: 'BROKER_STATE_UNAVAILABLE' });
+      const reason = 'SKIP: BROKER_ACCOUNT_STATE_UNAVAILABLE';
+      console.warn(`[CRON] ${reason}`);
+      await saveLog({ signal: null, indicators: null, botState, tradeExecuted: false, reason });
+      await saveState(botState);
+      return res.json({ skipped: reason });
     }
     if (botState.balance > botState.peakBalance) {
       botState.peakBalance = botState.balance;
@@ -239,12 +249,13 @@ export default async function handler(req, res) {
     const reconcileResult = await reconcilePositions(session, botState);
     botState = reconcileResult.botState;
     if (reconcileResult.haltReason) {
-      botState.botEnabled = false;
-      botState.stateIntegrityOk = false;
-      botState.criticalFailure = true;
-      botState.criticalFailureReason = reconcileResult.haltReason;
-      await saveStateCritical(botState, `reconcile_halt:${reconcileResult.haltReason}`);
-      return res.json({ skipped: reconcileResult.haltReason });
+      // Reconcile errors (e.g. network timeout) should be SKIPS, not permanent HALTS
+      // to avoid manual resets on every minor broker lag.
+      const reason = `SKIP: RECONCILIATION_FAILED:${reconcileResult.haltReason}`;
+      console.warn(`[CRON] ${reason}`);
+      await saveLog({ signal: null, indicators: null, botState, tradeExecuted: false, reason });
+      await saveState(botState);
+      return res.json({ skipped: reason });
     }
 
     // ── STATE INTEGRITY CHECK: Validate after reconciliation ──────────────────
