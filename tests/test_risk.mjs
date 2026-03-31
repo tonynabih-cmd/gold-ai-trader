@@ -169,9 +169,11 @@ section('Rules 9/10: ATR checks');
 {
   const rLowATR = checkRisk(makeSignal(), makeBotState(), makeIndicators({ atr: 0.5 }));
   assert(rLowATR.includes('SKIP'), `ATR too low → SKIP (got: ${rLowATR})`);
+  // Note: during golden hours, rLowATR would contain 'too low'; outside hours Rule 5 fires first
 
   const rHighATR = checkRisk(makeSignal(), makeBotState(), makeIndicators({ atr: 60 }));
   assert(rHighATR.includes('SKIP'), `ATR too high → SKIP (got: ${rHighATR})`);
+  // Note: during golden hours, rHighATR would contain 'too high'; outside hours Rule 5 fires first
 
   const rSpikeATR = checkRisk(makeSignal(), makeBotState(), makeIndicators({ atr: 15, atrAverage: 4.5 }));
   assert(rSpikeATR.includes('SKIP'), `ATR spike (3.3×avg) → SKIP (got: ${rSpikeATR})`);

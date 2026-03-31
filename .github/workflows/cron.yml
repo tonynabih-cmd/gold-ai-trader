@@ -1,4 +1,4 @@
-name: 10-Minute Fallback Trigger
+name: 5-Minute Fallback Trigger
 
 on:
   schedule:

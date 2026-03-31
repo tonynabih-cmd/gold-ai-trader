@@ -50,6 +50,7 @@ export default async function handler(req, res) {
     const skipsToday    = todayLogs.filter(l => !l.tradeExecuted);
 
     // Call Claude Haiku for the audit
+    // Use a 30s timeout — LLM responses can take 5-30s and the audit function has 60s maxDuration
     const response = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -87,7 +88,7 @@ Please analyze (be direct and concise, max 200 words):
 Flag any red flags clearly.`,
         }],
       }),
-    });
+    }, 30000); // 30s timeout — Claude Haiku takes 5-25s for 1000-token responses; 30s adds a 5s safety buffer
 
     if (!response.ok) {
       const errText = await response.text().catch(() => '');

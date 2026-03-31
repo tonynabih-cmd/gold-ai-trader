@@ -264,43 +264,41 @@ export default async function handler(req, res) {
       return res.json({ skipped: 'BROKER_STATS_UNAVAILABLE' });
     }
 
-    if (brokerStats) {
-      console.log(`[CRON] Broker Sync: Today ${brokerStats.todayTrades}, Win rate ${brokerStats.todayWinRate}%`);
-      botState.dailyTrades        = brokerStats.todayTrades;
-      botState.todayTrades        = brokerStats.todayTrades;
-      botState.todayBuys          = brokerStats.todayBuys;
-      botState.todaySells         = brokerStats.todaySells;
-      botState.todayWinRate       = brokerStats.todayWinRate;
-      botState.todayBest          = brokerStats.todayBest;
-      botState.todayWorst         = brokerStats.todayWorst;
+    console.log(`[CRON] Broker Sync: Today ${brokerStats.todayTrades}, Win rate ${brokerStats.todayWinRate}%`);
+    botState.dailyTrades        = brokerStats.todayTrades;
+    botState.todayTrades        = brokerStats.todayTrades;
+    botState.todayBuys          = brokerStats.todayBuys;
+    botState.todaySells         = brokerStats.todaySells;
+    botState.todayWinRate       = brokerStats.todayWinRate;
+    botState.todayBest          = brokerStats.todayBest;
+    botState.todayWorst         = brokerStats.todayWorst;
 
-      botState.brokerTotalTrades  = brokerStats.totalTrades;
-      botState.brokerTotalPnl     = brokerStats.totalPnl;
-      botState.brokerWins         = brokerStats.wins;
-      botState.brokerLosses       = brokerStats.losses;
-      botState.brokerWinRate      = brokerStats.winRate;
-      botState.brokerBestTrade    = brokerStats.bestTrade;
-      botState.brokerWorstTrade   = brokerStats.worstTrade;
-      botState.brokerGrossProfit  = brokerStats.grossProfit;
-      botState.brokerGrossLoss    = brokerStats.grossLoss;
-      botState.lastBrokerSync     = brokerStats.syncedAt;
+    botState.brokerTotalTrades  = brokerStats.totalTrades;
+    botState.brokerTotalPnl     = brokerStats.totalPnl;
+    botState.brokerWins         = brokerStats.wins;
+    botState.brokerLosses       = brokerStats.losses;
+    botState.brokerWinRate      = brokerStats.winRate;
+    botState.brokerBestTrade    = brokerStats.bestTrade;
+    botState.brokerWorstTrade   = brokerStats.worstTrade;
+    botState.brokerGrossProfit  = brokerStats.grossProfit;
+    botState.brokerGrossLoss    = brokerStats.grossLoss;
+    botState.lastBrokerSync     = brokerStats.syncedAt;
 
-      // ── Broker-Based Risk Metrics ────────────────────────────────────────────
-      const todayPnlAED = brokerStats.todayNetPnl;
-      botState.dailyLoss = todayPnlAED < 0 ? Math.abs(todayPnlAED) : 0;
+    // ── Broker-Based Risk Metrics ────────────────────────────────────────────
+    const todayPnlAED = brokerStats.todayNetPnl;
+    botState.dailyLoss = todayPnlAED < 0 ? Math.abs(todayPnlAED) : 0;
 
-      const currentTotalPnl = brokerStats.totalPnl;
-      const peakPnl = parseFloat(botState.peakBrokerPnl) || 0;
-      if (currentTotalPnl > peakPnl) botState.peakBrokerPnl = currentTotalPnl;
-      
-      const pnlDrawdownAED = (peakPnl > currentTotalPnl) ? (peakPnl - currentTotalPnl) : 0;
-      const currentBalanceAED = parseFloat(botState.balance) || 1;
-      botState.totalDrawdown = parseFloat(((pnlDrawdownAED / currentBalanceAED) * 100).toFixed(2));
-      botState.riskDataFresh = true;
-      botState.lastRiskSyncAt = Date.now();
-      
-      console.log(`[CRON] Risk Sync: DailyLoss AED ${botState.dailyLoss.toFixed(2)}, TotalDrawdown ${botState.totalDrawdown}%`);
-    }
+    const currentTotalPnl = brokerStats.totalPnl;
+    const peakPnl = parseFloat(botState.peakBrokerPnl) || 0;
+    if (currentTotalPnl > peakPnl) botState.peakBrokerPnl = currentTotalPnl;
+    
+    const pnlDrawdownAED = (peakPnl > currentTotalPnl) ? (peakPnl - currentTotalPnl) : 0;
+    const currentBalanceAED = parseFloat(botState.balance) || 1;
+    botState.totalDrawdown = parseFloat(((pnlDrawdownAED / currentBalanceAED) * 100).toFixed(2));
+    botState.riskDataFresh = true;
+    botState.lastRiskSyncAt = Date.now();
+    
+    console.log(`[CRON] Risk Sync: DailyLoss AED ${botState.dailyLoss.toFixed(2)}, TotalDrawdown ${botState.totalDrawdown}%`);
 
     // ── Step 5 & 6: Fetch market data and Indicators ─────────────────────────
     const marketData = await getMarketData(session, botState);
