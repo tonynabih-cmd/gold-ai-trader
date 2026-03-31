@@ -369,7 +369,13 @@ export default async function handler(req, res) {
       return res.json({ skipped: 'SKIP: Lock ownership lost before execution' });
     }
 
-    await renewCandleLock(lockHandle, 120);
+    const lockRenewedBeforeExecution = await renewCandleLock(lockHandle, 120);
+    if (!lockRenewedBeforeExecution) {
+      botState.lastHeartbeat = Date.now();
+      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock renewal failed before execution', signalDebug });
+      await saveState(botState);
+      return res.json({ skipped: 'SKIP: Lock renewal failed before execution' });
+    }
 
     const certainty = await verifyExecutionCertainty(session, botState);
     if (!certainty.ok) {
@@ -379,6 +385,22 @@ export default async function handler(req, res) {
       botState.criticalFailureReason = certainty.reason;
       await saveStateCritical(botState, `execution_barrier:${certainty.reason}`);
       return res.json({ skipped: certainty.reason });
+    }
+
+    const lockOwnedAtExecution = await verifyCandleLockOwnership(lockHandle);
+    if (!lockOwnedAtExecution) {
+      botState.lastHeartbeat = Date.now();
+      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock ownership lost at execution gate', signalDebug });
+      await saveState(botState);
+      return res.json({ skipped: 'SKIP: Lock ownership lost at execution gate' });
+    }
+
+    const lockRenewedAtExecution = await renewCandleLock(lockHandle, 120);
+    if (!lockRenewedAtExecution) {
+      botState.lastHeartbeat = Date.now();
+      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock renewal failed at execution gate', signalDebug });
+      await saveState(botState);
+      return res.json({ skipped: 'SKIP: Lock renewal failed at execution gate' });
     }
 
     // ── Step 9: Place trade ───────────────────────────────────────────────────
