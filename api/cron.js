@@ -39,24 +39,46 @@ async function reconcilePositions(session, botState) {
     const localTrades = Array.isArray(botState.openTrades) ? botState.openTrades : [];
     const stillOpen = [];
     const justClosed = [];
+    const missingButPending = [];
 
     // ── Phase 1: Check which local trades are still open on broker ────────────
     for (const trade of localTrades) {
       if (trade.dealReference && liveDealRefs.has(trade.dealReference)) {
+        // Trade is confirmed open
+        trade.missingCount = 0; // Reset missing counter
         stillOpen.push(trade);
         // Remove from live map so Phase 2 only contains truly untracked positions
         liveDealRefs.delete(trade.dealReference);
       } else {
-        justClosed.push(trade);
+        // Trade is MISSING from broker position list. 
+        // Could be closed, OR could be an API glitch (very common with Capital.com).
+        trade.missingCount = (trade.missingCount || 0) + 1;
+        
+        console.warn(`[SYNC] ⚠️ Trade ${trade.dealReference} missing from broker position list (Count: ${trade.missingCount})`);
+
+        // Check if we can find it in transaction history (confirmation of closure)
+        let realizedPnl = await fetchClosedTradePnl(session, trade.dealReference, trade.openedAt);
+        
+        if (realizedPnl !== null) {
+          // Closure CONFIRMED via history
+          trade.realizedPnl = realizedPnl;
+          justClosed.push(trade);
+        } else if (trade.missingCount >= 3) {
+          // Closure ASSUMED after 3 consecutive failures (approx 3 minutes)
+          console.error(`[SYNC] ❌ Trade ${trade.dealReference} missing for 3 cycles — assuming CLOSED`);
+          justClosed.push(trade);
+        } else {
+          // Grace period: keep it in local state for now
+          missingButPending.push(trade);
+        }
       }
     }
 
-    // ── Phase 2: Process detected closures ────────────────────────────────────
+    // ── Phase 2: Process confirmed closures ────────────────────────────────────
     for (const closedTrade of justClosed) {
       console.log(`[SYNC] ❌ TRADE CLOSED: ${closedTrade.action} ${closedTrade.size}oz GOLD | ref=${closedTrade.dealReference} | entry=${closedTrade.entry}`);
       
-      let realizedPnl = await fetchClosedTradePnl(session, closedTrade.dealReference, closedTrade.openedAt);
-      
+      const realizedPnl = closedTrade.realizedPnl;
       const pnlStr = realizedPnl != null ? `$${realizedPnl.toFixed(2)}` : 'Unknown';
       console.log(`[SYNC] P&L for ${closedTrade.dealReference}: ${pnlStr}`);
 
@@ -86,8 +108,6 @@ async function reconcilePositions(session, botState) {
     }
 
     // ── Phase 3: Adopt any broker positions missing from local state ──────────
-    // This replaces the old "discovered" logic — positions are ADOPTED, not discovered.
-    // They become fully managed with proper tracking from this point forward.
     const adoptedPositions = [];
     for (const [ref, pos] of liveDealRefs) {
       const posData = pos.position;
@@ -104,39 +124,24 @@ async function reconcilePositions(session, botState) {
         takeProfit:      parseFloat(posData.limitLevel || 0),
         openedAt:        posData.createdDate ? new Date(posData.createdDate).getTime() : Date.now(),
         strategyVersion: 'v1.1 (adopted)',
-        adoptedAt:       Date.now(),
+        alreadyNotified: false,
+        missingCount:    0,
       };
 
       adoptedPositions.push(adopted);
-      console.log(
-        `[SYNC] ⚠️ ADOPTED position from broker: ${adopted.action} ${adopted.size}oz @ ${adopted.entry} | ref=${ref} | ` +
-        `SL=${adopted.stopLoss} TP=${adopted.takeProfit}`
-      );
+      console.log(`[SYNC] ⚠️ ADOPTED position: ${adopted.action} @ ${adopted.entry} | ref=${ref}`);
 
       await sendAlert(
-        `⚠️ Adopted untracked position:\n` +
-        `${adopted.action} ${adopted.size}oz GOLD @ $${adopted.entry.toFixed(2)}\n` +
-        `Ref: ${ref}\n` +
-        `This position was on broker but missing locally. Now tracked.`
+        `⚠️ Adopted position:\n` +
+        `${adopted.action} Gold @ $${adopted.entry.toFixed(2)}\n` +
+        `Ref: ${ref}`
       );
     }
 
-    // ── Phase 4: Rebuild openTrades from reconciled data ──────────────────────
-    botState.openTrades = [...stillOpen, ...adoptedPositions];
+    // ── Phase 4: Rebuild openTrades ───────────────────────────────────────────
+    botState.openTrades = [...stillOpen, ...missingButPending, ...adoptedPositions];
     botState.lastStateSyncAt = Date.now();
 
-    // Log summary
-    const summary = {
-      localBefore: localTrades.length,
-      brokerPositions: livePositions.length,
-      stillOpen: stillOpen.length,
-      closed: justClosed.length,
-      adopted: adoptedPositions.length,
-      localAfter: botState.openTrades.length,
-    };
-    console.log(`[SYNC] Reconciliation complete: ${JSON.stringify(summary)}`);
-
-    // ── CRITICAL SAVE if any state changed ────────────────────────────────────
     if (justClosed.length > 0 || adoptedPositions.length > 0) {
       await saveStateCritical(botState, `reconcile:closed=${justClosed.length},adopted=${adoptedPositions.length}`);
     }
