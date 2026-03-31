@@ -5,7 +5,7 @@ import { generateSignal }                  from '../lib/strategy.js';
 import { checkRisk }                       from '../lib/risk.js';
 import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
-import { loadState, saveState, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock } from '../lib/state.js';
+import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
 import { fetchWithTimeout }                from '../lib/fetch.js';
 
@@ -138,6 +138,7 @@ async function reconcilePositions(session, botState) {
 export default async function handler(req, res) {
   let botState;
   let lockHandle = null;
+  let invocationStateVersion = 0;
 
   // ── Security: Validate CRON_SECRET strength ───────────────────────────────
   if (process.env.CRON_SECRET) {
@@ -185,6 +186,9 @@ export default async function handler(req, res) {
     // ── Step 1: Load state + daily reset ─────────────────────────────────────
     botState = await loadState();
     botState = dailyReset(botState);
+    invocationStateVersion = Number.isFinite(Number(botState.stateVersion))
+      ? Number(botState.stateVersion)
+      : 0;
 
     // ── State integrity check ─────────────────────────────────────────────────
     if (botState.stateIntegrityOk === false) {
@@ -334,7 +338,7 @@ export default async function handler(req, res) {
 
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal: null, indicators, botState, tradeExecuted: false, reason, signalDebug });
-      await saveState(botState);
+      await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
       return res.json({ skipped: reason });
     }
 
@@ -357,7 +361,7 @@ export default async function handler(req, res) {
     if (!lockHandle) {
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Missing execution lock handle', signalDebug });
-      await saveState(botState);
+      await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
       return res.json({ skipped: 'SKIP: Missing execution lock handle' });
     }
 
@@ -365,7 +369,7 @@ export default async function handler(req, res) {
     if (!lockOwnedBeforeExecution) {
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock ownership lost before execution', signalDebug });
-      await saveState(botState);
+      await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
       return res.json({ skipped: 'SKIP: Lock ownership lost before execution' });
     }
 
@@ -373,7 +377,7 @@ export default async function handler(req, res) {
     if (!lockRenewedBeforeExecution) {
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock renewal failed before execution', signalDebug });
-      await saveState(botState);
+      await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
       return res.json({ skipped: 'SKIP: Lock renewal failed before execution' });
     }
 
@@ -391,7 +395,7 @@ export default async function handler(req, res) {
     if (!lockOwnedAtExecution) {
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock ownership lost at execution gate', signalDebug });
-      await saveState(botState);
+      await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
       return res.json({ skipped: 'SKIP: Lock ownership lost at execution gate' });
     }
 
@@ -399,7 +403,7 @@ export default async function handler(req, res) {
     if (!lockRenewedAtExecution) {
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock renewal failed at execution gate', signalDebug });
-      await saveState(botState);
+      await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
       return res.json({ skipped: 'SKIP: Lock renewal failed at execution gate' });
     }
 
