@@ -101,6 +101,7 @@ section('EMA crossover — BUY signal');
   const candles1m = makeStrongBullishCandles(5, 2000);
   const result = generateSignal(indicators, candles1m);
 
+  assert(result.signal !== null, `Expected BUY crossover signal but got null (reason: ${result.debug?.dbgRejectReason})`);
   if (result.signal !== null) {
     assert(result.signal.action === 'BUY', `Crossover BUY signal detected (got ${result.signal.action})`);
     assert(result.signal.entryType === 'crossover', `Entry type is crossover (got ${result.signal.entryType})`);
@@ -109,8 +110,6 @@ section('EMA crossover — BUY signal');
     assert(result.signal.takeProfit > result.signal.entryPrice, `Take profit above entry`);
     assert(typeof result.signal.id === 'string', `Signal has string ID`);
     assert(result.signal.atr === 5.0, `Signal carries ATR value`);
-  } else {
-    assert(false, `Expected BUY crossover signal but got null (reason: ${result.debug?.dbgRejectReason})`);
   }
 }
 
@@ -132,13 +131,12 @@ section('EMA crossover — SELL signal');
   const candles1m = makeStrongBearishCandles(5, 2000);
   const result = generateSignal(indicators, candles1m);
 
+    assert(result.signal !== null, `Expected SELL crossover signal but got null (reason: ${result.debug?.dbgRejectReason})`);
   if (result.signal !== null) {
     assert(result.signal.action === 'SELL', `Crossover SELL signal detected (got ${result.signal.action})`);
     assert(result.signal.entryType === 'crossover', `Entry type is crossover`);
     assert(result.signal.stopLoss > result.signal.entryPrice, `SELL stop loss above entry`);
     assert(result.signal.takeProfit < result.signal.entryPrice, `SELL take profit below entry`);
-  } else {
-    assert(false, `Expected SELL crossover signal but got null (reason: ${result.debug?.dbgRejectReason})`);
   }
 }
 
