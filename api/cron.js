@@ -5,7 +5,7 @@ import { generateSignal }                  from '../lib/strategy.js';
 import { checkRisk }                       from '../lib/risk.js';
 import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
-import { loadState, saveState, saveStateCritical, dailyReset, acquireCandleLock } from '../lib/state.js';
+import { loadState, saveState, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
 import { fetchWithTimeout }                from '../lib/fetch.js';
 
@@ -156,6 +156,35 @@ async function reconcilePositions(session, botState) {
 export default async function handler(req, res) {
   let botState;
 
+  // ── Security: Validate CRON_SECRET strength ───────────────────────────────
+  if (process.env.CRON_SECRET) {
+    if (process.env.CRON_SECRET.length < 16) {
+      const msg = '⚠️ CRON_SECRET is too weak (less than 16 chars). Use 32+ random characters.';
+      console.error(msg);
+      return res.status(500).json({ error: msg });
+    }
+    // Check if it looks like a predictable string (e.g., 'goldbot2026', 'password123')
+    if (/^[a-z0-9]{1,20}$/i.test(process.env.CRON_SECRET)) {
+      const msg = '⚠️ CRON_SECRET looks too simple (lowercase/numbers only). Use complex random string.';
+      console.error(msg);
+      return res.status(500).json({ error: msg });
+    }
+  }
+
+  // ── CRITICAL: Enforce live trading safety flag ──────────────────────────
+  const isLiveMode = process.env.CAPITAL_ENV === 'live';
+  const liveTradeConfirmed = process.env.LIVE_TRADING_MODE === 'CONFIRMED_REAL_MONEY';
+  
+  if (isLiveMode && !liveTradeConfirmed) {
+    const msg = '⚠️ LIVE MODE DISABLED: Set LIVE_TRADING_MODE=CONFIRMED_REAL_MONEY to enable live trading. Set CAPITAL_ENV=demo to use paper trading.';
+    console.error(msg);
+    return res.status(403).json({ error: msg });
+  }
+
+  if (isLiveMode && liveTradeConfirmed) {
+    console.warn('🔴 === LIVE TRADING MODE ACTIVE === REAL MONEY AT RISK === 🔴');
+  }
+
   // ── Authorization ─────────────────────────────────────────────────────────
   const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
   const providedAuth = req.headers['authorization'] || req.headers['Authorization'];
@@ -210,6 +239,14 @@ export default async function handler(req, res) {
     // - Zero tolerance for unmanaged positions
     botState = await reconcilePositions(session, botState);
 
+    // ── STATE INTEGRITY CHECK: Validate after reconciliation ──────────────────
+    if (!validateStateIntegrity(botState, 'post-reconciliation')) {
+      console.error('[CRON] ⚠️ State integrity compromised after reconciliation — halting');
+      await saveState(botState); // Save the corrupted state flag
+      await sendAlert('🚨 Bot halted: State integrity check failed after position reconciliation. Manual review required.').catch(() => {});
+      return res.json({ error: 'State integrity failed after reconciliation' });
+    }
+
     // ── Sync actual trade stats from broker ─────────────────────────────────
     const brokerStats = await fetchBrokerTradeStats(session);
     if (brokerStats) {
@@ -256,14 +293,20 @@ export default async function handler(req, res) {
       botState.candles5m = marketData.candles5m;
       // Only advance the processed candle time if we are not skipping due to duplicate
       if (!marketData.skip) {
-        // Concurrency lock: Ensure only ONE invocation processes this specific candle entirely
+        // ── RACE CONDITION FIX: Concurrency lock ─────────────────────────────
+        // Ensure only ONE invocation processes this specific candle
+        // Lock expires in 90s to align with Vercel 30s timeout
         const locked = await acquireCandleLock(marketData.latestCandleTime);
         if (!locked) {
-           console.warn(`[CRON] Concurrency block: Candle ${marketData.latestCandleTime} already locked`);
+           console.warn(`[CRON] ⚠️ Concurrency lock FAILED for candle ${marketData.latestCandleTime}`);
+           console.warn(`[CRON]    → Another invocation is already processing this candle`);
+           console.warn(`[CRON]    → This prevents duplicate trades on the same signal`);
            marketData.skip = true;
-           marketData.reason = `SKIP: Concurrency lock active for candle ${marketData.latestCandleTime} - preventing duplicate trades`;
+           marketData.reason = `SKIP: Concurrency lock blocked this invocation (candle ${marketData.latestCandleTime} already being processed by another instance)`;
         } else {
+           // Lock acquired successfully
            botState.lastProcessedCandle = marketData.latestCandleTime;
+           console.log(`[CRON] ✓ Candle lock acquired for ${marketData.latestCandleTime} — this invocation will process signals`);
         }
       }
 

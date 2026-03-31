@@ -1,3 +1,24 @@
+# Environment files - CRITICAL: .env files contain secrets
+# Never commit any .env files to version control
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# Build and dependencies
 .vercel
-"node_modules/" 
-.env*.local
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs (optional - increase privacy)
+*.log
+logs/
+
+# macOS
+.DS_Store

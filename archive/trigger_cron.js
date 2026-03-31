@@ -3,7 +3,7 @@ import handler from './api/cron.js';
 
 const req = {
   headers: {
-    'authorization': 'Bearer goldbot2026'
+    'authorization': process.env.CRON_SECRET ? `Bearer ${process.env.CRON_SECRET}` : 'Bearer MISSING_CRON_SECRET'
   }
 };
 

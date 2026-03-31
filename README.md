@@ -20,12 +20,26 @@ Follow the prompts — choose defaults for everything.
 After deploying, go to your Vercel dashboard:
 - Project → Settings → Environment Variables
 
-Add these two variables:
+Add these variables (get your own API keys):
 
-| Name | Value |
-|------|-------|
-| `TWELVE_DATA_KEY` | `c1a289b065d649929015b868d639099e` |
-| `ANTHROPIC_API_KEY` | your Anthropic API key |
+| Name | Value | Notes |
+|------|-------|-------|
+| `CAPITAL_API_KEY` | your Capital.com API key | Get from Capital.com dashboard |
+| `CAPITAL_EMAIL` | your Capital.com email | Email used for login |
+| `CAPITAL_PASSWORD` | your Capital.com password | Your trading account password |
+| `CAPITAL_ENV` | `demo` or `live` | CRITICAL: Set to 'demo' for testing, 'live' for real money |
+| `LIVE_TRADING_MODE` | `CONFIRMED_REAL_MONEY` (if live) | REQUIRED only if CAPITAL_ENV=live. Prevents accidents. |
+| `CRON_SECRET` | 32+ random characters | Use strong random string: `openssl rand -hex 16` (generates 32-char string) |
+| `KV_REST_API_URL` | your Upstash Redis URL | From Upstash dashboard |
+| `KV_REST_API_TOKEN` | your Upstash Redis token | From Upstash dashboard |
+| `TELEGRAM_BOT_TOKEN` | your Telegram bot token | Optional, from BotFather on Telegram |
+| `TELEGRAM_CHAT_ID` | your Telegram chat ID | Optional, your personal chat ID for alerts |
+
+**⚠️ CRITICAL SECURITY:**
+- DO NOT put real secrets in code or README
+- NEVER commit .env files to git
+- All tokens rotate immediately if exposed
+- Use Vercel's encrypted environment variables only
 
 ### 4. Redeploy
 ```bash
@@ -55,4 +69,17 @@ gold-trader/
 - Real-time price chart
 - Trade log with P&L tracking
 - Session stats (win rate, best/worst trade)
-- Paper trading — no real money involved
+
+## Trading Modes
+
+**IMPORTANT: This bot trades with REAL money or paper account based on CAPITAL_ENV setting**
+
+- **Demo Mode** (`CAPITAL_ENV=demo`): Paper trading on Capital.com simulator
+  - Recommended for first 2+ weeks of testing
+  - No real money at risk
+  - Full market data and real execution flow
+  
+- **Live Mode** (`CAPITAL_ENV=live`): Real Capital.com account
+  - Uses REAL money from your account
+  - Only enable after extensive backtesting and paper trading
+  - Start with small capital (AED 500-1000) to validate system
