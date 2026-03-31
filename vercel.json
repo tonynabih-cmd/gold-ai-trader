@@ -1,7 +1,7 @@
 {
   "version": 2,
   "functions": {
-    "api/cron.js":      { "maxDuration": 30 },
+    "api/cron.js":      { "maxDuration": 60 },
     "api/audit.js":     { "maxDuration": 60 },
     "api/dashboard.js": { "maxDuration": 10 },
     "api/state.js":     { "maxDuration": 10 },

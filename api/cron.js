@@ -108,12 +108,16 @@ async function reconcilePositions(session, botState) {
     botState.lastStateSyncAt = Date.now();
 
     if (justClosed.length > 0) {
-      const losses = justClosed
-        .filter(t => typeof t.realizedPnl === 'number' && t.realizedPnl < 0)
+      // Track ALL outcomes (wins AND losses) so that a win resets the anti-chop streak.
+      // Previously only losses were pushed, which meant the anti-chop could never be
+      // cleared once 2 consecutive losses accumulated — effectively disabling the bot
+      // permanently after 2 losses until a manual Redis state reset.
+      const outcomes = justClosed
+        .filter(t => typeof t.realizedPnl === 'number')
         .map(t => ({ pnl: t.realizedPnl, action: t.action, closedAt: Date.now(), ref: t.dealReference }));
-      if (losses.length > 0) {
+      if (outcomes.length > 0) {
         botState.recentOutcomes = Array.isArray(botState.recentOutcomes) ? botState.recentOutcomes : [];
-        botState.recentOutcomes.push(...losses);
+        botState.recentOutcomes.push(...outcomes);
         botState.recentOutcomes = botState.recentOutcomes.slice(-20);
       }
 
