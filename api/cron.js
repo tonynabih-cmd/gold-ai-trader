@@ -101,13 +101,41 @@ async function reconcilePositions(session, botState) {
       }
     }
 
-    // Any broker positions not tracked locally are uncertainty, not auto-adoption.
-    if (liveDealRefs.size > 0) {
-      const unknownRef = Array.from(liveDealRefs.keys())[0];
-      return {
-        botState,
-        haltReason: `RECONCILIATION_UNCERTAIN_UNKNOWN_BROKER_POSITION:${unknownRef}`,
+    // Any broker positions not tracked locally → ADOPT them.
+    // This handles: bot state was reset, crash after order but before save, etc.
+    // Broker is the source of truth — if it exists on broker, we must track it.
+    for (const [ref, pos] of liveDealRefs) {
+      const brokerSize = Number(pos.position?.size ?? pos.position?.dealSize);
+      const brokerDirection = String(pos.position?.direction || '').toUpperCase();
+      const brokerEpic = pos.market?.epic || pos.position?.instrumentName || 'GOLD';
+
+      if (!Number.isFinite(brokerSize) || brokerSize <= 0 || (brokerDirection !== 'BUY' && brokerDirection !== 'SELL')) {
+        return {
+          botState,
+          haltReason: `RECONCILIATION_UNCERTAIN_INVALID_BROKER_POSITION:${ref}`,
+        };
+      }
+
+      const adoptedTrade = {
+        tradeId:         `adopted_${ref}`,
+        dealReference:   ref,
+        pair:            brokerEpic,
+        action:          brokerDirection,
+        entry:           Number(pos.position?.openLevel ?? pos.position?.level ?? 0),
+        size:            brokerSize,
+        stopLoss:        Number(pos.position?.stopLevel ?? 0) || null,
+        takeProfit:      Number(pos.position?.limitLevel ?? 0) || null,
+        notionalValue:   null,
+        marginRequired:  null,
+        actualRiskDollars: null,
+        openedAt:        pos.position?.createdDateUTC ? new Date(pos.position.createdDateUTC).getTime() : Date.now(),
+        strategyVersion: 'adopted',
+        missingCount:    0,
       };
+
+      stillOpen.push(adoptedTrade);
+      console.warn(`[SYNC] ⚠️ ADOPTED unknown broker position: ${brokerDirection} ${brokerSize}oz ${brokerEpic} | ref=${ref}`);
+      await sendAlert(`⚠️ Bot adopted untracked broker position: ${brokerDirection} ${brokerSize}oz ${brokerEpic} | ref=${ref}\nThis may be from a previous state wipe or crash. Monitor manually.`).catch(() => {});
     }
 
     botState.openTrades = [...stillOpen];
@@ -146,6 +174,14 @@ async function reconcilePositions(session, botState) {
 }
 
 export default async function handler(req, res) {
+  // ── Authorization ─────────────────────────────────────────────────────────
+  const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
+  const providedAuth = req.headers['authorization'] || req.headers['Authorization'];
+  if (process.env.CRON_SECRET && providedAuth !== expectedAuth) {
+    console.warn('Unauthorized cron trigger attempt');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   let botState;
   let lockHandle = null;
   let invocationStateVersion = 0;
@@ -177,14 +213,6 @@ export default async function handler(req, res) {
 
   if (isLiveMode && liveTradeConfirmed) {
     console.warn('🔴 === LIVE TRADING MODE ACTIVE === REAL MONEY AT RISK === 🔴');
-  }
-
-  // ── Authorization ─────────────────────────────────────────────────────────
-  const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
-  const providedAuth = req.headers['authorization'] || req.headers['Authorization'];
-  if (process.env.CRON_SECRET && providedAuth !== expectedAuth) {
-    console.warn('Unauthorized cron trigger attempt');
-    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   // ── Kill switch (fast path) ──────────────────────────────────────────────

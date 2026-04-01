@@ -1,9 +1,9 @@
-name: 5-Minute Fallback Trigger
+name: 10-Minute Fallback Trigger
 
 on:
   schedule:
-    # 5-Minute Backup Trigger (Official GitHub limit)
-    - cron: '*/5 * * * 1-5'
+    # 10-Minute Backup Trigger (Official GitHub limit)
+    - cron: '*/10 * * * 1-5'
   workflow_dispatch:
 
 jobs:
