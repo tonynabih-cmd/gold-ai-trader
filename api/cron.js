@@ -396,6 +396,15 @@ export default async function handler(req, res) {
 
     const certainty = await verifyExecutionCertainty(session, botState);
     if (!certainty.ok) {
+      if (certainty.reason.includes('LOCAL_NOT_ON_BROKER') || certainty.reason.includes('BROKER_NOT_LOCAL')) {
+        const skipReason = `SKIP: Race condition detected during execution gate (${certainty.reason})`;
+        console.warn(`[CRON] ${skipReason}`);
+        botState.lastHeartbeat = Date.now();
+        await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: skipReason, signalDebug });
+        await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
+        return res.json({ skipped: skipReason });
+      }
+
       botState.botEnabled = false;
       botState.stateIntegrityOk = false;
       botState.criticalFailure = true;
