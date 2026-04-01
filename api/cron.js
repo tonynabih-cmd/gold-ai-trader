@@ -2,7 +2,7 @@ import { getCapitalSession }               from '../lib/session.js';
 import { getMarketData }                   from '../lib/market_data.js';
 import { calculateIndicators }             from '../lib/indicators.js';
 import { generateSignal }                  from '../lib/strategy.js';
-import { checkRisk }                       from '../lib/risk.js';
+import { checkRisk, calculateDrawdown }              from '../lib/risk.js';
 import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock } from '../lib/state.js';
@@ -337,9 +337,8 @@ export default async function handler(req, res) {
     const peakPnl = parseFloat(botState.peakBrokerPnl) || 0;
     if (currentTotalPnl > peakPnl) botState.peakBrokerPnl = currentTotalPnl;
     
-    const pnlDrawdownAED = (peakPnl > currentTotalPnl) ? (peakPnl - currentTotalPnl) : 0;
-    const currentBalanceAED = parseFloat(botState.balance) || 1;
-    botState.totalDrawdown = parseFloat(((pnlDrawdownAED / currentBalanceAED) * 100).toFixed(2));
+    const equityDrawdown = calculateDrawdown(botState.peakBalance, botState.equity || botState.balance);
+    botState.totalDrawdown = parseFloat(equityDrawdown.toFixed(2));
     botState.riskDataFresh = true;
     botState.lastRiskSyncAt = Date.now();
     
