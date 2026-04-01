@@ -1,9 +1,10 @@
 // tests/test_execution.mjs — Unit tests for lib/execution.js (offline functions only)
 // Run: node tests/test_execution.mjs
 // 
-// Tests calculatePositionSize only — other functions require live network access.
+// Tests calculatePositionSize and extractBestEffortFilledSize only — other functions
+// require live network access.
 
-import { calculatePositionSize } from '../lib/execution.js';
+import { calculatePositionSize, extractBestEffortFilledSize } from '../lib/execution.js';
 
 let passed = 0;
 let failed = 0;
@@ -149,6 +150,89 @@ section('Return structure for successful sizing');
     assert(Math.abs(r.marginRequired - expectedMarginAED) < 1,
       `marginRequired = notional × 5% × USD_AED (${r.marginRequired.toFixed(2)} ≈ ${expectedMarginAED.toFixed(2)})`);
   }
+}
+
+// ── Section 8: extractBestEffortFilledSize — happy paths ─────────────────────
+
+section('extractBestEffortFilledSize: standard affectedDeals');
+{
+  // Standard Capital.com response with affectedDeals
+  const r = extractBestEffortFilledSize({ affectedDeals: [{ size: 0.5 }] });
+  assert(r.filledSize === 0.5, `Single deal size=0.5 → filledSize=0.5 (got ${r.filledSize})`);
+  assert(r.source === 'affectedDeals', `source=affectedDeals (got ${r.source})`);
+  assert(r.warnings.length === 0, `No warnings for clean response`);
+
+  // Multiple deals summed
+  const r2 = extractBestEffortFilledSize({ affectedDeals: [{ size: 0.3 }, { size: 0.2 }] });
+  assert(Math.abs(r2.filledSize - 0.5) < 0.0001, `Multiple deals summed to 0.5 (got ${r2.filledSize})`);
+
+  // dealSize variant
+  const r3 = extractBestEffortFilledSize({ affectedDeals: [{ dealSize: 0.1 }] });
+  assert(r3.filledSize === 0.1, `dealSize field accepted (got ${r3.filledSize})`);
+
+  // filledSize variant
+  const r4 = extractBestEffortFilledSize({ affectedDeals: [{ filledSize: 0.25 }] });
+  assert(r4.filledSize === 0.25, `filledSize field accepted (got ${r4.filledSize})`);
+}
+
+section('extractBestEffortFilledSize: top-level fallbacks');
+{
+  // No affectedDeals, but top-level size
+  const r = extractBestEffortFilledSize({ dealStatus: 'ACCEPTED', size: 0.5 });
+  assert(r.filledSize === 0.5, `Top-level size fallback works (got ${r.filledSize})`);
+  assert(r.source === 'topLevel', `source=topLevel (got ${r.source})`);
+  assert(r.warnings.length > 0, `Warning emitted for fallback`);
+
+  // Top-level dealSize
+  const r2 = extractBestEffortFilledSize({ dealSize: 0.3 });
+  assert(r2.filledSize === 0.3, `Top-level dealSize fallback (got ${r2.filledSize})`);
+
+  // Top-level filledSize
+  const r3 = extractBestEffortFilledSize({ filledSize: 0.1 });
+  assert(r3.filledSize === 0.1, `Top-level filledSize fallback (got ${r3.filledSize})`);
+}
+
+// ── Section 9: extractBestEffortFilledSize — degraded/missing fields ─────────
+
+section('extractBestEffortFilledSize: missing or null fields return null without throwing');
+{
+  // Null input
+  const r1 = extractBestEffortFilledSize(null);
+  assert(r1.filledSize === null, `null input → filledSize=null (not thrown)`);
+  assert(r1.warnings.length > 0, `Warnings present for null input`);
+
+  // Undefined input
+  const r2 = extractBestEffortFilledSize(undefined);
+  assert(r2.filledSize === null, `undefined input → filledSize=null (not thrown)`);
+
+  // Empty object
+  const r3 = extractBestEffortFilledSize({});
+  assert(r3.filledSize === null, `Empty object → filledSize=null`);
+
+  // affectedDeals present but all entries have invalid sizes
+  const r4 = extractBestEffortFilledSize({ affectedDeals: [{ size: 'bad' }, { size: -1 }] });
+  assert(r4.filledSize === null, `All-invalid affectedDeals → filledSize=null (not thrown)`);
+  assert(r4.warnings.length > 0, `Warnings present for invalid deals`);
+
+  // affectedDeals is not an array
+  const r5 = extractBestEffortFilledSize({ affectedDeals: 'not-an-array' });
+  assert(r5.filledSize === null, `affectedDeals non-array → filledSize=null (not thrown)`);
+
+  // Zero-size deal
+  const r6 = extractBestEffortFilledSize({ affectedDeals: [{ size: 0 }] });
+  assert(r6.filledSize === null, `Zero-size deal → falls through to null (not thrown)`);
+
+  // Top-level zero (explicit check of boundary for topSz > 0)
+  const r7 = extractBestEffortFilledSize({ size: 0 });
+  assert(r7.filledSize === null, `Top-level size=0 → filledSize=null (not thrown)`);
+}
+
+section('extractBestEffortFilledSize: mixed valid/invalid deals in affectedDeals');
+{
+  // One valid, one invalid — valid one should still be summed
+  const r = extractBestEffortFilledSize({ affectedDeals: [{ size: 0.5 }, { size: 'bad' }] });
+  assert(r.filledSize === 0.5, `Partial valid deals summed (got ${r.filledSize})`);
+  assert(r.warnings.length > 0, `Warning for skipped invalid deal`);
 }
 
 // ── Summary ─────────────────────────────────────────────────────────────────
