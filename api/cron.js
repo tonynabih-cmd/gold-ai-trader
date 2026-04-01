@@ -54,10 +54,16 @@ async function reconcilePositions(session, botState) {
           trade.realizedPnl = realizedPnl;
           justClosed.push(trade);
         } else {
-          return {
-            botState,
-            haltReason: `RECONCILIATION_UNCERTAIN_MISSING_TRADE:${trade.dealReference || 'unknown'}`,
-          };
+          trade.missingCount = (trade.missingCount || 0) + 1;
+          if (trade.missingCount < 5) {
+             console.warn(`[SYNC] Trade ${trade.dealReference} missing from active positions AND transaction history. Assuming broker sync delay (${trade.missingCount}/5).`);
+             stillOpen.push(trade);
+          } else {
+             return {
+               botState,
+               haltReason: `RECONCILIATION_UNCERTAIN_MISSING_TRADE:${trade.dealReference || 'unknown'}`,
+             };
+          }
         }
       }
     }
