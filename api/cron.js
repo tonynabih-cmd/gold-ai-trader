@@ -71,18 +71,20 @@ async function reconcilePositions(session, botState) {
           justClosed.push(trade);
           console.log(`[SYNC] Confirmed closure for dealId ${dealId} with P&L ${realizedPnl}`);
         } else {
-          // Not found on broker AND not in history — could be API delay
+          // Not found on broker AND not in history — could be API delay or record mismatch
           trade.missingCount = (trade.missingCount || 0) + 1;
-          if (trade.missingCount < 5) {
-             console.warn(`[SYNC] Trade ${dealId} missing from active positions AND transaction history. Assuming broker sync delay (${trade.missingCount}/5).`);
+          
+          if (trade.missingCount < 10) {
+             console.warn(`[SYNC] Trade ${dealId} missing from active positions AND transaction history. Assuming broker sync delay (${trade.missingCount}/10).`);
              stillOpen.push(trade);
           } else {
-             // After 5 attempts, we must assume it's lost/closed without a history record (unlikely) or something is wrong
-             console.error(`[SYNC] ❌ Trade ${dealId} persistent mismatch: missing after 5 cycles. Halting for certainty.`);
-             return {
-               botState,
-               haltReason: `RECONCILIATION_UNCERTAIN_MISSING_TRADE:${dealId}`,
-             };
+             // After 10 attempts (~5-10 minutes), we MUST assume it is closed to prevent the bot from being stuck.
+             // The balance will be corrected by the next syncBalance call anyway.
+             console.error(`[SYNC] ⚠️ Trade ${dealId} persistent mismatch: missing after 10 cycles. FORCING closure with 0.00 P&L to resume operations.`);
+             trade.realizedPnl = 0;
+             trade.isMIA = true; // Mark as missing-in-action for logs
+             justClosed.push(trade);
+             await sendAlert(`⚠️ RECONCILIATION ALERT: Trade ${dealId} disappeared from broker without a transaction record. Forced closure to resume trading. Check broker for manual closure or liquidation.`).catch(() => {});
           }
         }
       }
