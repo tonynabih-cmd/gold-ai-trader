@@ -31,11 +31,16 @@ async function reconcilePositions(session, botState) {
       };
     }
 
-    // Build lookup of live deal references
-    const liveDealRefs = new Map();
+    // Build lookup of live positions by dealId and dealReference
+    const liveByDealId = new Map();
+    const liveByRef = new Map();
+    
     for (const pos of livePositions) {
+      const dealId = pos.position?.dealId;
       const ref = pos.position?.dealReference;
-      if (ref) liveDealRefs.set(ref, pos);
+      
+      if (dealId) liveByDealId.set(String(dealId), pos);
+      if (ref) liveByRef.set(String(ref), pos);
     }
 
     const localTrades = Array.isArray(botState.openTrades) ? botState.openTrades : [];
@@ -43,12 +48,26 @@ async function reconcilePositions(session, botState) {
     const justClosed = [];
 
     for (const trade of localTrades) {
-      if (trade.dealReference && liveDealRefs.has(trade.dealReference)) {
+      const tradeDealId = trade.dealId ? String(trade.dealId) : null;
+      const tradeRef = trade.dealReference ? String(trade.dealReference) : null;
+      
+      // Match by dealId first, then by dealReference
+      const livePos = (tradeDealId && liveByDealId.get(tradeDealId)) || (tradeRef && liveByRef.get(tradeRef));
+
+      if (livePos) {
         trade.missingCount = 0;
+        // Ensure dealId is recorded if it was missing
+        if (!trade.dealId && livePos.position?.dealId) {
+          trade.dealId = livePos.position.dealId;
+        }
         stillOpen.push(trade);
-        liveDealRefs.delete(trade.dealReference);
+        
+        // Remove from lookup to avoid re-adopting
+        if (livePos.position?.dealId) liveByDealId.delete(String(livePos.position.dealId));
+        if (livePos.position?.dealReference) liveByRef.delete(String(livePos.position.dealReference));
       } else {
-        let realizedPnl = await fetchClosedTradePnl(session, trade.dealReference, trade.openedAt);
+        const lookupId = tradeDealId || tradeRef || 'unknown';
+        let realizedPnl = await fetchClosedTradePnl(session, lookupId, trade.openedAt);
 
         if (realizedPnl !== null) {
           trade.realizedPnl = realizedPnl;
@@ -56,12 +75,12 @@ async function reconcilePositions(session, botState) {
         } else {
           trade.missingCount = (trade.missingCount || 0) + 1;
           if (trade.missingCount < 5) {
-             console.warn(`[SYNC] Trade ${trade.dealReference} missing from active positions AND transaction history. Assuming broker sync delay (${trade.missingCount}/5).`);
+             console.warn(`[SYNC] Trade ${lookupId} missing from active positions AND transaction history. Assuming broker sync delay (${trade.missingCount}/5).`);
              stillOpen.push(trade);
           } else {
              return {
                botState,
-               haltReason: `RECONCILIATION_UNCERTAIN_MISSING_TRADE:${trade.dealReference || 'unknown'}`,
+               haltReason: `RECONCILIATION_UNCERTAIN_MISSING_TRADE:${lookupId}`,
              };
           }
         }
@@ -70,11 +89,12 @@ async function reconcilePositions(session, botState) {
 
     // ── Phase 2: Process confirmed closures ────────────────────────────────────
     for (const closedTrade of justClosed) {
-      console.log(`[SYNC] ❌ TRADE CLOSED: ${closedTrade.action} ${closedTrade.size}oz GOLD | ref=${closedTrade.dealReference} | entry=${closedTrade.entry}`);
+      const tradeIdForLog = closedTrade.dealId || closedTrade.dealReference || 'unknown';
+      console.log(`[SYNC] ❌ TRADE CLOSED: ${closedTrade.action} ${closedTrade.size}oz GOLD | id=${tradeIdForLog} | entry=${closedTrade.entry}`);
       
       const realizedPnl = closedTrade.realizedPnl;
       const pnlStr = realizedPnl != null ? `$${realizedPnl.toFixed(2)}` : 'Unknown';
-      console.log(`[SYNC] P&L for ${closedTrade.dealReference}: ${pnlStr}`);
+      console.log(`[SYNC] P&L for ${tradeIdForLog}: ${pnlStr}`);
 
       await saveLog({
         signal: {
@@ -96,7 +116,7 @@ async function reconcilePositions(session, botState) {
           `📉 Trade CLOSED: ${closedTrade.action} Gold\n` +
           `Entry: $${closedTrade.entry?.toFixed(2) ?? '?'}\n` +
           `P&L: ${pnlStr}\n` +
-          `Ref: ${closedTrade.dealReference}`
+          `ID: ${tradeIdForLog}`
         );
       }
     }
@@ -104,7 +124,11 @@ async function reconcilePositions(session, botState) {
     // Any broker positions not tracked locally → ADOPT them.
     // This handles: bot state was reset, crash after order but before save, etc.
     // Broker is the source of truth — if it exists on broker, we must track it.
-    for (const [ref, pos] of liveDealRefs) {
+    // Phase 3: Adopt remaining broker positions
+    // We iterate over liveByDealId as it contains the most unique identifiers.
+    for (const [dealId, pos] of liveByDealId) {
+      const ref = pos.position?.dealReference;
+      
       const brokerSize = Number(pos.position?.size ?? pos.position?.dealSize);
       const brokerDirection = String(pos.position?.direction || '').toUpperCase();
       const brokerEpic = pos.market?.epic || pos.position?.instrumentName || 'GOLD';
@@ -112,12 +136,17 @@ async function reconcilePositions(session, botState) {
       if (!Number.isFinite(brokerSize) || brokerSize <= 0 || (brokerDirection !== 'BUY' && brokerDirection !== 'SELL')) {
         return {
           botState,
-          haltReason: `RECONCILIATION_UNCERTAIN_INVALID_BROKER_POSITION:${ref}`,
+          haltReason: `RECONCILIATION_UNCERTAIN_INVALID_BROKER_POSITION:id=${dealId}/ref=${ref}`,
         };
       }
 
+      // Final anti-duplication check: ensure this dealId is not already in stillOpen
+      const alreadyTracked = stillOpen.some(t => String(t.dealId) === String(dealId) || (ref && String(t.dealReference) === String(ref)));
+      if (alreadyTracked) continue;
+
       const adoptedTrade = {
-        tradeId:         `adopted_${ref}`,
+        tradeId:         `adopted_${dealId}`,
+        dealId:          dealId,
         dealReference:   ref,
         pair:            brokerEpic,
         action:          brokerDirection,
@@ -134,8 +163,8 @@ async function reconcilePositions(session, botState) {
       };
 
       stillOpen.push(adoptedTrade);
-      console.warn(`[SYNC] ⚠️ ADOPTED unknown broker position: ${brokerDirection} ${brokerSize}oz ${brokerEpic} | ref=${ref}`);
-      await sendAlert(`⚠️ Bot adopted untracked broker position: ${brokerDirection} ${brokerSize}oz ${brokerEpic} | ref=${ref}\nThis may be from a previous state wipe or crash. Monitor manually.`).catch(() => {});
+      console.warn(`[SYNC] ⚠️ ADOPTED unknown broker position: ${brokerDirection} ${brokerSize}oz ${brokerEpic} | id=${dealId} | ref=${ref}`);
+      await sendAlert(`⚠️ Bot adopted untracked broker position: ${brokerDirection} ${brokerSize}oz ${brokerEpic} | id=${dealId}\nThis may be from a previous state wipe or crash. Monitor manually.`).catch(() => {});
     }
 
     botState.openTrades = [...stillOpen];
