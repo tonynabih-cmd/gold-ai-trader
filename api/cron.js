@@ -3,7 +3,7 @@ import { getMarketData }                   from '../lib/market_data.js';
 import { calculateIndicators }             from '../lib/indicators.js';
 import { generateSignal }                  from '../lib/strategy.js';
 import { checkRisk, calculateDrawdown }              from '../lib/risk.js';
-import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty } from '../lib/execution.js';
+import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty, SYNC_WINDOW_MS, fetchCurrentGoldPrice } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
@@ -58,45 +58,100 @@ async function reconcilePositions(session, botState) {
       const livePos = liveByDealId.get(dealId);
 
       if (livePos) {
-        trade.missingCount = 0;
+        // Trade is still open on broker — reset sync-tracking fields
+        trade.missingCount  = 0;
+        trade.firstMissingAt = null;
         stillOpen.push(trade);
         // Remove from lookup to mark as "already tracked"
         liveByDealId.delete(dealId);
       } else {
-        // Position not in live list — check transaction history to confirm closure
-        let realizedPnl = await fetchClosedTradePnl(session, dealId, trade.openedAt);
+        // Trade not found in live positions — check transaction history.
+        // Set firstMissingAt on the very first cycle it disappears so we can
+        // track elapsed time (wall-clock, not cycle count) for the sync window.
+        if (!trade.firstMissingAt) {
+          trade.firstMissingAt = Date.now();
+          console.warn(`[SYNC] Trade ${dealId} first disappeared from active positions at ${new Date(trade.firstMissingAt).toISOString()}.`);
+          await saveLog({
+            signal: { id: trade.tradeId, action: trade.action, entryType: 'sync_event', entryPrice: null, strategyVersion: trade.strategyVersion || 'v1.1' },
+            indicators: null,
+            botState: { ...botState },
+            tradeExecuted: false,
+            reason: `SYNC_DISAPPEAR: dealId=${dealId} not found in active positions. firstMissingAt=${new Date(trade.firstMissingAt).toISOString()} | entry=${trade.entry}`,
+            result: null,
+          }).catch(() => {});
+        }
+
+        const elapsedMs  = Date.now() - trade.firstMissingAt;
+        const elapsedMin = Math.floor(elapsedMs / 60000);
+
+        // Check transaction history (internal retry handles transient API delays)
+        const realizedPnl = await fetchClosedTradePnl(session, dealId, trade.openedAt);
 
         if (realizedPnl !== null) {
           trade.realizedPnl = realizedPnl;
           justClosed.push(trade);
-          console.log(`[SYNC] Confirmed closure for dealId ${dealId} with P&L ${realizedPnl}`);
+          console.log(`[SYNC] ✅ Confirmed closure for dealId ${dealId} | P&L ${realizedPnl} | elapsed ${elapsedMin}m`);
+        } else if (elapsedMs < SYNC_WINDOW_MS) {
+          // Within sync window — keep tracked, do NOT block new trades
+          console.warn(`[SYNC] Trade ${dealId} still missing from history (${elapsedMin}m / ${Math.floor(SYNC_WINDOW_MS / 60000)}m). Awaiting broker sync.`);
+          await saveLog({
+            signal: { id: trade.tradeId, action: trade.action, entryType: 'sync_event', entryPrice: null, strategyVersion: trade.strategyVersion || 'v1.1' },
+            indicators: null,
+            botState: { ...botState },
+            tradeExecuted: false,
+            reason: `SYNC_RETRY: dealId=${dealId} still missing at ${elapsedMin}m. Awaiting transaction history (window: ${Math.floor(SYNC_WINDOW_MS / 60000)}m).`,
+            result: null,
+          }).catch(() => {});
+          stillOpen.push(trade);
         } else {
-          // Not found on broker AND not in history — could be API delay or record mismatch
-          trade.missingCount = (trade.missingCount || 0) + 1;
-          
-          if (trade.missingCount < 10) {
-             console.warn(`[SYNC] Trade ${dealId} missing from active positions AND transaction history. Assuming broker sync delay (${trade.missingCount}/10).`);
-             stillOpen.push(trade);
-          } else {
-             // After 10 attempts (~5-10 minutes), we MUST assume it is closed to prevent the bot from being stuck.
-             // The balance will be corrected by the next syncBalance call anyway.
-             console.error(`[SYNC] ⚠️ Trade ${dealId} persistent mismatch: missing after 10 cycles. FORCING closure with 0.00 P&L to resume operations.`);
-             trade.realizedPnl = 0;
-             trade.isMIA = true; // Mark as missing-in-action for logs
-             justClosed.push(trade);
-             await sendAlert(`⚠️ RECONCILIATION ALERT: Trade ${dealId} disappeared from broker without a transaction record. Forced closure to resume trading. Check broker for manual closure or liquidation.`).catch(() => {});
-          }
+          // Sync window exceeded — force-resolve as closed.
+          // Attempt P&L estimation using a live GOLD price snapshot.
+          // If estimation is impossible, realizedPnl is set to null (not $0) so that
+          // anti-chop streak logic is NOT corrupted by a fake zero-P&L entry.
+          let estimatedPnl = null;
+          try {
+            const priceSnapshot = await fetchCurrentGoldPrice(session);
+            if (
+              priceSnapshot &&
+              Number.isFinite(trade.entry) && trade.entry > 0 &&
+              Number.isFinite(trade.size)  && trade.size  > 0 &&
+              (trade.action === 'BUY' || trade.action === 'SELL')
+            ) {
+              const currentPrice = trade.action === 'BUY' ? priceSnapshot.bid : priceSnapshot.offer;
+              if (Number.isFinite(currentPrice) && currentPrice > 0) {
+                estimatedPnl = parseFloat(
+                  ((currentPrice - trade.entry) * (trade.action === 'BUY' ? 1 : -1) * trade.size).toFixed(2)
+                );
+              }
+            }
+          } catch (_) { /* estimatedPnl remains null */ }
+
+          trade.realizedPnl  = estimatedPnl;
+          trade.isMIA        = true;
+          trade.fallbackUsed = true;
+          justClosed.push(trade);
+
+          const pnlDesc = estimatedPnl !== null
+            ? `estimated $${estimatedPnl.toFixed(2)}`
+            : 'unknown (null — excluded from performance metrics)';
+          console.error(`[SYNC] ⚠️ FALLBACK_RESOLUTION_USED: dealId=${dealId} missing after ${elapsedMin}m. Forcing closure. P&L: ${pnlDesc}`);
+          await sendAlert(
+            `⚠️ FALLBACK RESOLUTION: Trade ${dealId} (${trade.action}) disappeared after ${elapsedMin}m without history.\n` +
+            `P&L: ${pnlDesc}\nEntry: $${trade.entry?.toFixed(2) ?? '?'} | Size: ${trade.size}oz\n` +
+            `Check broker for manual closure or liquidation.`
+          ).catch(() => {});
         }
       }
     }
 
     // --- Phase 2: Process confirmed closures ---
     for (const closedTrade of justClosed) {
-      const dealId = closedTrade.dealId;
-      console.log(`[SYNC] ❌ TRADE CLOSED: ${closedTrade.action} ${closedTrade.size}oz GOLD | dealId=${dealId} | entry=${closedTrade.entry}`);
-      
+      const dealId      = closedTrade.dealId;
       const realizedPnl = closedTrade.realizedPnl;
-      const pnlStr = realizedPnl != null ? `$${realizedPnl.toFixed(2)}` : 'Unknown';
+      const pnlStr      = realizedPnl != null ? `$${realizedPnl.toFixed(2)}` : 'null (unknown)';
+      const closureTag  = closedTrade.fallbackUsed ? 'FALLBACK_RESOLUTION_USED' : 'CONFIRMED';
+
+      console.log(`[SYNC] ❌ TRADE CLOSED [${closureTag}]: ${closedTrade.action} ${closedTrade.size}oz GOLD | dealId=${dealId} | entry=${closedTrade.entry} | P&L=${pnlStr}`);
 
       await saveLog({
         signal: {
@@ -109,11 +164,13 @@ async function reconcilePositions(session, botState) {
         indicators: null,
         botState: { ...botState },
         tradeExecuted: false,
-        reason: `CLOSED: Realized P&L: ${pnlStr} | entry=${closedTrade.entry} | dealId=${dealId}`,
-        result: { realizedPnl }
+        reason: `CLOSED: ${closureTag} | Realized P&L: ${pnlStr} | entry=${closedTrade.entry} | dealId=${dealId}`,
+        result: { realizedPnl, fallbackUsed: closedTrade.fallbackUsed || false }
       });
 
-      if (realizedPnl != null) {
+      // Only send a closure alert for confirmed closures — fallback closures already
+      // sent an alert during Phase 1 when force-resolution was triggered.
+      if (!closedTrade.fallbackUsed && realizedPnl != null) {
         await sendAlert(
           `📉 Trade CLOSED: ${closedTrade.action} Gold\n` +
           `Entry: $${closedTrade.entry?.toFixed(2) ?? '?'}\n` +
@@ -173,11 +230,23 @@ async function reconcilePositions(session, botState) {
       // Previously only losses were pushed, which meant the anti-chop could never be
       // cleared once 2 consecutive losses accumulated — effectively disabling the bot
       // permanently after 2 losses until a manual Redis state reset.
+      //
+      // Idempotency: use dealId to prevent duplicate entries if the same trade is
+      // processed more than once (e.g. after a retry cycle).
+      // Null P&L (fallback-resolved MIA trades) is intentionally excluded so that a
+      // forced $0 closure cannot corrupt the anti-chop loss-streak counter.
+      botState.recentOutcomes = Array.isArray(botState.recentOutcomes) ? botState.recentOutcomes : [];
+      const existingDealIds   = new Set(botState.recentOutcomes.map(o => o.dealId).filter(Boolean));
       const outcomes = justClosed
-        .filter(t => typeof t.realizedPnl === 'number')
-        .map(t => ({ pnl: t.realizedPnl, action: t.action, closedAt: Date.now(), ref: t.dealReference }));
+        .filter(t => typeof t.realizedPnl === 'number' && !existingDealIds.has(t.dealId))
+        .map(t => ({
+          pnl:      t.realizedPnl,
+          action:   t.action,
+          closedAt: Date.now(),
+          ref:      t.dealReference,
+          dealId:   t.dealId,
+        }));
       if (outcomes.length > 0) {
-        botState.recentOutcomes = Array.isArray(botState.recentOutcomes) ? botState.recentOutcomes : [];
         botState.recentOutcomes.push(...outcomes);
         botState.recentOutcomes = botState.recentOutcomes.slice(-20);
       }
