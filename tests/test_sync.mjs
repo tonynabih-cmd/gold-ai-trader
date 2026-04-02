@@ -1,5 +1,6 @@
 // tests/test_sync.mjs — Tests for sync race condition fixes in lib/execution.js
-// Run: node tests/test_sync.mjs
+// Run standalone: node tests/test_sync.mjs
+// Or as part of the suite: npm test
 //
 // Covers:
 //   1. fetchClosedTradePnl — history available immediately
