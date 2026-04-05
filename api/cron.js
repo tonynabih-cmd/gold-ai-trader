@@ -126,10 +126,26 @@ async function reconcilePositions(session, botState) {
             }
           } catch (_) { /* estimatedPnl remains null */ }
 
-          trade.realizedPnl  = estimatedPnl;
+trade.realizedPnl  = estimatedPnl;
           trade.isMIA        = true;
           trade.fallbackUsed = true;
           justClosed.push(trade);
+
+          // BUG 1 FIX: Write P&L back to state immediately on fallback resolution.
+          // This ensures balance and dailyLoss are accurate even if the bot crashes
+          // before Phase 2 runs.
+          console.log(`[SYNC] Fallback triggered after 8m for dealId=${dealId}. Transaction history lookup failed.`);
+          if (typeof estimatedPnl === 'number') {
+            botState.balance = parseFloat(botState.balance) + estimatedPnl;
+            if (estimatedPnl < 0) {
+              botState.dailyLoss = parseFloat(botState.dailyLoss) + Math.abs(estimatedPnl);
+            }
+          }
+          if (Array.isArray(botState.openTrades)) {
+            const _idx = botState.openTrades.findIndex(t => String(t?.dealId) === String(dealId));
+            if (_idx !== -1) botState.openTrades.splice(_idx, 1);
+          }
+          await saveState(botState);
 
           const pnlDesc = estimatedPnl !== null
             ? `estimated $${estimatedPnl.toFixed(2)}`
