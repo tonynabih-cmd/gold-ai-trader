@@ -17,8 +17,9 @@
 //  12. fetchClosedTradePnl — multiple concurrent MIA trades resolved independently
 //  13. recentOutcomes dedup — null P&L (MIA fallback) excluded from outcomes
 //  14. recentOutcomes dedup — duplicate dealId not re-inserted
+//  15. fetchBrokerTradeStats — todayExecuted counts trades opened today, not closed today
 
-import { fetchClosedTradePnl, SYNC_WINDOW_MS } from '../lib/execution.js';
+import { fetchClosedTradePnl, SYNC_WINDOW_MS, fetchBrokerTradeStats } from '../lib/execution.js';
 
 // ── Required env vars (values not used — HTTP is mocked via global.fetch) ────
 process.env.CAPITAL_API_KEY = 'mock_key';
@@ -241,6 +242,34 @@ section('14. recentOutcomes dedup: duplicate dealId not re-inserted');
   assert(outcomes.length === 1,              `Only 1 new outcome added (duplicate filtered) — got ${outcomes.length}`);
   assert(outcomes[0].dealId === 'NEW_DEAL',  `New trade is the only entry (got ${outcomes[0]?.dealId})`);
   assert(outcomes[0].pnl === 8.0,            `Correct P&L for new trade (got ${outcomes[0]?.pnl})`);
+}
+
+// ── Section 15 ───────────────────────────────────────────────────────────────
+section('15. fetchBrokerTradeStats — todayExecuted counts trades opened today, not closed today');
+{
+  // Timestamps: "now" is always today in UAE; 48 hours ago is definitely not today.
+  const nowIso       = new Date().toISOString();
+  const yesterdayIso = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+
+  // T1: opened today AND closed today  →  old code: +1 (closed today); new code: +1 (opened today)
+  // T2: opened yesterday, closed today →  old code: +1 (closed today); new code: 0  (opened yesterday)
+  // Net: old code = 2, new code = 1
+  const mockTransactions = [
+    { dealId: 'T1', instrumentName: 'GOLD_USD', profitAndLoss: '0',   note: 'Position opened', date: nowIso },
+    { dealId: 'T1', instrumentName: 'GOLD_USD', profitAndLoss: '10',  note: 'Position closed', date: nowIso },
+    { dealId: 'T2', instrumentName: 'GOLD_USD', profitAndLoss: '0',   note: 'Position opened', date: yesterdayIso },
+    { dealId: 'T2', instrumentName: 'GOLD_USD', profitAndLoss: '-5',  note: 'Position closed', date: nowIso },
+  ];
+
+  global.fetch = async (url) => {
+    if (url.includes('/positions')) return mockOk({ positions: [] });
+    return mockOk({ transactions: mockTransactions });
+  };
+
+  const stats = await fetchBrokerTradeStats(mockSession);
+  assert(stats !== null, `fetchBrokerTradeStats returned a result (got ${stats})`);
+  assert(stats.todayTrades === 1,
+    `todayExecuted = 1 (only T1 opened today; T2 opened yesterday is excluded) — got ${stats?.todayTrades}`);
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────
