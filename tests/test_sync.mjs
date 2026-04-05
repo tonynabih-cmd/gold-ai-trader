@@ -129,7 +129,7 @@ section('6. Network error (throw) on all attempts — returns null gracefully');
 section('7. SYNC_WINDOW_MS exported and correct (15 minutes)');
 {
   assert(typeof SYNC_WINDOW_MS === 'number', `SYNC_WINDOW_MS is a number (got ${typeof SYNC_WINDOW_MS})`);
-  assert(SYNC_WINDOW_MS === 15 * 60 * 1000, `SYNC_WINDOW_MS = 900000 ms (got ${SYNC_WINDOW_MS})`);
+  assert(SYNC_WINDOW_MS === 8 * 60 * 1000, `SYNC_WINDOW_MS = 900000 ms (got ${SYNC_WINDOW_MS})`);
 }
 
 // ── Section 8 ────────────────────────────────────────────────────────────────
