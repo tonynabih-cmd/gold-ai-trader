@@ -9,7 +9,7 @@
 //   4. fetchClosedTradePnl — API failure (res.ok = false) returns null gracefully
 //   5. fetchClosedTradePnl — empty transactions on all attempts returns null
 //   6. fetchClosedTradePnl — network error (throw) returns null gracefully
-//   7. SYNC_WINDOW_MS constant is exported and set to 15 minutes
+//   7. SYNC_WINDOW_MS constant is exported and set to 8 minutes
 //   8. fetchClosedTradePnl — rapid open/close (pnl resolved immediately)
 //   9. fetchClosedTradePnl — ID matching via positionId field
 //  10. fetchClosedTradePnl — ID matching via dealReference field
@@ -126,10 +126,10 @@ section('6. Network error (throw) on all attempts — returns null gracefully');
 }
 
 // ── Section 7 ────────────────────────────────────────────────────────────────
-section('7. SYNC_WINDOW_MS exported and correct (15 minutes)');
+section('7. SYNC_WINDOW_MS exported and correct (8 minutes)');
 {
   assert(typeof SYNC_WINDOW_MS === 'number', `SYNC_WINDOW_MS is a number (got ${typeof SYNC_WINDOW_MS})`);
-  assert(SYNC_WINDOW_MS === 8 * 60 * 1000, `SYNC_WINDOW_MS = 900000 ms (got ${SYNC_WINDOW_MS})`);
+  assert(SYNC_WINDOW_MS === 8 * 60 * 1000, `SYNC_WINDOW_MS = 480000 ms (got ${SYNC_WINDOW_MS})`);
 }
 
 // ── Section 8 ────────────────────────────────────────────────────────────────
