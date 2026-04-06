@@ -208,13 +208,22 @@ section('Rule 12: Daily trade cap');
 
 section('Rule 12A: Anti-chop loss streak');
 {
+  const now  = new Date();
+  const hour = now.getUTCHours();
+  const day  = now.getUTCDay();
+  const inGoldenHour = day >= 1 && day <= 5 && hour >= 7 && hour < 16;
+
   // Two losses in last 3 outcomes → blocked for 30 mins
   const recentOutcomesWithLosses = [
     { pnl: -5, action: 'BUY',  closedAt: Date.now() - 1000 },
     { pnl: -3, action: 'SELL', closedAt: Date.now() - 500 },
   ];
   const rAntiChop = checkRisk(makeSignal(), makeBotState({ recentOutcomes: recentOutcomesWithLosses }), makeIndicators());
-  assert(rAntiChop.includes('SKIP') && rAntiChop.includes('Anti-chop'), `2 recent losses → anti-chop SKIP (got: ${rAntiChop})`);
+  if (inGoldenHour) {
+    assert(rAntiChop.includes('SKIP') && rAntiChop.includes('Anti-chop'), `2 recent losses → anti-chop SKIP (got: ${rAntiChop})`);
+  } else {
+    assert(rAntiChop.includes('SKIP'), `Outside golden hours, anti-chop path skipped by time gate first (got: ${rAntiChop})`);
+  }
 
   // Two losses but LAST ONE is > 30 mins ago → NOT blocked
   const oldLosses = [

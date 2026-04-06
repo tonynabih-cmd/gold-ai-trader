@@ -1,0 +1,77 @@
+Fetching Redis logs...
+Fetching Broker history...
+Processing logs for details...
+--- REPORT DATA START ---
+{
+  "summary": {
+    "today": {
+      "trades": 3,
+      "wins": 0,
+      "losses": 0,
+      "pnl": 0,
+      "winRate": 0
+    },
+    "week": {
+      "trades": 3,
+      "wins": 0,
+      "losses": 0,
+      "pnl": 0,
+      "winRate": 0
+    },
+    "month": {
+      "trades": 9,
+      "wins": 0,
+      "losses": 0,
+      "pnl": 0,
+      "winRate": 0
+    },
+    "overall": {
+      "profitFactor": 0,
+      "maxDrawdown": 0
+    }
+  },
+  "trades": [
+    {
+      "time": "4/6/2026, 5:50:08 PM",
+      "type": "SELL",
+      "entry": 4664.305,
+      "sl": 4676.852584343472,
+      "tp": 4645.4836234847935,
+      "size": 0.02,
+      "reason": "pullback",
+      "ema20": 4672.188025600878,
+      "ema50": 4677.334975515886,
+      "slope": -0.13732740822644698,
+      "atr": 8.365056228980782,
+      "rsi": 33.218816753646735,
+      "score": 4,
+      "status": "OPEN"
+    }
+  ],
+  "rejections": {
+    "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)": 6,
+    "REJECTED: Slippage too high ($3.03)": 1,
+    "SKIP: Spread too high ($0.75) - exceeds $0.50 limit": 1,
+    "SYNC_DISAPPEAR: dealId=00601567-0001-54c4-0000-00008f2e2f9d not found in active positions. firstMissingAt=2026-04-06T13:53:02.938Z | entry=4664.65": 1,
+    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 0m. Awaiting transaction history (window: 8m).": 1,
+    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 1m. Awaiting transaction history (window: 8m).": 1,
+    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 2m. Awaiting transaction history (window: 8m).": 1,
+    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 3m. Awaiting transaction history (window: 8m).": 1,
+    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 4m. Awaiting transaction history (window: 8m).": 1,
+    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 5m. Awaiting transaction history (window: 8m).": 1,
+    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 6m. Awaiting transaction history (window: 8m).": 1,
+    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 7m. Awaiting transaction history (window: 8m).": 1,
+    "CLOSED: FALLBACK_RESOLUTION_USED | Realized P&L: $-0.40 | entry=4664.65 | dealId=00601567-0001-54c4-0000-00008f2e2f9d": 1
+  },
+  "strategy": {
+    "avgAtr": 8.365056228980782,
+    "avgScore": 4,
+    "pullbacks": 1,
+    "crossovers": 0
+  },
+  "timing": {
+    "duplicates": 0,
+    "delays": 0
+  }
+}
+--- REPORT DATA END ---

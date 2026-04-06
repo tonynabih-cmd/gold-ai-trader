@@ -108,6 +108,7 @@ section('EMA crossover — BUY signal');
     assert(result.signal.score >= 2, `Score >= 2 (got ${result.signal.score})`);
     assert(result.signal.stopLoss < result.signal.entryPrice, `Stop loss below entry (SL=${result.signal.stopLoss}, entry=${result.signal.entryPrice})`);
     assert(result.signal.takeProfit > result.signal.entryPrice, `Take profit above entry`);
+    assert(Math.abs((result.signal.takeProfit - result.signal.entryPrice) - (1.5 * result.signal.atr)) < 0.0001, 'Take profit uses 1.5x ATR');
     assert(typeof result.signal.id === 'string', `Signal has string ID`);
     assert(result.signal.atr === 5.0, `Signal carries ATR value`);
   }
@@ -201,6 +202,59 @@ section('1m direction inconsistency filter');
   ];
   const result = generateSignal(indicators, mixedCandles);
   assert(result.signal === null, `Signal filtered: direction inconsistency (reason: ${result.debug?.dbgRejectReason})`);
+}
+
+section('RSI directional block');
+{
+  const overboughtIndicators = makeIndicators({ rsi: 75 });
+  const bullishCandles = makeStrongBullishCandles(5, 2000);
+  const buyBlocked = generateSignal(overboughtIndicators, bullishCandles);
+  assert(buyBlocked.signal === null, `BUY blocked when RSI > 70 (reason: ${buyBlocked.debug?.dbgRejectReason})`);
+
+  const oversoldIndicators = makeIndicators({
+    currEMA20: 1995,
+    currEMA50: 1999,
+    prevEMA20: 2000,
+    prevEMA50: 1999,
+    ema20arr: [2001, 2000, 1999, 1995],
+    ema50arr: [1999, 1999, 1999, 1999],
+    slopePercent: -0.30,
+    trend1h: 'DOWN',
+    rsi: 25,
+    lastCandle: { time: Date.now(), open: 1998, high: 1999, low: 1994, close: 1995 },
+  });
+  const bearishCandles = makeStrongBearishCandles(5, 2000);
+  const sellBlocked = generateSignal(oversoldIndicators, bearishCandles);
+  assert(sellBlocked.signal === null, `SELL blocked when RSI < 30 (reason: ${sellBlocked.debug?.dbgRejectReason})`);
+}
+
+section('Pullback slope threshold');
+{
+  const indicators = makeIndicators({
+    ema20arr: [1988, 1990, 1992, 1994, 1996, 1998],
+    ema50arr: [1987, 1988, 1989, 1990, 1991, 1992],
+    currEMA20: 1998,
+    currEMA50: 1992,
+    prevEMA20: 1996,
+    prevEMA50: 1991,
+    slopePercent: 0.14,
+    lastCandle: { time: Date.now(), open: 1998.2, high: 2000.2, low: 1997.8, close: 1999.3 },
+  });
+  const candles1m = makeStrongBullishCandles(5, 1999);
+  const result = generateSignal(indicators, candles1m);
+  assert(result.signal === null, `Pullback blocked when slope < 0.15% (reason: ${result.debug?.dbgRejectReason})`);
+}
+
+section('Momentum range validation');
+{
+  const indicators = makeIndicators();
+  const microCandles = [
+    { time: Date.now() - 3000, open: 2000.00, high: 2000.12, low: 1999.98, close: 2000.08 },
+    { time: Date.now() - 2000, open: 2000.08, high: 2000.16, low: 2000.02, close: 2000.14 },
+    { time: Date.now() - 1000, open: 2000.14, high: 2000.19, low: 2000.10, close: 2000.17 },
+  ];
+  const result = generateSignal(indicators, microCandles);
+  assert(result.signal === null, `Micro-range candles rejected by ATR momentum validation (reason: ${result.debug?.dbgRejectReason})`);
 }
 
 section('Score too low — no signal');
