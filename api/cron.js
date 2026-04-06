@@ -3,7 +3,7 @@ import { getMarketData }                   from '../lib/market_data.js';
 import { calculateIndicators }             from '../lib/indicators.js';
 import { generateSignal }                  from '../lib/strategy.js';
 import { checkRisk, calculateDrawdown }              from '../lib/risk.js';
-import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty, SYNC_WINDOW_MS, fetchCurrentGoldPrice, USD_AED_PEG } from '../lib/execution.js';
+import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty, SYNC_WINDOW_MS, fetchCurrentGoldPrice, USD_AED_PEG, modifyTradeStopLoss } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock, pingRedis } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
@@ -414,6 +414,57 @@ export default async function handler(req, res) {
       await saveLog({ signal: null, indicators: null, botState, tradeExecuted: false, reason });
       await saveState(botState);
       return res.json({ skipped: reason });
+    }
+
+    // ── STEP 4b: Break-Even Stop Loss protection ──────────────────────────────
+    // Once a trade reaches 1.0x ATR in profit, move SL to Entry to lock in 0% risk.
+    if (Array.isArray(botState.openTrades) && botState.openTrades.length > 0) {
+      const livePrice = await fetchCurrentGoldPrice(session);
+      if (livePrice) {
+        for (let i = 0; i < botState.openTrades.length; i++) {
+          const t = botState.openTrades[i];
+          // Skip if already moved, or missing necessary fields (atr/entry)
+          if (t.breakEvenMoved === true || !t.atr || !t.entry) continue;
+
+          // Compute profit in USD (GOLD is USD-based, so ATR and entry/sl are in USD)
+          const liveBid   = livePrice.bid;
+          const liveOffer = livePrice.offer;
+          const currentProfit = t.action === 'BUY' ? liveBid - t.entry : t.entry - liveOffer;
+
+          if (currentProfit >= t.atr) {
+            console.warn(`[SYNC] PROTECTING: Trade ${t.dealId} hit 1x ATR profit ($${currentProfit.toFixed(2)} >= $${t.atr.toFixed(2)}). Moving SL to Break-Even.`);
+            const mod = await modifyTradeStopLoss(session, t.dealId, {
+              stopLevel:   parseFloat(t.entry.toFixed(2)),
+              profitLevel: t.takeProfit ? parseFloat(t.takeProfit.toFixed(2)) : null
+            });
+
+            if (mod.success) {
+              t.breakEvenMoved = true;
+              t.stopLoss = t.entry; // Match entry exactly
+              await saveLog({
+                signal: {
+                  id: t.tradeId,
+                  action: t.action,
+                  entryType: 'sync_event',
+                  strategyVersion: t.strategyVersion || 'v1.1'
+                },
+                indicators: null,
+                botState: { ...botState },
+                tradeExecuted: false,
+                reason: `BE_MOVE: dealId=${t.dealId} | Entry ${t.entry} | Price ${t.action === 'BUY' ? liveBid : liveOffer} | ATR ${t.atr.toFixed(2)}`,
+                result: { dbgBreakEvenMoved: true }
+              });
+              await sendAlert(
+                `🛡️ PROTECTED: Moved ${t.action} Gold dealId ${t.dealId} to Break-Even Stop.\n` +
+                `Profit hit 1x ATR threshold ($${currentProfit.toFixed(2)}).`
+              ).catch(() => {});
+              await saveStateCritical(botState, `be_move:${t.dealId}`);
+            } else {
+              console.error(`[SYNC] FAILED to move SL to Break-Even for ${t.dealId}: ${mod.reason}`);
+            }
+          }
+        }
+      }
     }
 
     // ── STATE INTEGRITY CHECK: Validate after reconciliation ──────────────────
