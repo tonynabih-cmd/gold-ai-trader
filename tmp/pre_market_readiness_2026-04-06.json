@@ -1,15 +1,16 @@
 {
-  "generatedAt": "2026-04-06T18:01:08.655Z",
+  "generatedAt": "2026-04-06T18:30:28.594Z",
   "targetTradingDate": "2026-04-06",
-  "ready": true,
-  "blockersRemaining": [],
+  "ready": false,
+  "blockersRemaining": [
+    "SL/TP ATR multiplier mismatch"
+  ],
   "passes": [
     "Required environment variables loaded",
     "Redis reachable",
     "Capital.com session established",
     "Broker trade summary loaded",
     "Live trading mode confirmation is valid",
-    "Strategy and execution SL/TP ATR multipliers are aligned",
     "Spread fallbacks and MAX_SPREAD are aligned",
     "WR10 computed",
     "PF15 computed",
@@ -48,20 +49,20 @@
     "stateKey": "bot_state"
   },
   "sltpAlignment": {
-    "aligned": true,
+    "aligned": false,
     "strategy": {
-      "stopLossAtr": 1.5,
-      "takeProfitAtr": 2.25
+      "stopLossAtr": 1.35,
+      "takeProfitAtr": 1.8
     },
     "execution": {
-      "stopLossAtr": 1.5,
-      "takeProfitAtr": 2.25
+      "stopLossAtr": null,
+      "takeProfitAtr": null
     },
     "expected": {
-      "stopLossAtr": 1.5,
-      "takeProfitAtr": 2.25
+      "stopLossAtr": 1.35,
+      "takeProfitAtr": 1.8
     },
-    "details": "Strategy SL=1.5, TP=2.25; Execution SL=1.5, TP=2.25"
+    "details": "Strategy SL=1.35, TP=1.8; Execution SL=null, TP=null"
   },
   "rollingMetricsStatus": {
     "sourceCount": 19,
@@ -78,34 +79,34 @@
   "indicatorReadiness": {
     "marketDataSkip": false,
     "marketDataReason": null,
-    "latest5mCandleTime": "2026-04-06T17:55:00.000Z",
-    "latest5mCloseTime": "2026-04-06T18:00:00.000Z",
+    "latest5mCandleTime": "2026-04-06T18:25:00.000Z",
+    "latest5mCloseTime": "2026-04-06T18:30:00.000Z",
     "candleStale": false,
-    "secondsSinceClose": 68.7,
-    "atr": 5.9489288542418395,
-    "rsi": 39.87925524810512,
-    "ema20": 4659.545637896402,
-    "ema50": 4665.428992989318,
+    "secondsSinceClose": 28.6,
+    "atr": 5.741416005450288,
+    "rsi": 49.4275813255543,
+    "ema20": 4659.635347412567,
+    "ema50": 4664.164312527392,
     "emaCrossover": {
       "detected": false,
       "direction": null,
-      "prevDiff": -5.7545,
-      "currDiff": -5.8834
+      "prevDiff": -4.7528,
+      "currDiff": -4.529
     },
     "signalCandidate": null,
     "momentumGate": {
       "ready": null,
       "reason": "NO_DIRECTION",
       "netMomentum1m": null,
-      "minThreshold": 0.2974,
+      "minThreshold": 0.2871,
       "bullishCandles": 0,
       "bearishCandles": 0,
       "strongBullishCandles": 0,
       "strongBearishCandles": 0
     },
     "pullbackSlope": {
-      "slopePercent": -0.11578089519373258,
-      "threshold": 0.15,
+      "slopePercent": -0.04994436288138768,
+      "threshold": 0.12,
       "buyReady": false,
       "sellReady": false
     },
@@ -138,14 +139,14 @@
     "capitalEnv": "live",
     "liveTradingMode": "CONFIRMED_REAL_MONEY",
     "maxSpread": "0.5",
-    "strategyStopLossAtr": 1.5,
-    "strategyTakeProfitAtr": 2.25,
-    "executionStopLossAtr": 1.5,
-    "executionTakeProfitAtr": 2.25
+    "strategyStopLossAtr": 1.35,
+    "strategyTakeProfitAtr": 1.8,
+    "executionStopLossAtr": null,
+    "executionTakeProfitAtr": null
   },
   "alignmentStatus": {
     "spreadAligned": true,
-    "sltpAligned": true,
+    "sltpAligned": false,
     "positionsAligned": true,
     "indicatorsAligned": true
   },
