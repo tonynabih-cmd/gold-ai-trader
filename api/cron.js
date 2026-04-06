@@ -468,6 +468,11 @@ export default async function handler(req, res) {
     
     console.log(`[CRON] Risk Sync: DailyLoss AED ${botState.dailyLoss.toFixed(2)}, TotalDrawdown ${botState.totalDrawdown}%`);
 
+    // DIAGNOSTIC CORE START
+    const cronStart = Date.now();
+    console.log(`[DIAG] Cron Trigger: ${new Date().toISOString()}`);
+    // DIAGNOSTIC CORE END
+
     // ── Step 5 & 6: Fetch market data and Indicators ─────────────────────────
     const marketData = await getMarketData(session, botState);
 
