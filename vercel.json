@@ -1,18 +1,20 @@
 {
   "version": 2,
   "functions": {
-    "api/cron.js":      { "maxDuration": 60 },
-    "api/audit.js":     { "maxDuration": 60 },
-    "api/dashboard.js": { "maxDuration": 10 },
-    "api/state.js":     { "maxDuration": 10 },
-    "api/logger.js":    { "maxDuration": 10 }
+    "api/cron.js":         { "maxDuration": 60 },
+    "api/audit.js":        { "maxDuration": 60 },
+    "api/dashboard.js":    { "maxDuration": 10 },
+    "api/state.js":        { "maxDuration": 10 },
+    "api/logger.js":       { "maxDuration": 10 },
+    "api/clear-locks.js":  { "maxDuration": 10 }
   },
   "routes": [
-    { "src": "/api/cron",      "dest": "/api/cron.js" },
-    { "src": "/api/audit",     "dest": "/api/audit.js" },
-    { "src": "/api/dashboard", "dest": "/api/dashboard.js" },
-    { "src": "/api/state",     "dest": "/api/state.js" },
-    { "src": "/api/logger",    "dest": "/api/logger.js" },
-    { "src": "/(.*)",          "dest": "/public/index.html" }
+    { "src": "/api/cron",         "dest": "/api/cron.js" },
+    { "src": "/api/audit",        "dest": "/api/audit.js" },
+    { "src": "/api/dashboard",    "dest": "/api/dashboard.js" },
+    { "src": "/api/state",        "dest": "/api/state.js" },
+    { "src": "/api/logger",       "dest": "/api/logger.js" },
+    { "src": "/api/clear-locks",  "dest": "/api/clear-locks.js" },
+    { "src": "/(.*)",             "dest": "/public/index.html" }
   ]
 }
