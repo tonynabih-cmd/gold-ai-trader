@@ -434,8 +434,10 @@ export default async function handler(req, res) {
     }
 
     console.log(`[CRON] Broker Sync: Today ${brokerStats.todayTrades}, Win rate ${brokerStats.todayWinRate}%`);
-    botState.dailyTrades        = brokerStats.todayTrades;
-    botState.todayTrades        = brokerStats.todayTrades;
+    // CRITICAL: Use Math.max to prevent counter regression due to broker API latency/missing records.
+    // The count will be reset to 0 by dailyReset() at the start of a new UAE day.
+    botState.dailyTrades        = Math.max(parseInt(botState.dailyTrades) || 0, brokerStats.todayTrades);
+    botState.todayTrades        = botState.dailyTrades;
     botState.todayBuys          = brokerStats.todayBuys;
     botState.todaySells         = brokerStats.todaySells;
     botState.todayWinRate       = brokerStats.todayWinRate;
@@ -455,7 +457,10 @@ export default async function handler(req, res) {
 
     // ── Broker-Based Risk Metrics ────────────────────────────────────────────
     const todayPnlAED = brokerStats.todayNetPnl;
-    botState.dailyLoss = todayPnlAED < 0 ? Math.abs(todayPnlAED) : 0;
+    const realizedLossToday = todayPnlAED < 0 ? Math.abs(todayPnlAED) : 0;
+    // CRITICAL: Never let dailyLoss drop within the same day to prevent bypassing loss limits
+    // during broker API sync gaps.
+    botState.dailyLoss = Math.max(parseFloat(botState.dailyLoss) || 0, realizedLossToday);
 
     const currentTotalPnl = brokerStats.totalPnl;
     const peakPnl = parseFloat(botState.peakBrokerPnl) || 0;
