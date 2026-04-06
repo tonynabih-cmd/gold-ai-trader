@@ -57,11 +57,11 @@ section('Minimum stop distance ($0.50)');
 
 // ── Section 3: Risk amount is 0.5% of balance ────────────────────────────────
 
-section('Risk target: 0.5% of AED balance');
+section('Risk target: 0.75% of AED balance');
 {
   // balanceAED=3672.5 AED = 1000 USD
-  // 0.5% of 1000 USD = $5 risk
-  // With $10 stop distance: size = $5 / $10 = 0.5 oz
+  // 0.75% of 1000 USD = $7.5 risk
+  // With $10 stop distance: size = $7.5 / $10 = 0.75 oz
   const balanceAED     = 3672.5;
   const stopDistUSD    = 10.0;
   const currentPrUSD   = 2000;
@@ -70,10 +70,10 @@ section('Risk target: 0.5% of AED balance');
   const r = calculatePositionSize(balanceAED, stopDistUSD, currentPrUSD, availMarginAED);
 
   if (!r.error && r.size > 0) {
-    const expectedRiskUSD = (balanceAED / USD_AED) * 0.005;
+    const expectedRiskUSD = (balanceAED / USD_AED) * 0.0075;
     const actualRisk      = r.actualRiskDollars;
     const diff            = Math.abs(actualRisk - expectedRiskUSD);
-    assert(diff < 1.0, `Risk ≈ 0.5% of balance (expected ~$${expectedRiskUSD.toFixed(2)}, got $${actualRisk.toFixed(2)})`);
+    assert(diff < 1.0, `Risk ≈ 0.75% of balance (expected ~$${expectedRiskUSD.toFixed(2)}, got $${actualRisk.toFixed(2)})`);
     assert(r.size >= 0.01, `Position size >= min (0.01 oz), got ${r.size}`);
     assert(r.size <= 1.0, `Position size <= max (1.0 oz), got ${r.size}`);
   } else {

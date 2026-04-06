@@ -6,4 +6,6 @@ git push
 npx vercel --prod
 
 
+
+cd C:\Users\Antho\Downloads\gold-trader
 node scripts/pre_market_readiness_audit.mjs

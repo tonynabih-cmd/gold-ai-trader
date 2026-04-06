@@ -3,7 +3,7 @@ import fs from 'fs';
 const ENV_FILE = '.env.local';
 const LIVE_CONFIRMATION = 'CONFIRMED_REAL_MONEY';
 const CANONICAL_MAX_SPREAD = '0.5';
-const PULLBACK_SLOPE_THRESHOLD = 0.15;
+const PULLBACK_SLOPE_THRESHOLD = 0.12;
 const MOMENTUM_RANGE_MULTIPLIER = 0.05;
 const AUDIT_INTERVAL_MS = 10 * 1000;
 const UAE_OFFSET_MS = 4 * 60 * 60 * 1000;
@@ -692,7 +692,7 @@ async function runReadinessAudit() {
       aligned,
       strategy,
       execution,
-      expected: { stopLossAtr: 1.5, takeProfitAtr: 2.25 },
+      expected: { stopLossAtr: 1.35, takeProfitAtr: 1.8 },
       details: `Strategy SL=${strategy.stopLossAtr}, TP=${strategy.takeProfitAtr}; Execution SL=${execution.stopLossAtr}, TP=${execution.takeProfitAtr}`,
     };
   })();

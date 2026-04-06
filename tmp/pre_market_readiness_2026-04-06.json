@@ -1,21 +1,20 @@
 {
-  "generatedAt": "2026-04-06T17:55:55.997Z",
+  "generatedAt": "2026-04-06T18:01:08.655Z",
   "targetTradingDate": "2026-04-06",
-  "ready": false,
-  "blockersRemaining": [
-    "Broker trade summary unavailable",
-    "Broker risk state is stale"
-  ],
+  "ready": true,
+  "blockersRemaining": [],
   "passes": [
     "Required environment variables loaded",
     "Redis reachable",
     "Capital.com session established",
+    "Broker trade summary loaded",
     "Live trading mode confirmation is valid",
     "Strategy and execution SL/TP ATR multipliers are aligned",
     "Spread fallbacks and MAX_SPREAD are aligned",
     "WR10 computed",
     "PF15 computed",
     "Local state integrity check passed",
+    "Broker risk state is fresh",
     "Local open trades match broker positions",
     "No unresolved pending orders",
     "Latest 5m candle and indicators loaded",
@@ -74,38 +73,38 @@
     "rollingGrossLoss15": 6.49,
     "performanceReviewNeeded": true,
     "performanceReviewReason": "Win Rate 10=40.00% < 50%",
-    "source": "state_only"
+    "source": "broker_history_or_recent_outcomes"
   },
   "indicatorReadiness": {
     "marketDataSkip": false,
     "marketDataReason": null,
-    "latest5mCandleTime": "2026-04-06T17:50:00.000Z",
-    "latest5mCloseTime": "2026-04-06T17:55:00.000Z",
+    "latest5mCandleTime": "2026-04-06T17:55:00.000Z",
+    "latest5mCloseTime": "2026-04-06T18:00:00.000Z",
     "candleStale": false,
-    "secondsSinceClose": 56,
-    "atr": 6.191923381491214,
-    "rsi": 42.115928191823,
-    "ema20": 4660.148336622338,
-    "ema50": 4665.902829437862,
+    "secondsSinceClose": 68.7,
+    "atr": 5.9489288542418395,
+    "rsi": 39.87925524810512,
+    "ema20": 4659.545637896402,
+    "ema50": 4665.428992989318,
     "emaCrossover": {
       "detected": false,
       "direction": null,
-      "prevDiff": -5.7156,
-      "currDiff": -5.7545
+      "prevDiff": -5.7545,
+      "currDiff": -5.8834
     },
     "signalCandidate": null,
     "momentumGate": {
       "ready": null,
       "reason": "NO_DIRECTION",
       "netMomentum1m": null,
-      "minThreshold": 0.3096,
+      "minThreshold": 0.2974,
       "bullishCandles": 0,
       "bearishCandles": 0,
       "strongBullishCandles": 0,
       "strongBearishCandles": 0
     },
     "pullbackSlope": {
-      "slopePercent": -0.11753876662997094,
+      "slopePercent": -0.11578089519373258,
       "threshold": 0.15,
       "buyReady": false,
       "sellReady": false
@@ -132,8 +131,8 @@
     "localOnlyDealIds": [],
     "brokerOnlyDealIds": [],
     "localPendingOrder": null,
-    "brokerWorkingOrdersSupported": false,
-    "brokerWorkingOrdersCount": null
+    "brokerWorkingOrdersSupported": true,
+    "brokerWorkingOrdersCount": 0
   },
   "executionDefaults": {
     "capitalEnv": "live",
@@ -144,7 +143,23 @@
     "executionStopLossAtr": 1.5,
     "executionTakeProfitAtr": 2.25
   },
-  "brokerSummary": null,
-  "detailedNotes": [],
+  "alignmentStatus": {
+    "spreadAligned": true,
+    "sltpAligned": true,
+    "positionsAligned": true,
+    "indicatorsAligned": true
+  },
+  "brokerSummary": {
+    "totalTrades30d": 19,
+    "totalPnl30d": -3.11,
+    "grossProfit30d": 6.76,
+    "grossLoss30d": 9.87,
+    "todayTrades": 0,
+    "todayNetPnl": -3.34,
+    "todayWinRate": 0
+  },
+  "detailedNotes": [
+    "Rolling metrics were derived from broker P&L history because closed-trade transaction parsing returned no discrete outcomes."
+  ],
   "fixesAppliedAutomatically": []
 }
