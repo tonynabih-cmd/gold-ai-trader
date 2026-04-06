@@ -4,3 +4,6 @@ git commit -m "fix everything"
 git pull --rebase origin main
 git push
 npx vercel --prod
+
+
+node scripts/pre_market_readiness_audit.mjs
