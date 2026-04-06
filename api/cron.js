@@ -5,7 +5,7 @@ import { generateSignal }                  from '../lib/strategy.js';
 import { checkRisk, calculateDrawdown }              from '../lib/risk.js';
 import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty, SYNC_WINDOW_MS, fetchCurrentGoldPrice } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
-import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock } from '../lib/state.js';
+import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock, pingRedis } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
 import { fetchWithTimeout }                from '../lib/fetch.js';
 
@@ -330,6 +330,20 @@ export default async function handler(req, res) {
   // ── Kill switch (fast path) ──────────────────────────────────────────────
   if (process.env.BOT_ENABLED !== 'true') {
     return res.json({ skipped: 'Bot disabled via BOT_ENABLED env variable' });
+  }
+
+  // ── Step 0: Redis health check ────────────────────────────────────────────
+  // Must run before loadState() so a missing/expired KV_REST_API_URL or
+  // KV_REST_API_TOKEN is caught here and reported clearly — instead of
+  // propagating silently and making acquireCandleLock() return null, which
+  // the cron handler incorrectly interprets as a concurrency lock conflict and
+  // blocks all trading indefinitely.
+  const redisReachable = await pingRedis();
+  if (!redisReachable) {
+    const msg = 'Redis unreachable — verify KV_REST_API_URL and KV_REST_API_TOKEN are set in Vercel environment variables';
+    console.error(`[CRON] ⚠️ ${msg}`);
+    await sendAlert(`🚨 Bot blocked: ${msg}`).catch(() => {});
+    return res.status(503).json({ error: msg });
   }
 
   try {
