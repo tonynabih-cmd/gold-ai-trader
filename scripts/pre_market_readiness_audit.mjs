@@ -692,7 +692,7 @@ async function runReadinessAudit() {
       aligned,
       strategy,
       execution,
-      expected: { stopLossAtr: 1.35, takeProfitAtr: 1.8 },
+      expected: { stopLossAtr: 1.35, takeProfitAtr: 1.5 },
       details: `Strategy SL=${strategy.stopLossAtr}, TP=${strategy.takeProfitAtr}; Execution SL=${execution.stopLossAtr}, TP=${execution.takeProfitAtr}`,
     };
   })();
