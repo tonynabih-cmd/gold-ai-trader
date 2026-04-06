@@ -3,7 +3,7 @@ import { getMarketData }                   from '../lib/market_data.js';
 import { calculateIndicators }             from '../lib/indicators.js';
 import { generateSignal }                  from '../lib/strategy.js';
 import { checkRisk, calculateDrawdown }              from '../lib/risk.js';
-import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty, SYNC_WINDOW_MS, fetchCurrentGoldPrice } from '../lib/execution.js';
+import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty, SYNC_WINDOW_MS, fetchCurrentGoldPrice, USD_AED_PEG } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock, pingRedis } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
@@ -126,34 +126,32 @@ async function reconcilePositions(session, botState) {
             }
           } catch (_) { /* estimatedPnl remains null */ }
 
-trade.realizedPnl  = estimatedPnl;
           trade.isMIA        = true;
           trade.fallbackUsed = true;
           justClosed.push(trade);
 
-          // BUG 1 FIX: Write P&L back to state immediately on fallback resolution.
-          // This ensures balance and dailyLoss are accurate even if the bot crashes
-          // before Phase 2 runs.
-          console.log(`[SYNC] Fallback triggered after 8m for dealId=${dealId}. Transaction history lookup failed.`);
+          // P&L Estimation AED conversion: Gold price is in USD, so estimatedPnl is in USD.
+          // Convert to AED before storing/logging so it matches account currency.
+          let pnlLogStr = 'unknown (null — excluded from performance metrics)';
           if (typeof estimatedPnl === 'number') {
-            botState.balance = parseFloat(botState.balance) + estimatedPnl;
-            if (estimatedPnl < 0) {
-              botState.dailyLoss = parseFloat(botState.dailyLoss) + Math.abs(estimatedPnl);
-            }
+            const estimatedPnlAED = parseFloat((estimatedPnl * USD_AED_PEG).toFixed(2));
+            trade.realizedPnl = estimatedPnlAED;
+            pnlLogStr = `estimated AED ${estimatedPnlAED.toFixed(2)} (approx $${estimatedPnl.toFixed(2)})`;
+          } else {
+            trade.realizedPnl = null;
           }
+
+          console.log(`[SYNC] Fallback triggered after 8m for dealId=${dealId}. Transaction history lookup failed.`);
+          console.error(`[SYNC] ⚠️ FALLBACK_RESOLUTION_USED: dealId=${dealId} missing after ${elapsedMin}m. Forcing closure. P&L: ${pnlLogStr}`);
+          
           if (Array.isArray(botState.openTrades)) {
             const _idx = botState.openTrades.findIndex(t => String(t?.dealId) === String(dealId));
             if (_idx !== -1) botState.openTrades.splice(_idx, 1);
           }
           await saveState(botState);
-
-          const pnlDesc = estimatedPnl !== null
-            ? `estimated $${estimatedPnl.toFixed(2)}`
-            : 'unknown (null — excluded from performance metrics)';
-          console.error(`[SYNC] ⚠️ FALLBACK_RESOLUTION_USED: dealId=${dealId} missing after ${elapsedMin}m. Forcing closure. P&L: ${pnlDesc}`);
           await sendAlert(
             `⚠️ FALLBACK RESOLUTION: Trade ${dealId} (${trade.action}) disappeared after ${elapsedMin}m without history.\n` +
-            `P&L: ${pnlDesc}\nEntry: $${trade.entry?.toFixed(2) ?? '?'} | Size: ${trade.size}oz\n` +
+            `P&L: ${pnlLogStr}\nEntry: $${trade.entry?.toFixed(2) ?? '?'} | Size: ${trade.size}oz\n` +
             `Check broker for manual closure or liquidation.`
           ).catch(() => {});
         }
