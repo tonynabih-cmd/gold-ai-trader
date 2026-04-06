@@ -16,6 +16,9 @@ name: Fix and Deploy Gold AI Trader
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   fix-and-deploy:
     name: Fix and Deploy
@@ -40,8 +43,10 @@ jobs:
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "{\"key\":\"KV_REST_API_URL\",\"value\":\"${KV_REST_API_URL}\",\"type\":\"encrypted\",\"target\":[\"production\"]}")
-          echo "HTTP $HTTP — $(cat /tmp/resp_url.json | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("key","") or d.get("error","unknown"))')"
-          if [ "$HTTP" -ge 400 ]; then exit 1; fi
+          RESP_BODY=$(cat /tmp/resp_url.json)
+          RESULT=$(echo "$RESP_BODY" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("key") or d.get("error") or "no key/error in response")' 2>/dev/null || echo "invalid JSON: $RESP_BODY")
+          echo "HTTP ${HTTP} — ${RESULT}"
+          if [ "$HTTP" -ge 400 ]; then echo "Full response: ${RESP_BODY}"; exit 1; fi
 
       # ── 3. Set KV_REST_API_TOKEN in Vercel Production ─────────────────────
       - name: Set KV_REST_API_TOKEN in Vercel
@@ -57,16 +62,34 @@ jobs:
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "{\"key\":\"KV_REST_API_TOKEN\",\"value\":\"${KV_REST_API_TOKEN}\",\"type\":\"encrypted\",\"target\":[\"production\"]}")
-          echo "HTTP $HTTP — $(cat /tmp/resp_token.json | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("key","") or d.get("error","unknown"))')"
-          if [ "$HTTP" -ge 400 ]; then exit 1; fi
+          RESP_BODY=$(cat /tmp/resp_token.json)
+          RESULT=$(echo "$RESP_BODY" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("key") or d.get("error") or "no key/error in response")' 2>/dev/null || echo "invalid JSON: $RESP_BODY")
+          echo "HTTP ${HTTP} — ${RESULT}"
+          if [ "$HTTP" -ge 400 ]; then echo "Full response: ${RESP_BODY}"; exit 1; fi
 
-      # ── 4. Trigger a Vercel production deployment ─────────────────────────
+      # ── 4. Fetch Vercel project repo ID ───────────────────────────────────
+      - name: Fetch Vercel project repo ID
+        id: project
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          echo "Fetching project details to get linked repo ID..."
+          PROJ=$(curl -s \
+            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID}" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}")
+          REPO_ID=$(echo "$PROJ" | python3 -c 'import sys,json; p=json.load(sys.stdin); print(p.get("link",{}).get("repoId",""))' 2>/dev/null || echo "")
+          echo "repo_id=${REPO_ID}" >> "$GITHUB_OUTPUT"
+          echo "Linked repo ID: ${REPO_ID}"
+
+      # ── 5. Trigger a Vercel production deployment ─────────────────────────
       - name: Redeploy on Vercel
         id: deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          REPO_ID: ${{ steps.project.outputs.repo_id }}
         run: |
           echo "Triggering Vercel production deployment..."
           RESP=$(curl -s \
@@ -77,18 +100,18 @@ jobs:
               \"name\": \"gold-ai-trader\",
               \"gitSource\": {
                 \"type\": \"github\",
-                \"repoId\": \"$(curl -s -H 'Authorization: Bearer ${VERCEL_TOKEN}' https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_ORG_ID} | python3 -c 'import sys,json; p=json.load(sys.stdin); print(p.get(\"link\",{}).get(\"repoId\",\"\"))')\",
+                \"repoId\": \"${REPO_ID}\",
                 \"ref\": \"${{ github.ref_name }}\"
               },
               \"target\": \"production\"
             }")
-          DEPLOY_ID=$(echo "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("id",""))')
-          DEPLOY_URL=$(echo "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("url",""))')
+          DEPLOY_ID=$(echo "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("id",""))' 2>/dev/null || echo "")
+          DEPLOY_URL=$(echo "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("url",""))' 2>/dev/null || echo "")
           echo "deploy_id=${DEPLOY_ID}" >> "$GITHUB_OUTPUT"
           echo "deploy_url=${DEPLOY_URL}" >> "$GITHUB_OUTPUT"
           echo "Deployment triggered: id=${DEPLOY_ID} url=${DEPLOY_URL}"
 
-      # ── 5. Wait for deployment to reach READY state ───────────────────────
+      # ── 6. Wait for deployment to reach READY state ───────────────────────
       - name: Wait for deployment to be ready
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -114,39 +137,31 @@ jobs:
           done
           echo "⚠️  Deployment did not reach READY within 3 minutes. Proceeding anyway."
 
-      # ── 6. Verify Redis is reachable via the deployed bot ─────────────────
-      - name: Verify Redis health
+      # ── 7. Verify Redis is reachable and clear stuck locks in one call ─────
+      - name: Clear stuck candle locks (verifies Redis health)
+        id: clear_locks
         env:
           BOT_URL: ${{ secrets.BOT_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          echo "Checking Redis health via /api/clear-locks (dry-run scan)..."
+          echo "Calling /api/clear-locks (pings Redis + clears lock:candle:* keys)..."
           HTTP=$(curl -s -o /tmp/clear_resp.json -w "%{http_code}" \
             -X POST "${BOT_URL}/api/clear-locks" \
             -H "Authorization: Bearer ${CRON_SECRET}")
           BODY=$(cat /tmp/clear_resp.json)
           echo "HTTP ${HTTP} — ${BODY}"
-          REDIS_OK=$(echo "$BODY" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("redisOk","false"))')
-          if [ "$REDIS_OK" != "True" ] && [ "$REDIS_OK" != "true" ]; then
-            echo "❌ Redis health check failed."
+
+          REDIS_OK=$(echo "$BODY" | python3 -c 'import sys,json; print(str(json.load(sys.stdin).get("redisOk","false")).lower())' 2>/dev/null || echo "false")
+          if [ "$REDIS_OK" != "true" ]; then
+            echo "❌ Redis health check failed. Full response: ${BODY}"
             exit 1
           fi
           echo "✅ Redis is reachable."
 
-      # ── 7. Clear any stuck candle locks ───────────────────────────────────
-      - name: Clear stuck candle locks
-        env:
-          BOT_URL: ${{ secrets.BOT_URL }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          echo "Clearing stuck candle locks..."
-          RESP=$(curl -s \
-            -X POST "${BOT_URL}/api/clear-locks" \
-            -H "Authorization: Bearer ${CRON_SECRET}")
-          CLEARED=$(echo "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("cleared",0))')
-          MSG=$(echo "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("message",""))')
-          echo "Cleared: ${CLEARED} lock(s)"
-          echo "Message: ${MSG}"
+          CLEARED=$(echo "$BODY" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("cleared",0))' 2>/dev/null || echo "0")
+          MSG=$(echo "$BODY" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("message",""))' 2>/dev/null || echo "")
+          echo "cleared=${CLEARED}" >> "$GITHUB_OUTPUT"
+          echo "Cleared: ${CLEARED} lock(s) — ${MSG}"
 
       # ── 8. Trigger one full cron cycle ────────────────────────────────────
       - name: Run cron cycle
@@ -173,6 +188,7 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           CRON_HTTP: ${{ steps.cron.outputs.cron_http }}
           LOCK_ERROR: ${{ steps.cron.outputs.lock_error }}
+          CLEARED: ${{ steps.clear_locks.outputs.cleared }}
         run: |
           echo ""
           echo "═══════════════════════════════════════════════════════"
@@ -181,17 +197,9 @@ jobs:
 
           echo ""
           echo "1. Vercel env vars (KV_REST_API_URL, KV_REST_API_TOKEN): ✅ Set"
-
-          # Redis (already confirmed in step 6)
           echo "2. Redis reachable:                                       ✅ Confirmed"
+          echo "3. Stuck locks cleared:                                   ✅ ${CLEARED} cleared"
 
-          # Locks
-          LOCK_RESP=$(curl -s -X POST "${BOT_URL}/api/clear-locks" \
-            -H "Authorization: Bearer ${CRON_SECRET}")
-          STUCK=$(echo "$LOCK_RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("cleared",0))')
-          echo "3. Stuck locks cleared:                                   ✅ ${STUCK} cleared (0 remaining)"
-
-          # Cron
           if [ "$CRON_HTTP" = "200" ]; then
             echo "4. Cron cycle executed:                                   ✅ HTTP 200"
           else
@@ -204,7 +212,6 @@ jobs:
             echo "5. 'Concurrency lock active' errors:                      ❌ Still present — rerun workflow"
           fi
 
-          # Logs
           LOG_RESP=$(curl -s "${BOT_URL}/api/logger" \
             -H "Authorization: Bearer ${CRON_SECRET}")
           LOG_COUNT=$(echo "$LOG_RESP" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 0)' 2>/dev/null || echo "unknown")

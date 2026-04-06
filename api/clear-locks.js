@@ -39,15 +39,15 @@ export default async function handler(req, res) {
   }
 
   // ── Scan for candle lock keys ─────────────────────────────────────────────
-  let cursor = 0;
+  let cursor = '0';
   const lockKeys = [];
 
   try {
     do {
       const [nextCursor, keys] = await redis.scan(cursor, { match: 'lock:candle:*', count: 100 });
-      cursor = Number(nextCursor);
+      cursor = String(nextCursor);
       lockKeys.push(...keys);
-    } while (cursor !== 0);
+    } while (cursor !== '0');
   } catch (err) {
     return res.status(500).json({ ok: false, error: `Scan failed: ${err.message}` });
   }
