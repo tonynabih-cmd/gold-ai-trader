@@ -1,9 +1,10 @@
 {
-  "generatedAt": "2026-04-06T18:30:28.594Z",
+  "generatedAt": "2026-04-06T18:37:07.934Z",
   "targetTradingDate": "2026-04-06",
   "ready": false,
   "blockersRemaining": [
-    "SL/TP ATR multiplier mismatch"
+    "SL/TP ATR multiplier mismatch",
+    "Latest 5m candle is stale (127.9s since close)"
   ],
   "passes": [
     "Required environment variables loaded",
@@ -19,7 +20,6 @@
     "Local open trades match broker positions",
     "No unresolved pending orders",
     "Latest 5m candle and indicators loaded",
-    "Latest 5m candle is fresh enough for execution timing",
     "Current live spread is within MAX_SPREAD",
     "Local/broker position IDs are in sync"
   ],
@@ -77,35 +77,35 @@
     "source": "broker_history_or_recent_outcomes"
   },
   "indicatorReadiness": {
-    "marketDataSkip": false,
-    "marketDataReason": null,
-    "latest5mCandleTime": "2026-04-06T18:25:00.000Z",
-    "latest5mCloseTime": "2026-04-06T18:30:00.000Z",
-    "candleStale": false,
-    "secondsSinceClose": 28.6,
-    "atr": 5.741416005450288,
-    "rsi": 49.4275813255543,
-    "ema20": 4659.635347412567,
-    "ema50": 4664.164312527392,
+    "marketDataSkip": true,
+    "marketDataReason": "SKIP: Candle too stale for reliable entry (127.9s since close, max 90s)",
+    "latest5mCandleTime": "2026-04-06T18:30:00.000Z",
+    "latest5mCloseTime": "2026-04-06T18:35:00.000Z",
+    "candleStale": true,
+    "secondsSinceClose": 127.9,
+    "atr": 5.779529147918098,
+    "rsi": 47.87790193011697,
+    "ema20": 4659.588171468513,
+    "ema50": 4663.967280663574,
     "emaCrossover": {
       "detected": false,
       "direction": null,
-      "prevDiff": -4.7528,
-      "currDiff": -4.529
+      "prevDiff": -4.529,
+      "currDiff": -4.3791
     },
     "signalCandidate": null,
     "momentumGate": {
       "ready": null,
       "reason": "NO_DIRECTION",
       "netMomentum1m": null,
-      "minThreshold": 0.2871,
+      "minThreshold": 0.289,
       "bullishCandles": 0,
       "bearishCandles": 0,
       "strongBullishCandles": 0,
       "strongBearishCandles": 0
     },
     "pullbackSlope": {
-      "slopePercent": -0.04994436288138768,
+      "slopePercent": -0.03977183545619908,
       "threshold": 0.12,
       "buyReady": false,
       "sellReady": false
@@ -148,7 +148,7 @@
     "spreadAligned": true,
     "sltpAligned": false,
     "positionsAligned": true,
-    "indicatorsAligned": true
+    "indicatorsAligned": false
   },
   "brokerSummary": {
     "totalTrades30d": 19,
