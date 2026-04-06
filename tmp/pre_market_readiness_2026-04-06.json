@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-06T17:50:26.568Z",
+  "generatedAt": "2026-04-06T17:55:55.997Z",
   "targetTradingDate": "2026-04-06",
   "ready": false,
   "blockersRemaining": [
@@ -79,33 +79,33 @@
   "indicatorReadiness": {
     "marketDataSkip": false,
     "marketDataReason": null,
-    "latest5mCandleTime": "2026-04-06T17:45:00.000Z",
-    "latest5mCloseTime": "2026-04-06T17:50:00.000Z",
+    "latest5mCandleTime": "2026-04-06T17:50:00.000Z",
+    "latest5mCloseTime": "2026-04-06T17:55:00.000Z",
     "candleStale": false,
-    "secondsSinceClose": 26.6,
-    "atr": 6.313609795452101,
-    "rsi": 36.833405690337706,
-    "ema20": 4660.595529951005,
-    "ema50": 4666.311108190427,
+    "secondsSinceClose": 56,
+    "atr": 6.191923381491214,
+    "rsi": 42.115928191823,
+    "ema20": 4660.148336622338,
+    "ema50": 4665.902829437862,
     "emaCrossover": {
       "detected": false,
       "direction": null,
-      "prevDiff": -5.431,
-      "currDiff": -5.7156
+      "prevDiff": -5.7156,
+      "currDiff": -5.7545
     },
     "signalCandidate": null,
     "momentumGate": {
       "ready": null,
       "reason": "NO_DIRECTION",
       "netMomentum1m": null,
-      "minThreshold": 0.3157,
+      "minThreshold": 0.3096,
       "bullishCandles": 0,
       "bearishCandles": 0,
       "strongBullishCandles": 0,
       "strongBearishCandles": 0
     },
     "pullbackSlope": {
-      "slopePercent": -0.12237774035692166,
+      "slopePercent": -0.11753876662997094,
       "threshold": 0.15,
       "buyReady": false,
       "sellReady": false

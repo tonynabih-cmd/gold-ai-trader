@@ -5,7 +5,7 @@ const LIVE_CONFIRMATION = 'CONFIRMED_REAL_MONEY';
 const CANONICAL_MAX_SPREAD = '0.5';
 const PULLBACK_SLOPE_THRESHOLD = 0.15;
 const MOMENTUM_RANGE_MULTIPLIER = 0.05;
-const AUDIT_INTERVAL_MS = 60 * 1000;
+const AUDIT_INTERVAL_MS = 10 * 1000;
 const UAE_OFFSET_MS = 4 * 60 * 60 * 1000;
 
 let getCapitalSession;
@@ -637,7 +637,7 @@ async function runReadinessAudit() {
 
   const envSnapshot = buildEnvSnapshot();
   const redisReachable = await pingRedis();
-  const botState = await loadState();
+  let botState = await loadState();
   const stateIntegrityOk = validateStateIntegrity(botState, 'pre-market-readiness-audit');
 
   if (process.env.CAPITAL_ENV === 'live' && process.env.LIVE_TRADING_MODE !== LIVE_CONFIRMATION) {
@@ -986,6 +986,15 @@ async function runReadinessAudit() {
   }
 
   const ready = blockers.length === 0;
+  const alignmentStatus = {
+    spreadAligned: spread.sourceFallbacksMatch && spread.effectiveMatch && spread.envMatchesCanonical && (
+      typeof marketData?.spread !== 'number' ||
+      marketData.spread <= Number(process.env.MAX_SPREAD)
+    ),
+    sltpAligned: sltp.aligned,
+    positionsAligned: certainty.ok && positionDiff.localOnly.length === 0 && positionDiff.brokerOnly.length === 0,
+    indicatorsAligned: !!(indicators && !indicators.skip && latestCandle && candleTiming.stale === false),
+  };
   const report = {
     generatedAt: new Date().toISOString(),
     targetTradingDate,
@@ -1059,6 +1068,7 @@ async function runReadinessAudit() {
       executionStopLossAtr: sltp.execution.stopLossAtr,
       executionTakeProfitAtr: sltp.execution.takeProfitAtr,
     },
+    alignmentStatus,
     brokerSummary: brokerStats ? {
       totalTrades30d: brokerStats.totalTrades,
       totalPnl30d: brokerStats.totalPnl,
@@ -1081,26 +1091,55 @@ async function runReadinessAudit() {
 }
 
 async function runAuditLoop() {
-  let baselineCandleTime = null;
-  let latestReport = null;
+  let attempt = 0;
 
   while (true) {
-    latestReport = await runReadinessAudit();
-    const latestCandleTime = latestReport?.indicatorReadiness?.latest5mCandleTime || null;
-
-    if (baselineCandleTime == null && latestCandleTime) {
-      baselineCandleTime = latestCandleTime;
-    }
+    attempt += 1;
+    const latestReport = await runReadinessAudit();
 
     if (latestReport?.ready) {
+      console.log(JSON.stringify({
+        event: 'pre_market_ready',
+        attempt,
+        ready: true,
+        generatedAt: latestReport.generatedAt,
+        maxSpread: latestReport.executionDefaults?.maxSpread ?? null,
+        liveSpread: latestReport.indicatorReadiness?.spread ?? null,
+        spreadAligned: latestReport.alignmentStatus?.spreadAligned ?? false,
+        sltpAligned: latestReport.alignmentStatus?.sltpAligned ?? false,
+        positionsAligned: latestReport.alignmentStatus?.positionsAligned ?? false,
+        indicatorsAligned: latestReport.alignmentStatus?.indicatorsAligned ?? false,
+        blockersRemaining: latestReport.blockersRemaining ?? [],
+      }, null, 2));
       console.log('Bot ready for live trading');
-      return;
+      return latestReport;
     }
 
-    if (baselineCandleTime && latestCandleTime && latestCandleTime !== baselineCandleTime) {
-      return;
-    }
+    const waitReason = latestReport?.indicatorReadiness?.marketDataReason
+      || latestReport?.indicatorReadiness?.debugRejectReason
+      || latestReport?.blockersRemaining?.[0]
+      || 'Waiting for blockers to clear';
+    const waitingForFreshData =
+      latestReport?.indicatorReadiness?.latest5mCandleTime == null ||
+      latestReport?.indicatorReadiness?.candleStale === true ||
+      latestReport?.indicatorReadiness?.marketDataSkip === true;
 
+    console.log(JSON.stringify({
+      event: waitingForFreshData ? 'pre_market_waiting_for_fresh_data' : 'pre_market_not_ready',
+      attempt,
+      ready: false,
+      generatedAt: latestReport?.generatedAt ?? null,
+      nextRetryInSeconds: AUDIT_INTERVAL_MS / 1000,
+      waitingForFreshData,
+      waitReason,
+      blockersRemaining: latestReport?.blockersRemaining ?? [],
+      alignmentStatus: latestReport?.alignmentStatus ?? null,
+      liveSpread: latestReport?.indicatorReadiness?.spread ?? null,
+      maxSpread: latestReport?.executionDefaults?.maxSpread ?? null,
+      latest5mCandleTime: latestReport?.indicatorReadiness?.latest5mCandleTime ?? null,
+      latest5mCloseTime: latestReport?.indicatorReadiness?.latest5mCloseTime ?? null,
+      secondsSinceClose: latestReport?.indicatorReadiness?.secondsSinceClose ?? null,
+    }, null, 2));
     await sleep(AUDIT_INTERVAL_MS);
   }
 }
