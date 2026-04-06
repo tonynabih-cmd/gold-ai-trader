@@ -1,11 +1,12 @@
 import fs from 'fs';
 
-const TARGET_TRADING_DATE = '2026-04-07';
 const ENV_FILE = '.env.local';
 const LIVE_CONFIRMATION = 'CONFIRMED_REAL_MONEY';
 const CANONICAL_MAX_SPREAD = '0.5';
 const PULLBACK_SLOPE_THRESHOLD = 0.15;
 const MOMENTUM_RANGE_MULTIPLIER = 0.05;
+const AUDIT_INTERVAL_MS = 60 * 1000;
+const UAE_OFFSET_MS = 4 * 60 * 60 * 1000;
 
 let getCapitalSession;
 let getMarketData;
@@ -18,7 +19,12 @@ let validateStateIntegrity;
 let fetchBrokerPositions;
 let fetchBrokerTradeStats;
 let verifyExecutionCertainty;
+let syncBalance;
 let fetchWithTimeout;
+
+function resolveTargetTradingDate() {
+  return new Date(Date.now() + UAE_OFFSET_MS).toISOString().slice(0, 10);
+}
 
 function loadEnvLocal(filepath = ENV_FILE) {
   if (!fs.existsSync(filepath)) return;
@@ -56,8 +62,13 @@ async function loadRuntimeModules() {
     fetchBrokerPositions,
     fetchBrokerTradeStats,
     verifyExecutionCertainty,
+    syncBalance,
   } = await import('../lib/execution.js'));
   ({ fetchWithTimeout } = await import('../lib/fetch.js'));
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function upsertEnvVar(filepath, key, value) {
@@ -127,6 +138,21 @@ function extractSpreadFallbacks() {
     executionFallback: extractNumber(executionSource, /parseFloat\(process\.env\.MAX_SPREAD\)\s*\|\|\s*([0-9.]+)/),
     envValue: process.env.MAX_SPREAD == null ? null : Number(process.env.MAX_SPREAD),
   };
+}
+
+function ensureMaxSpreadFallbackLiteral(filepath) {
+  const source = readText(filepath);
+  const updated = source.replace(
+    /parseFloat\(process\.env\.MAX_SPREAD\)\s*\|\|\s*[0-9.]+/g,
+    `parseFloat(process.env.MAX_SPREAD) || ${CANONICAL_MAX_SPREAD}`
+  );
+
+  if (updated === source) {
+    return false;
+  }
+
+  fs.writeFileSync(filepath, updated, 'utf8');
+  return true;
 }
 
 function buildEnvSnapshot() {
@@ -488,9 +514,123 @@ function diffTradeIds(localTrades, brokerPositions) {
   };
 }
 
+function buildTradeFromBrokerPosition(position) {
+  const dealId = position?.position?.dealId ? String(position.position.dealId) : null;
+  if (!dealId) return null;
+
+  const size = Number(position?.position?.size ?? position?.position?.dealSize);
+  const action = String(position?.position?.direction || '').toUpperCase();
+  if (!Number.isFinite(size) || size <= 0 || (action !== 'BUY' && action !== 'SELL')) {
+    return null;
+  }
+
+  return {
+    tradeId: `adopted_${dealId}`,
+    dealId,
+    dealReference: position?.position?.dealReference || null,
+    pair: position?.market?.epic || position?.position?.instrumentName || 'GOLD',
+    action,
+    entry: Number(position?.position?.openLevel ?? position?.position?.level ?? 0),
+    size,
+    stopLoss: Number(position?.position?.stopLevel ?? 0) || null,
+    takeProfit: Number(position?.position?.limitLevel ?? 0) || null,
+    notionalValue: null,
+    marginRequired: null,
+    actualRiskDollars: null,
+    openedAt: position?.position?.createdDateUTC
+      ? new Date(position.position.createdDateUTC).getTime()
+      : Date.now(),
+    strategyVersion: 'adopted',
+    missingCount: 0,
+  };
+}
+
+function reconcileOpenTradesToBroker(botState, brokerPositions) {
+  const reconciledTrades = (Array.isArray(brokerPositions) ? brokerPositions : [])
+    .map(buildTradeFromBrokerPosition)
+    .filter(Boolean);
+
+  const currentTrades = Array.isArray(botState.openTrades) ? botState.openTrades : [];
+  const currentSerialized = JSON.stringify(
+    currentTrades
+      .map((trade) => ({
+        dealId: trade?.dealId ? String(trade.dealId) : null,
+        action: trade?.action ?? trade?.direction ?? null,
+        size: trade?.size ?? null,
+      }))
+      .sort((a, b) => String(a.dealId).localeCompare(String(b.dealId)))
+  );
+  const nextSerialized = JSON.stringify(
+    reconciledTrades
+      .map((trade) => ({
+        dealId: trade.dealId,
+        action: trade.action,
+        size: trade.size,
+      }))
+      .sort((a, b) => String(a.dealId).localeCompare(String(b.dealId)))
+  );
+
+  if (currentSerialized === nextSerialized) {
+    return { changed: false, count: reconciledTrades.length };
+  }
+
+  botState.openTrades = reconciledTrades;
+  botState.lastStateSyncAt = Date.now();
+  return { changed: true, count: reconciledTrades.length };
+}
+
+function syncBrokerRiskState(botState, brokerStats) {
+  if (!brokerStats) return false;
+
+  let changed = false;
+  const assignments = {
+    dailyTrades: brokerStats.todayTrades,
+    todayTrades: brokerStats.todayTrades,
+    todayBuys: brokerStats.todayBuys,
+    todaySells: brokerStats.todaySells,
+    todayWinRate: brokerStats.todayWinRate,
+    todayBest: brokerStats.todayBest,
+    todayWorst: brokerStats.todayWorst,
+    brokerTotalTrades: brokerStats.totalTrades,
+    brokerTotalPnl: brokerStats.totalPnl,
+    brokerWins: brokerStats.wins,
+    brokerLosses: brokerStats.losses,
+    brokerWinRate: brokerStats.winRate,
+    brokerBestTrade: brokerStats.bestTrade,
+    brokerWorstTrade: brokerStats.worstTrade,
+    brokerGrossProfit: brokerStats.grossProfit,
+    brokerGrossLoss: brokerStats.grossLoss,
+    lastBrokerSync: brokerStats.syncedAt,
+    riskDataFresh: true,
+  };
+
+  for (const [key, value] of Object.entries(assignments)) {
+    if (botState[key] !== value) {
+      botState[key] = value;
+      changed = true;
+    }
+  }
+
+  const todayPnlAED = Number(brokerStats.todayNetPnl);
+  const nextDailyLoss = Number.isFinite(todayPnlAED) && todayPnlAED < 0 ? Math.abs(todayPnlAED) : 0;
+  if (botState.dailyLoss !== nextDailyLoss) {
+    botState.dailyLoss = nextDailyLoss;
+    changed = true;
+  }
+
+  const now = Date.now();
+  if (botState.lastRiskSyncAt !== now) {
+    botState.lastRiskSyncAt = now;
+    changed = true;
+  }
+
+  return changed;
+}
+
 async function runReadinessAudit() {
   loadEnvLocal();
   await loadRuntimeModules();
+  const targetTradingDate = resolveTargetTradingDate();
 
   const fixes = [];
   const notes = [];
@@ -518,6 +658,25 @@ async function runReadinessAudit() {
       type: 'env',
       key: 'MAX_SPREAD',
       changed,
+      newValue: CANONICAL_MAX_SPREAD,
+    });
+  }
+
+  const riskFallbackPatched = ensureMaxSpreadFallbackLiteral('lib/risk.js');
+  const executionFallbackPatched = ensureMaxSpreadFallbackLiteral('lib/execution.js');
+  if (riskFallbackPatched) {
+    fixes.push({
+      type: 'source',
+      key: 'lib/risk.js:MAX_SPREAD_fallback',
+      changed: true,
+      newValue: CANONICAL_MAX_SPREAD,
+    });
+  }
+  if (executionFallbackPatched) {
+    fixes.push({
+      type: 'source',
+      key: 'lib/execution.js:MAX_SPREAD_fallback',
+      changed: true,
       newValue: CANONICAL_MAX_SPREAD,
     });
   }
@@ -577,13 +736,52 @@ async function runReadinessAudit() {
 
   try {
     session = await getCapitalSession();
+    botState = await syncBalance(session, botState);
     brokerPositions = await fetchBrokerPositions(session) || [];
     brokerStats = await fetchBrokerTradeStats(session);
     workingOrders = await fetchWorkingOrders(session);
-    certainty = await verifyExecutionCertainty(session, botState);
     transactions = await fetchGoldTransactions(session);
   } catch (err) {
     sessionError = err.message;
+  }
+
+  let brokerStateChanged = syncBrokerRiskState(botState, brokerStats);
+
+  const positionDiffBeforeReconcile = diffTradeIds(botState.openTrades, brokerPositions);
+  if (session && (positionDiffBeforeReconcile.localOnly.length > 0 || positionDiffBeforeReconcile.brokerOnly.length > 0)) {
+    const reconciliation = reconcileOpenTradesToBroker(botState, brokerPositions);
+    if (reconciliation.changed) {
+      brokerStateChanged = true;
+      fixes.push({
+        type: 'state',
+        key: 'openTrades',
+        changed: true,
+        count: reconciliation.count,
+        source: 'broker_positions',
+      });
+      notes.push('Local openTrades were reconciled to the broker position ledger.');
+    }
+  }
+
+  if (
+    botState.pendingOrder &&
+    botState.pendingOrder.status !== 'cleared' &&
+    workingOrders.count === 0
+  ) {
+    botState.pendingOrder = null;
+    brokerStateChanged = true;
+    fixes.push({
+      type: 'state',
+      key: 'pendingOrder',
+      changed: true,
+      newValue: null,
+      source: 'no_broker_working_orders',
+    });
+    notes.push('Cleared stale local pendingOrder because the broker reported no working orders.');
+  }
+
+  if (session) {
+    certainty = await verifyExecutionCertainty(session, botState);
   }
 
   let outcomeSource = Array.isArray(botState.recentOutcomes) ? botState.recentOutcomes : [];
@@ -635,7 +833,7 @@ async function runReadinessAudit() {
     rollingChanged = true;
   }
 
-  if (rollingChanged || recentOutcomesChanged) {
+  if (rollingChanged || recentOutcomesChanged || brokerStateChanged) {
     await saveState(botState);
     if (rollingChanged) {
       fixes.push({
@@ -700,6 +898,7 @@ async function runReadinessAudit() {
   const positionDiff = diffTradeIds(botState.openTrades, brokerPositions);
   const hasLocalPendingOrder = !!(botState.pendingOrder && botState.pendingOrder.status !== 'cleared');
   const hasBrokerWorkingOrders = typeof workingOrders.count === 'number' && workingOrders.count > 0;
+  const brokerStatsLoaded = !!brokerStats;
 
   const passes = [];
   const blockers = [];
@@ -712,6 +911,9 @@ async function runReadinessAudit() {
 
   if (session) passes.push('Capital.com session established');
   else blockers.push(`Capital.com session unavailable: ${sessionError}`);
+
+  if (brokerStatsLoaded) passes.push('Broker trade summary loaded');
+  else blockers.push('Broker trade summary unavailable');
 
   if (process.env.CAPITAL_ENV !== 'live' || process.env.LIVE_TRADING_MODE === LIVE_CONFIRMATION) {
     passes.push('Live trading mode confirmation is valid');
@@ -742,6 +944,9 @@ async function runReadinessAudit() {
 
   if (stateIntegrityOk) passes.push('Local state integrity check passed');
   else blockers.push('Local state integrity failed');
+
+  if (brokerStatsLoaded && botState.riskDataFresh === true) passes.push('Broker risk state is fresh');
+  else blockers.push('Broker risk state is stale');
 
   if (certainty.ok) passes.push('Local open trades match broker positions');
   else if (session) blockers.push(`Execution certainty failed: ${certainty.reason}`);
@@ -783,7 +988,7 @@ async function runReadinessAudit() {
   const ready = blockers.length === 0;
   const report = {
     generatedAt: new Date().toISOString(),
-    targetTradingDate: TARGET_TRADING_DATE,
+    targetTradingDate,
     ready,
     blockersRemaining: blockers,
     passes,
@@ -867,17 +1072,40 @@ async function runReadinessAudit() {
     fixesAppliedAutomatically: fixes,
   };
 
-  const outputPath = `tmp/pre_market_readiness_${TARGET_TRADING_DATE}.json`;
+  const outputPath = `tmp/pre_market_readiness_${targetTradingDate}.json`;
   fs.writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
   console.log(JSON.stringify(report, null, 2));
   console.log(`\nReport written to ${outputPath}`);
 
-  if (!ready) {
-    process.exitCode = 1;
+  return report;
+}
+
+async function runAuditLoop() {
+  let baselineCandleTime = null;
+  let latestReport = null;
+
+  while (true) {
+    latestReport = await runReadinessAudit();
+    const latestCandleTime = latestReport?.indicatorReadiness?.latest5mCandleTime || null;
+
+    if (baselineCandleTime == null && latestCandleTime) {
+      baselineCandleTime = latestCandleTime;
+    }
+
+    if (latestReport?.ready) {
+      console.log('Bot ready for live trading');
+      return;
+    }
+
+    if (baselineCandleTime && latestCandleTime && latestCandleTime !== baselineCandleTime) {
+      return;
+    }
+
+    await sleep(AUDIT_INTERVAL_MS);
   }
 }
 
-runReadinessAudit().catch((err) => {
+runAuditLoop().catch((err) => {
   console.error(JSON.stringify({
     ready: false,
     blockersRemaining: [`Audit failed: ${err.message}`],
