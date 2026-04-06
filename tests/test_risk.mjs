@@ -208,13 +208,21 @@ section('Rule 12: Daily trade cap');
 
 section('Rule 12A: Anti-chop loss streak');
 {
-  // Two losses in last 3 outcomes → blocked
+  // Two losses in last 3 outcomes → blocked for 30 mins
   const recentOutcomesWithLosses = [
-    { pnl: -5, action: 'BUY',  closedAt: Date.now() },
-    { pnl: -3, action: 'SELL', closedAt: Date.now() },
+    { pnl: -5, action: 'BUY',  closedAt: Date.now() - 1000 },
+    { pnl: -3, action: 'SELL', closedAt: Date.now() - 500 },
   ];
   const rAntiChop = checkRisk(makeSignal(), makeBotState({ recentOutcomes: recentOutcomesWithLosses }), makeIndicators());
-  assert(rAntiChop.includes('SKIP'), `2 recent losses → anti-chop SKIP (got: ${rAntiChop})`);
+  assert(rAntiChop.includes('SKIP') && rAntiChop.includes('Anti-chop'), `2 recent losses → anti-chop SKIP (got: ${rAntiChop})`);
+
+  // Two losses but LAST ONE is > 30 mins ago → NOT blocked
+  const oldLosses = [
+    { pnl: -5, action: 'BUY',  closedAt: Date.now() - 40 * 60 * 1000 },
+    { pnl: -3, action: 'SELL', closedAt: Date.now() - 35 * 60 * 1000 },
+  ];
+  const rOldLosses = checkRisk(makeSignal(), makeBotState({ recentOutcomes: oldLosses }), makeIndicators());
+  assert(!rOldLosses.includes('Anti-chop'), `Old losses (35m+ ago) do NOT trigger anti-chop (got: ${rOldLosses})`);
 
   // A WIN followed by a loss → only 1 loss in last 3 → should NOT block
   const recentOutcomesWithWin = [
@@ -224,7 +232,7 @@ section('Rule 12A: Anti-chop loss streak');
   ];
   const rAfterWin = checkRisk(makeSignal(), makeBotState({ recentOutcomes: recentOutcomesWithWin }), makeIndicators());
   // Only 1 of the last 3 is a loss → anti-chop should NOT fire
-  assert(!rAfterWin.includes('Anti-chop'), `Win resets loss streak — anti-chop does NOT fire (got: ${rAfterWin})`);
+  assert(!rAfterWin.includes('Anti-chop'), `Win in recent outcomes — anti-chop does NOT fire (got: ${rAfterWin})`);
 }
 
 // ── Section 10: Daily loss limit ──────────────────────────────────────────────
@@ -280,7 +288,7 @@ section('Rule 16: Insufficient balance');
 
 // ── Section 13: Cooldown ─────────────────────────────────────────────────────
 
-section('Rule 17: Cooldown between trades (10 min)');
+section('Rule 17: Cooldown between trades (5 min)');
 {
   const now  = new Date();
   const hour = now.getUTCHours();
@@ -294,7 +302,7 @@ section('Rule 17: Cooldown between trades (10 min)');
     makeIndicators()
   );
   if (inGoldenHour) {
-    assert(rCooldown.includes('SKIP') && rCooldown.includes('Cooldown'), `Trade < 10 min ago → Cooldown SKIP (got: ${rCooldown})`);
+    assert(rCooldown.includes('SKIP') && rCooldown.includes('Cooldown'), `Trade < 5 min ago → Cooldown SKIP (got: ${rCooldown})`);
   } else {
     assert(rCooldown.includes('SKIP'), `Outside golden hours, cooldown check skipped by Rule 5 (got: ${rCooldown})`);
     console.log('    (Rule 17 Cooldown path fires during golden hours — covered during live trading)');
@@ -326,8 +334,8 @@ section('Rule 19: Duplicate trade ID');
 
 section('Rule 20: Minimum signal score');
 {
-  const rLowScore = checkRisk(makeSignal({ score: 1 }), makeBotState(), makeIndicators());
-  assert(rLowScore.includes('SKIP'), `Score=1 → SKIP (got: ${rLowScore})`);
+  const rLowScore = checkRisk(makeSignal({ score: 2 }), makeBotState(), makeIndicators());
+  assert(rLowScore.includes('SKIP'), `Score=2 → SKIP (got: ${rLowScore})`);
 
   const rZeroScore = checkRisk(makeSignal({ score: 0 }), makeBotState(), makeIndicators());
   assert(rZeroScore.includes('SKIP'), `Score=0 → SKIP (got: ${rZeroScore})`);
@@ -343,7 +351,7 @@ section('Full approval path during golden hours');
   const inGoldenHour = day >= 1 && day <= 5 && hour >= 7 && hour < 16;
 
   if (inGoldenHour) {
-    const result = checkRisk(makeSignal(), makeBotState(), makeIndicators());
+    const result = checkRisk(makeSignal({ score: 3 }), makeBotState(), makeIndicators());
     assert(result === 'APPROVED', `All rules pass during golden hour → APPROVED (got: ${result})`);
   } else {
     console.log('    (Not in golden hour — skipping full approval path test)');
