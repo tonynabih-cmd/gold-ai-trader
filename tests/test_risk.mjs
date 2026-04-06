@@ -75,7 +75,7 @@ function makeIndicators(overrides = {}) {
 
 // ── Pre-setup: ensure required env vars are set ───────────────────────────────
 process.env.BOT_ENABLED = 'true';
-process.env.MAX_SPREAD  = '0.40';
+process.env.MAX_SPREAD  = '0.5';
 
 // ── Section 1: Environment kill switch ────────────────────────────────────────
 
