@@ -616,8 +616,8 @@ export default async function handler(req, res) {
     // ── Step 12: Trade alert ──────────────────────────────────────────────────
     await sendAlert(
       `✅ ${signal.action} GOLD [${signal.entryType}]\n` +
-      `Entry: $${signal.entryPrice.toFixed(2)}\n` +
-      `SL: $${signal.stopLoss.toFixed(2)} | TP: $${signal.takeProfit.toFixed(2)}\n` +
+      `Entry: $${tradeResult.entry.toFixed(2)}\n` +
+      `SL: $${tradeResult.stopLoss.toFixed(2)} | TP: $${tradeResult.takeProfit.toFixed(2)}\n` +
       `Size: ${tradeResult.size}oz | Score: ${signal.score} | ATR: ${signal.atr.toFixed(2)}\n` +
       `Balance: AED ${parseFloat(botState.balance).toFixed(2)} | Equity: AED ${parseFloat(botState.equity || botState.balance).toFixed(2)} | Daily trades: ${botState.dailyTrades}/10`
     );
@@ -626,9 +626,9 @@ export default async function handler(req, res) {
       success:      true,
       action:       signal.action,
       entryType:    signal.entryType,
-      entry:        signal.entryPrice,
-      stopLoss:     signal.stopLoss,
-      takeProfit:   signal.takeProfit,
+      entry:        tradeResult.entry,
+      stopLoss:     tradeResult.stopLoss,
+      takeProfit:   tradeResult.takeProfit,
       size:         tradeResult.size,
       score:        signal.score,
       dealId:        tradeResult.dealId,
