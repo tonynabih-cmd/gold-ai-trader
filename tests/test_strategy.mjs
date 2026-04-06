@@ -108,7 +108,7 @@ section('EMA crossover — BUY signal');
     assert(result.signal.score >= 2, `Score >= 2 (got ${result.signal.score})`);
     assert(result.signal.stopLoss < result.signal.entryPrice, `Stop loss below entry (SL=${result.signal.stopLoss}, entry=${result.signal.entryPrice})`);
     assert(result.signal.takeProfit > result.signal.entryPrice, `Take profit above entry`);
-    assert(Math.abs((result.signal.takeProfit - result.signal.entryPrice) - (1.5 * result.signal.atr)) < 0.0001, 'Take profit uses 1.5x ATR');
+    assert(Math.abs((result.signal.takeProfit - result.signal.entryPrice) - (2.25 * result.signal.atr)) < 0.0001, 'Take profit uses 2.25x ATR');
     assert(typeof result.signal.id === 'string', `Signal has string ID`);
     assert(result.signal.atr === 5.0, `Signal carries ATR value`);
   }
@@ -255,6 +255,19 @@ section('Momentum range validation');
   ];
   const result = generateSignal(indicators, microCandles);
   assert(result.signal === null, `Micro-range candles rejected by ATR momentum validation (reason: ${result.debug?.dbgRejectReason})`);
+}
+
+section('Momentum gate requires 2 of last 3 meaningful candles');
+{
+  const indicators = makeIndicators();
+  const oneStrongBullish = [
+    { time: Date.now() - 3000, open: 2000.00, high: 2000.06, low: 1999.98, close: 2000.03 },
+    { time: Date.now() - 2000, open: 2000.03, high: 2000.10, low: 2000.01, close: 2000.07 },
+    { time: Date.now() - 1000, open: 2000.07, high: 2000.45, low: 2000.05, close: 2000.35 },
+  ];
+  const result = generateSignal(indicators, oneStrongBullish);
+  assert(result.signal === null, `Only 1 strong bullish candle fails momentum gate (reason: ${result.debug?.dbgRejectReason})`);
+  assert(result.debug?.dbgRejectReason?.includes('1m momentum not strong enough'), `Rejection specifically comes from strong-candle gate (reason: ${result.debug?.dbgRejectReason})`);
 }
 
 section('Score too low — no signal');

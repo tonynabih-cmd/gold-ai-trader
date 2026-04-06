@@ -251,8 +251,8 @@ section('15. fetchBrokerTradeStats — todayExecuted counts trades opened today,
   const nowIso       = new Date().toISOString();
   const yesterdayIso = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
-  // T1: opened today AND closed today  →  old code: +1 (closed today); new code: +1 (opened today)
-  // T2: opened yesterday, closed today →  old code: +1 (closed today); new code: 0  (opened yesterday)
+  // T1: opened today AND closed today  →  count +1
+  // T2: opened yesterday, closed today →  count +0
   // Net: old code = 2, new code = 1
   const mockTransactions = [
     { dealId: 'T1', instrumentName: 'GOLD_USD', profitAndLoss: '0',   note: 'Position opened', date: nowIso },
