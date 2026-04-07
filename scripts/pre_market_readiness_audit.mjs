@@ -884,7 +884,7 @@ async function runReadinessAudit() {
         const closeTime = latestCandle.time + (5 * 60 * 1000);
         const secondsSinceClose = (Date.now() - closeTime) / 1000;
         candleTiming = {
-          stale: secondsSinceClose > 90,
+          stale: secondsSinceClose > 180,
           secondsSinceClose: Number(secondsSinceClose.toFixed(1)),
           closeTime: new Date(closeTime).toISOString(),
           reason: marketData.reason || indicators.reason || null,
