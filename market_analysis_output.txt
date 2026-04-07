@@ -1,0 +1,82 @@
+Analyzing 127 market snapshots from today's Golden Hour...
+Found 40 unique 5m candles processed so far.
+[4/7/2026, 11:00:13 AM] Price: 4653.68 | Trend: DOWN | Sep: 0.37 | Slope: 0.0404% | RSI: 62.0 | ATR: 6.46
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 11:01:03 AM] Price: 4653.58 | Trend: DOWN | Sep: 0.17 | Slope: 0.0486% | RSI: 58.3 | ATR: 6.37
+  -> No Signal. Reject Reason: SKIP: Duplicate candle - already processed this period (latest: 1775544900000, lastProcessed: 1775544900000)
+[4/7/2026, 11:05:05 AM] Price: 4652.16 | Trend: UP | Sep: 0.11 | Slope: 0.0540% | RSI: 56.2 | ATR: 6.28
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (5.6s since close, need 7s)
+[4/7/2026, 11:10:17 AM] Price: 4654.30 | Trend: UP | Sep: 0.48 | Slope: 0.0716% | RSI: 58.6 | ATR: 6.31
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 11:15:06 AM] Price: 4651.77 | Trend: UP | Sep: 0.65 | Slope: 0.0836% | RSI: 54.8 | ATR: 6.43
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (6.5s since close, need 7s)
+[4/7/2026, 11:16:04 AM] Price: 4651.76 | Trend: UP | Sep: 0.65 | Slope: 0.0836% | RSI: 54.8 | ATR: 6.43
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 11:20:06 AM] Price: 4651.93 | Trend: UP | Sep: 0.80 | Slope: 0.0981% | RSI: 55.0 | ATR: 6.35
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (6.9s since close, need 7s)
+[4/7/2026, 11:25:05 AM] Price: 4648.53 | Trend: UP | Sep: 0.74 | Slope: 0.0983% | RSI: 50.0 | ATR: 6.47
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (5.4s since close, need 7s)
+[4/7/2026, 11:30:10 AM] Price: 4639.70 | Trend: UP | Sep: 0.20 | Slope: 0.0759% | RSI: 39.9 | ATR: 6.76
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 11:35:05 AM] Price: 4644.04 | Trend: DOWN | Sep: 0.04 | Slope: 0.0511% | RSI: 45.7 | ATR: 6.81
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (5.5s since close, need 7s)
+[4/7/2026, 11:36:04 AM] Price: 4642.91 | Trend: DOWN | Sep: 0.10 | Slope: 0.0488% | RSI: 44.3 | ATR: 6.81
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 11:40:06 AM] Price: 4646.17 | Trend: DOWN | Sep: 0.17 | Slope: 0.0341% | RSI: 48.4 | ATR: 6.59
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (6.8s since close, need 7s)
+[4/7/2026, 11:41:03 AM] Price: 4646.22 | Trend: DOWN | Sep: 0.17 | Slope: 0.0342% | RSI: 48.5 | ATR: 6.59
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 11:45:06 AM] Price: 4643.86 | Trend: DOWN | Sep: 0.37 | Slope: 0.0106% | RSI: 45.8 | ATR: 6.53
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (6.8s since close, need 7s)
+[4/7/2026, 11:46:04 AM] Price: 4643.85 | Trend: DOWN | Sep: 0.37 | Slope: 0.0106% | RSI: 45.8 | ATR: 6.53
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 11:50:06 AM] Price: 4643.02 | Trend: DOWN | Sep: 0.67 | Slope: -0.0206% | RSI: 42.6 | ATR: 6.00
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (6.6s since close, need 7s)
+[4/7/2026, 11:51:04 AM] Price: 4643.28 | Trend: DOWN | Sep: 0.57 | Slope: -0.0115% | RSI: 45.2 | ATR: 6.23
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 11:55:05 AM] Price: 4640.18 | Trend: DOWN | Sep: 0.91 | Slope: -0.0350% | RSI: 41.8 | ATR: 6.19
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (5.3s since close, need 7s)
+[4/7/2026, 11:56:04 AM] Price: 4639.59 | Trend: DOWN | Sep: 0.95 | Slope: -0.0362% | RSI: 41.2 | ATR: 6.19
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 12:00:13 PM] Price: 4646.18 | Trend: DOWN | Sep: 0.90 | Slope: -0.0494% | RSI: 49.8 | ATR: 6.34
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 12:05:05 PM] Price: 4650.67 | Trend: DOWN | Sep: 0.61 | Slope: -0.0469% | RSI: 54.7 | ATR: 7.03
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (5.4s since close, need 7s)
+[4/7/2026, 12:06:04 PM] Price: 4650.45 | Trend: DOWN | Sep: 0.62 | Slope: -0.0474% | RSI: 54.4 | ATR: 7.03
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 12:10:07 PM] Price: 4651.63 | Trend: DOWN | Sep: 0.31 | Slope: -0.0435% | RSI: 55.7 | ATR: 6.89
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 12:15:06 PM] Price: 4663.69 | Trend: UP | Sep: 1.05 | Slope: 0.0167% | RSI: 70.2 | ATR: 7.18
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (6.8s since close, need 7s)
+[4/7/2026, 12:16:04 PM] Price: 4663.68 | Trend: UP | Sep: 0.64 | Slope: -0.0083% | RSI: 65.8 | ATR: 7.45
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 12:20:06 PM] Price: 4661.74 | Trend: UP | Sep: 1.35 | Slope: 0.0377% | RSI: 63.3 | ATR: 7.44
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (7.0s since close, need 7s)
+[4/7/2026, 12:25:06 PM] Price: 4687.03 | Trend: UP | Sep: 3.38 | Slope: 0.1244% | RSI: 76.0 | ATR: 9.12
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (6.0s since close, need 7s)
+[4/7/2026, 12:26:04 PM] Price: 4684.51 | Trend: UP | Sep: 3.24 | Slope: 0.1192% | RSI: 75.2 | ATR: 9.12
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 12:30:09 PM] Price: 4678.65 | Trend: UP | Sep: 4.54 | Slope: 0.1741% | RSI: 69.0 | ATR: 9.19
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 12:35:05 PM] Price: 4683.28 | Trend: UP | Sep: 5.92 | Slope: 0.2381% | RSI: 71.0 | ATR: 9.24
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (5.8s since close, need 7s)
+[4/7/2026, 12:36:04 PM] Price: 4685.03 | Trend: UP | Sep: 6.02 | Slope: 0.2416% | RSI: 71.7 | ATR: 9.24
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 12:40:07 PM] Price: 4681.90 | Trend: UP | Sep: 7.10 | Slope: 0.2974% | RSI: 68.5 | ATR: 9.04
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 12:45:06 PM] Price: 4683.43 | Trend: UP | Sep: 8.10 | Slope: 0.3585% | RSI: 69.2 | ATR: 8.73
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (6.5s since close, need 7s)
+[4/7/2026, 12:46:04 PM] Price: 4683.13 | Trend: UP | Sep: 8.08 | Slope: 0.3579% | RSI: 69.1 | ATR: 8.73
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 12:50:07 PM] Price: 4682.04 | Trend: UP | Sep: 8.85 | Slope: 0.3969% | RSI: 67.9 | ATR: 8.71
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 12:55:05 PM] Price: 4683.43 | Trend: UP | Sep: 9.55 | Slope: 0.4263% | RSI: 68.7 | ATR: 8.44
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (5.2s since close, need 7s)
+[4/7/2026, 12:56:04 PM] Price: 4684.72 | Trend: UP | Sep: 9.63 | Slope: 0.4289% | RSI: 69.3 | ATR: 8.44
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 1:00:13 PM] Price: 4682.89 | Trend: UP | Sep: 10.38 | Slope: 0.4498% | RSI: 77.8 | ATR: 7.97
+  -> No Signal. Reject Reason: SKIP: No signal generated this cycle
+[4/7/2026, 1:01:03 PM] Price: 4682.95 | Trend: UP | Sep: 10.17 | Slope: 0.4518% | RSI: 67.2 | ATR: 8.27
+  -> No Signal. Reject Reason: SKIP: Duplicate candle - already processed this period (latest: 1775552100000, lastProcessed: 1775552100000)
+[4/7/2026, 1:05:06 PM] Price: 4683.18 | Trend: UP | Sep: 10.62 | Slope: 0.4485% | RSI: 67.4 | ATR: 8.12
+  -> No Signal. Reject Reason: SKIP: Waiting for candle settlement (6.0s since close, need 7s)
