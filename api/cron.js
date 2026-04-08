@@ -608,10 +608,39 @@ export default async function handler(req, res) {
     }
 
     // ── Step 7: Generate signal ───────────────────────────────────────────────
-    const { signal, debug: signalDebug } = generateSignal(indicators, marketData.candles1m);
+    indicators.lastOrderTimestamp = botState.lastOrderTimestamp;
+    let { signal, debug: signalDebug } = generateSignal(indicators, marketData.candles1m);
+
+    // ── STEP 7.5: FORCE_TRADE MODE ───────────────────────────────────────────
+    if (process.env.FORCE_TRADE === 'true') {
+      console.warn('⚠️ FORCE_TRADE active: Bypassing strategy and risk filters');
+      const livePrice = await fetchCurrentGoldPrice(session);
+      if (livePrice) {
+          const action = 'BUY'; // Test with small BUY
+          const entry = livePrice.offer;
+          const atr = indicators.atr || 5.0;
+          signal = {
+              id: `forced_${Date.now()}`,
+              pair: 'GOLD',
+              action,
+              entryType: 'forced_test',
+              entryPrice: entry,
+              stopLoss: entry - (atr * 1.5),
+              takeProfit: entry + (atr * 2.25),
+              atr,
+              score: 5,
+              strategyVersion: 'forced_v1.0',
+              timestamp: Date.now()
+          };
+          signalDebug = { dbgRejectReason: null, dbgAction: action, dbgEntryType: 'forced_test' };
+          console.warn(`[FORCE] Created test signal: ${action} @ ${entry}`);
+      }
+    }
 
     // ── Step 8: Risk checks ───────────────────────────────────────────────────
-    const riskResult = checkRisk(signal, botState, indicators);
+    const riskResult = (process.env.FORCE_TRADE === 'true' && signal?.entryType === 'forced_test') 
+      ? 'APPROVED' 
+      : checkRisk(signal, botState, indicators);
 
     if (riskResult !== 'APPROVED') {
       if (riskResult.startsWith('STOP:') || riskResult.startsWith('DISABLE:')) {
@@ -726,6 +755,13 @@ export default async function handler(req, res) {
       score:        signal.score,
       dealId:        tradeResult.dealId,
       dealReference: tradeResult.dealReference,
+      summary: {
+          cyclesExecuted: 1, // Current cycle
+          signalsDetected: signal ? 1 : 0,
+          tradesAttempted: 1,
+          tradesExecuted: 1,
+          mainBlockingReason: null
+      }
     });
 
   } catch (err) {
