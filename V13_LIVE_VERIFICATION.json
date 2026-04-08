@@ -1,0 +1,519 @@
+{
+  "summary": {
+    "timestamp": "2026-04-08T00:30:05.129Z",
+    "total_logs": 100,
+    "executed_trades": 0,
+    "missed_signals": 100,
+    "win_rate": 0,
+    "avg_drawdown": 0,
+    "v13_features_active": {
+      "euro_session": false,
+      "golden_hour": false,
+      "immediate_crossover": 0,
+      "sr_penalty_reduction": 0
+    }
+  },
+  "executed": [],
+  "missed": [
+    {
+      "time": "2026-04-07T22:52:04.376Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775601900000, lastProcessed: 1775601900000)"
+    },
+    {
+      "time": "2026-04-07T22:53:03.666Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775601900000, lastProcessed: 1775601900000)"
+    },
+    {
+      "time": "2026-04-07T22:54:04.427Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775601900000, lastProcessed: 1775601900000)"
+    },
+    {
+      "time": "2026-04-07T22:55:05.144Z",
+      "action": "NONE",
+      "reason": "SKIP: Waiting for candle settlement (5.1s since close, need 7s)"
+    },
+    {
+      "time": "2026-04-07T22:56:04.159Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-07T22:57:03.491Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775602200000, lastProcessed: 1775602200000)"
+    },
+    {
+      "time": "2026-04-07T22:58:04.294Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775602200000, lastProcessed: 1775602200000)"
+    },
+    {
+      "time": "2026-04-07T22:59:03.726Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775602200000, lastProcessed: 1775602200000)"
+    },
+    {
+      "time": "2026-04-07T23:00:12.979Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-07T23:01:03.726Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775602500000, lastProcessed: 1775602500000)"
+    },
+    {
+      "time": "2026-04-07T23:02:04.187Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775602500000, lastProcessed: 1775602500000)"
+    },
+    {
+      "time": "2026-04-07T23:03:03.746Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775602500000, lastProcessed: 1775602500000)"
+    },
+    {
+      "time": "2026-04-07T23:03:17.333Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775602500000, lastProcessed: 1775602500000)"
+    },
+    {
+      "time": "2026-04-07T23:04:04.081Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775602500000, lastProcessed: 1775602500000)"
+    },
+    {
+      "time": "2026-04-07T23:05:05.654Z",
+      "action": "NONE",
+      "reason": "SKIP: Waiting for candle settlement (5.7s since close, need 7s)"
+    },
+    {
+      "time": "2026-04-07T23:06:04.467Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-07T23:07:03.555Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775602800000, lastProcessed: 1775602800000)"
+    },
+    {
+      "time": "2026-04-07T23:08:04.197Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775602800000, lastProcessed: 1775602800000)"
+    },
+    {
+      "time": "2026-04-07T23:09:03.358Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775602800000, lastProcessed: 1775602800000)"
+    },
+    {
+      "time": "2026-04-07T23:10:06.776Z",
+      "action": "NONE",
+      "reason": "SKIP: Waiting for candle settlement (6.8s since close, need 7s)"
+    },
+    {
+      "time": "2026-04-07T23:11:03.297Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-07T23:12:04.262Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775603100000, lastProcessed: 1775603100000)"
+    },
+    {
+      "time": "2026-04-07T23:13:03.453Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775603100000, lastProcessed: 1775603100000)"
+    },
+    {
+      "time": "2026-04-07T23:14:04.436Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775603100000, lastProcessed: 1775603100000)"
+    },
+    {
+      "time": "2026-04-07T23:15:06.700Z",
+      "action": "NONE",
+      "reason": "SKIP: Waiting for candle settlement (6.7s since close, need 7s)"
+    },
+    {
+      "time": "2026-04-07T23:16:04.897Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-07T23:17:03.593Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775603400000, lastProcessed: 1775603400000)"
+    },
+    {
+      "time": "2026-04-07T23:18:04.546Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775603400000, lastProcessed: 1775603400000)"
+    },
+    {
+      "time": "2026-04-07T23:19:03.398Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775603400000, lastProcessed: 1775603400000)"
+    },
+    {
+      "time": "2026-04-07T23:20:07.306Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-07T23:21:03.376Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775603700000, lastProcessed: 1775603700000)"
+    },
+    {
+      "time": "2026-04-07T23:22:04.387Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775603700000, lastProcessed: 1775603700000)"
+    },
+    {
+      "time": "2026-04-07T23:23:03.978Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775603700000, lastProcessed: 1775603700000)"
+    },
+    {
+      "time": "2026-04-07T23:24:04.148Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775603700000, lastProcessed: 1775603700000)"
+    },
+    {
+      "time": "2026-04-07T23:25:05.584Z",
+      "action": "NONE",
+      "reason": "SKIP: Waiting for candle settlement (5.6s since close, need 7s)"
+    },
+    {
+      "time": "2026-04-07T23:26:05.181Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-07T23:27:03.922Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775604000000, lastProcessed: 1775604000000)"
+    },
+    {
+      "time": "2026-04-07T23:28:05.003Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775604000000, lastProcessed: 1775604000000)"
+    },
+    {
+      "time": "2026-04-07T23:29:03.378Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775604000000, lastProcessed: 1775604000000)"
+    },
+    {
+      "time": "2026-04-07T23:30:09.964Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-07T23:31:03.643Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775604300000, lastProcessed: 1775604300000)"
+    },
+    {
+      "time": "2026-04-07T23:32:04.303Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775604300000, lastProcessed: 1775604300000)"
+    },
+    {
+      "time": "2026-04-07T23:33:03.457Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775604300000, lastProcessed: 1775604300000)"
+    },
+    {
+      "time": "2026-04-07T23:34:04.425Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775604300000, lastProcessed: 1775604300000)"
+    },
+    {
+      "time": "2026-04-07T23:35:05.375Z",
+      "action": "NONE",
+      "reason": "SKIP: Waiting for candle settlement (5.4s since close, need 7s)"
+    },
+    {
+      "time": "2026-04-07T23:36:04.452Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-07T23:37:03.999Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775604600000, lastProcessed: 1775604600000)"
+    },
+    {
+      "time": "2026-04-07T23:38:04.269Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775604600000, lastProcessed: 1775604600000)"
+    },
+    {
+      "time": "2026-04-07T23:39:03.402Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775604600000, lastProcessed: 1775604600000)"
+    },
+    {
+      "time": "2026-04-07T23:40:07.044Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-07T23:41:04.601Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775604900000, lastProcessed: 1775604900000)"
+    },
+    {
+      "time": "2026-04-07T23:42:04.343Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775604900000, lastProcessed: 1775604900000)"
+    },
+    {
+      "time": "2026-04-07T23:43:03.776Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775604900000, lastProcessed: 1775604900000)"
+    },
+    {
+      "time": "2026-04-07T23:44:12.027Z",
+      "action": "NONE",
+      "reason": "SKIP: BROKER_MARKET_SNAPSHOT_UNAVAILABLE"
+    },
+    {
+      "time": "2026-04-07T23:45:06.689Z",
+      "action": "NONE",
+      "reason": "SKIP: Waiting for candle settlement (6.7s since close, need 7s)"
+    },
+    {
+      "time": "2026-04-07T23:46:04.776Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-07T23:47:03.464Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775605200000, lastProcessed: 1775605200000)"
+    },
+    {
+      "time": "2026-04-07T23:48:04.522Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775605200000, lastProcessed: 1775605200000)"
+    },
+    {
+      "time": "2026-04-07T23:49:03.843Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775605200000, lastProcessed: 1775605200000)"
+    },
+    {
+      "time": "2026-04-07T23:50:07.645Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-07T23:50:21.074Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775605500000, lastProcessed: 1775605500000)"
+    },
+    {
+      "time": "2026-04-07T23:51:04.186Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775605500000, lastProcessed: 1775605500000)"
+    },
+    {
+      "time": "2026-04-07T23:52:04.428Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775605500000, lastProcessed: 1775605500000)"
+    },
+    {
+      "time": "2026-04-07T23:53:03.560Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775605500000, lastProcessed: 1775605500000)"
+    },
+    {
+      "time": "2026-04-07T23:54:05.355Z",
+      "action": "NONE",
+      "reason": "SKIP: Capital.com auth failed - Capital.com auth failed after 2 attempts: Capital.com auth failed (HTTP 429): {\"errorCode\":\"error.too-many.requests\"}"
+    },
+    {
+      "time": "2026-04-07T23:55:08.105Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-07T23:56:04.563Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775605800000, lastProcessed: 1775605800000)"
+    },
+    {
+      "time": "2026-04-07T23:57:03.526Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775605800000, lastProcessed: 1775605800000)"
+    },
+    {
+      "time": "2026-04-07T23:58:04.175Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775605800000, lastProcessed: 1775605800000)"
+    },
+    {
+      "time": "2026-04-07T23:59:04.510Z",
+      "action": "NONE",
+      "reason": "SKIP: Capital.com auth failed - Capital.com auth failed after 2 attempts: Capital.com auth failed (HTTP 429): {\"errorCode\":\"error.too-many.requests\"}"
+    },
+    {
+      "time": "2026-04-08T00:00:13.374Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-08T00:01:03.608Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775606100000, lastProcessed: 1775606100000)"
+    },
+    {
+      "time": "2026-04-08T00:02:04.491Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775606100000, lastProcessed: 1775606100000)"
+    },
+    {
+      "time": "2026-04-08T00:03:03.966Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775606100000, lastProcessed: 1775606100000)"
+    },
+    {
+      "time": "2026-04-08T00:04:05.360Z",
+      "action": "NONE",
+      "reason": "SKIP: Capital.com auth failed - Capital.com auth failed after 2 attempts: Capital.com auth failed (HTTP 429): {\"errorCode\":\"error.too-many.requests\"}"
+    },
+    {
+      "time": "2026-04-08T00:05:07.791Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-08T00:06:04.626Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775606400000, lastProcessed: 1775606400000)"
+    },
+    {
+      "time": "2026-04-08T00:07:04.146Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775606400000, lastProcessed: 1775606400000)"
+    },
+    {
+      "time": "2026-04-08T00:08:04.514Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775606400000, lastProcessed: 1775606400000)"
+    },
+    {
+      "time": "2026-04-08T00:09:04.408Z",
+      "action": "NONE",
+      "reason": "SKIP: Capital.com auth failed - Capital.com auth failed after 2 attempts: Capital.com auth failed (HTTP 429): {\"errorCode\":\"error.too-many.requests\"}"
+    },
+    {
+      "time": "2026-04-08T00:10:09.422Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-08T00:11:03.362Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775606700000, lastProcessed: 1775606700000)"
+    },
+    {
+      "time": "2026-04-08T00:12:04.911Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775606700000, lastProcessed: 1775606700000)"
+    },
+    {
+      "time": "2026-04-08T00:13:04.341Z",
+      "action": "NONE",
+      "reason": "SKIP: Capital.com auth failed - Capital.com auth failed after 2 attempts: Capital.com auth failed (HTTP 429): {\"errorCode\":\"error.too-many.requests\"}"
+    },
+    {
+      "time": "2026-04-08T00:14:05.403Z",
+      "action": "NONE",
+      "reason": "SKIP: Capital.com auth failed - Capital.com auth failed after 2 attempts: Capital.com auth failed (HTTP 429): {\"errorCode\":\"error.too-many.requests\"}"
+    },
+    {
+      "time": "2026-04-08T00:15:06.816Z",
+      "action": "NONE",
+      "reason": "SKIP: Waiting for candle settlement (6.8s since close, need 7s)"
+    },
+    {
+      "time": "2026-04-08T00:16:04.200Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-08T00:17:03.474Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775607000000, lastProcessed: 1775607000000)"
+    },
+    {
+      "time": "2026-04-08T00:18:04.343Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775607000000, lastProcessed: 1775607000000)"
+    },
+    {
+      "time": "2026-04-08T00:19:03.407Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775607000000, lastProcessed: 1775607000000)"
+    },
+    {
+      "time": "2026-04-08T00:20:07.705Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-08T00:21:03.730Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775607300000, lastProcessed: 1775607300000)"
+    },
+    {
+      "time": "2026-04-08T00:22:04.570Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775607300000, lastProcessed: 1775607300000)"
+    },
+    {
+      "time": "2026-04-08T00:23:03.303Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775607300000, lastProcessed: 1775607300000)"
+    },
+    {
+      "time": "2026-04-08T00:24:04.924Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775607300000, lastProcessed: 1775607300000)"
+    },
+    {
+      "time": "2026-04-08T00:25:05.667Z",
+      "action": "NONE",
+      "reason": "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)"
+    },
+    {
+      "time": "2026-04-08T00:26:05.101Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775607600000, lastProcessed: 1775607600000)"
+    },
+    {
+      "time": "2026-04-08T00:27:04.116Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775607600000, lastProcessed: 1775607600000)"
+    },
+    {
+      "time": "2026-04-08T00:28:04.511Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775607600000, lastProcessed: 1775607600000)"
+    },
+    {
+      "time": "2026-04-08T00:29:03.585Z",
+      "action": "NONE",
+      "reason": "SKIP: Duplicate candle - already processed this period (latest: 1775607600000, lastProcessed: 1775607600000)"
+    }
+  ]
+}
