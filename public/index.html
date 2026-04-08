@@ -169,7 +169,7 @@
 
     <div class="banner">
       <div class="banner-dot"></div>
-      <span id="bannerText">EMA 20/50 strategy · Capital.com demo · Triggers every 5 min via cron-job.org + GitHub Actions backup</span>
+      <span id="bannerText">EMA 20/50 strategy · Capital.com demo · Triggers every 1 min via cron-job.org + GitHub Actions backup</span>
     </div>
 
     <div class="setup-banner" id="setupReadyBanner">
@@ -330,7 +330,7 @@
         </div>
         <div class="health-row">
           <span class="health-label">Strategy ver</span>
-          <span class="health-val health-ok">v1.1</span>
+          <span class="health-val health-ok">v1.3</span>
         </div>
       </div>
       <div class="btn-row">
@@ -436,7 +436,7 @@ function renderEnv(env) {
 
   // Banner
   const bannerText = document.getElementById('bannerText');
-  bannerText.textContent = isLive ? 'EMA 20/50 strategy · Capital.com LIVE · Triggers every 5 min via Vercel Cron' : 'EMA 20/50 strategy · Capital.com demo · Triggers every 5 min via cron-job.org';
+  bannerText.textContent = isLive ? 'EMA 20/50 strategy · Capital.com LIVE · Triggers every 1 min via Vercel Cron' : 'EMA 20/50 strategy · Capital.com demo · Triggers every 1 min via cron-job.org';
 
   // Balance Metric
   const balanceSub = document.getElementById('balanceSub');
@@ -534,7 +534,7 @@ function renderLogs(logs) {
   const display = [...logs].reverse().slice(0, 25);
 
   if (!display.length) {
-    log.innerHTML = '<div class="empty-log">No decisions yet — bot runs every 5 minutes.</div>';
+    log.innerHTML = '<div class="empty-log">No decisions yet — bot runs every minute.</div>';
     return;
   }
 
@@ -639,9 +639,7 @@ function updateMarketTime() {
   document.getElementById('marketTime').textContent = 'UAE ' + uaeTime;
 
   const seconds = now.getSeconds();
-  const minutes = now.getMinutes();
-  const nextMin = Math.ceil((minutes + seconds/60 + 0.01) / 5) * 5;
-  const secsToNext = ((nextMin - minutes) * 60) - seconds;
+  const secsToNext = 60 - seconds;
   const m = Math.floor(secsToNext / 60);
   const s = secsToNext % 60;
   document.getElementById('nextRun').textContent = `Next run in: ${m}m ${s.toString().padStart(2,'0')}s`;
