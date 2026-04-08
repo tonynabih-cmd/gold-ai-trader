@@ -423,8 +423,7 @@ export default async function handler(req, res) {
       if (livePrice) {
         for (let i = 0; i < botState.openTrades.length; i++) {
           const t = botState.openTrades[i];
-          // Skip if already moved, or missing necessary fields (atr/entry)
-          if (t.breakEvenMoved === true || !t.atr || !t.entry) continue;
+          if (!t.atr || !t.entry) continue;
 
           // Compute profit in USD (GOLD is USD-based, so ATR and entry/sl are in USD)
           const liveBid   = livePrice.bid;
@@ -432,35 +431,70 @@ export default async function handler(req, res) {
           const currentProfit = t.action === 'BUY' ? liveBid - t.entry : t.entry - liveOffer;
 
           if (currentProfit >= t.atr) {
-            console.warn(`[SYNC] PROTECTING: Trade ${t.dealId} hit 1x ATR profit ($${currentProfit.toFixed(2)} >= $${t.atr.toFixed(2)}). Moving SL to Break-Even.`);
-            const mod = await modifyTradeStopLoss(session, t.dealId, {
-              stopLevel:   parseFloat(t.entry.toFixed(2)),
-              profitLevel: t.takeProfit ? parseFloat(t.takeProfit.toFixed(2)) : null
-            });
+            // TRAILING STOP LOGIC:
+            // 1. Move to Break-Even (entry price) on first hit
+            // 2. Afterwards, trail by 1.5x ATR (matching our initial SL distance)
+            //    to give the trade room to breathe while locking in gains.
+            
+            const trailingDistance = t.atr * 1.5; 
+            let newStopLevel = t.action === 'BUY' 
+              ? liveBid - trailingDistance
+              : liveOffer + trailingDistance;
 
-            if (mod.success) {
-              t.breakEvenMoved = true;
-              t.stopLoss = t.entry; // Match entry exactly
-              await saveLog({
-                signal: {
-                  id: t.tradeId,
-                  action: t.action,
-                  entryType: 'sync_event',
-                  strategyVersion: t.strategyVersion || 'v1.1'
-                },
-                indicators: null,
-                botState: { ...botState },
-                tradeExecuted: false,
-                reason: `BE_MOVE: dealId=${t.dealId} | Entry ${t.entry} | Price ${t.action === 'BUY' ? liveBid : liveOffer} | ATR ${t.atr.toFixed(2)}`,
-                result: { dbgBreakEvenMoved: true }
-              });
-              await sendAlert(
-                `🛡️ PROTECTED: Moved ${t.action} Gold dealId ${t.dealId} to Break-Even Stop.\n` +
-                `Profit hit 1x ATR threshold ($${currentProfit.toFixed(2)}).`
-              ).catch(() => {});
-              await saveStateCritical(botState, `be_move:${t.dealId}`);
+            // Ensure we never move the stop WORSE than the current stop (only improve it)
+            // And also ensure we are at least at Break-Even (entry price)
+            if (t.action === 'BUY') {
+              newStopLevel = Math.max(newStopLevel, t.entry, t.stopLoss || 0);
             } else {
-              console.error(`[SYNC] FAILED to move SL to Break-Even for ${t.dealId}: ${mod.reason}`);
+              const currentSL = t.stopLoss || 999999;
+              newStopLevel = Math.min(newStopLevel, t.entry, currentSL);
+            }
+
+            // Only call broker if the new stop is significantly different (> $0.20)
+            // to avoid excessive API calls and "Stop level too close" errors.
+            const stopDist = Math.abs(newStopLevel - (t.stopLoss || 0));
+            
+            if (stopDist > 0.20) {
+              const isTrailing = t.breakEvenMoved;
+              const label = isTrailing ? 'TRAILING' : 'PROTECTING';
+              
+              console.warn(`[SYNC] ${label}: Trade ${t.dealId} profit $${currentProfit.toFixed(2)} (>= 1x ATR $${t.atr.toFixed(2)}). New SL: $${newStopLevel.toFixed(2)}.`);
+
+              const mod = await modifyTradeStopLoss(session, t.dealId, {
+                stopLevel:   parseFloat(newStopLevel.toFixed(2)),
+                profitLevel: t.takeProfit ? parseFloat(t.takeProfit.toFixed(2)) : null
+              });
+
+              if (mod.success) {
+                const wasBE = t.breakEvenMoved;
+                t.breakEvenMoved = true;
+                t.stopLoss = newStopLevel;
+                
+                await saveLog({
+                  signal: {
+                    id: t.tradeId,
+                    action: t.action,
+                    entryType: 'sync_event',
+                    strategyVersion: t.strategyVersion || 'v1.1'
+                  },
+                  indicators: null,
+                  botState: { ...botState },
+                  tradeExecuted: false,
+                  reason: `${isTrailing ? 'TRAILING_MOVE' : 'BE_MOVE'}: dealId=${t.dealId} | New SL ${newStopLevel.toFixed(2)} | Price ${t.action === 'BUY' ? liveBid : liveOffer}`,
+                  result: { dbgBreakEvenMoved: true, dbgTrailingActive: true, dbgNewStop: newStopLevel }
+                });
+
+                if (!wasBE) {
+                  await sendAlert(
+                    `🛡️ PROTECTED: Moved ${t.action} Gold dealId ${t.dealId} to Break-Even Stop.\n` +
+                    `Profit hit 1x ATR threshold ($${currentProfit.toFixed(2)}).`
+                  ).catch(() => {});
+                }
+
+                await saveStateCritical(botState, `stop_move:${t.dealId}`);
+              } else {
+                console.error(`[SYNC] FAILED to move SL for ${t.dealId}: ${mod.reason}`);
+              }
             }
           }
         }

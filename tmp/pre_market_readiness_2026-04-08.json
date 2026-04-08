@@ -1,26 +1,22 @@
 {
-  "generatedAt": "2026-04-07T23:50:08.364Z",
+  "generatedAt": "2026-04-08T00:13:13.470Z",
   "targetTradingDate": "2026-04-08",
   "ready": false,
   "blockersRemaining": [
-    "SL/TP ATR multiplier mismatch"
+    "Capital.com session unavailable: Capital.com auth failed after 2 attempts: Capital.com auth failed (HTTP 429): {\"errorCode\":\"error.too-many.requests\"}",
+    "Broker trade summary unavailable",
+    "SL/TP ATR multiplier mismatch",
+    "Broker risk state is stale"
   ],
   "passes": [
     "Required environment variables loaded",
     "Redis reachable",
-    "Capital.com session established",
-    "Broker trade summary loaded",
     "Live trading mode confirmation is valid",
     "Spread fallbacks and MAX_SPREAD are aligned",
     "WR10 computed",
     "PF15 computed",
     "Local state integrity check passed",
-    "Broker risk state is fresh",
-    "Local open trades match broker positions",
     "No unresolved pending orders",
-    "Latest 5m candle and indicators loaded",
-    "Latest 5m candle is fresh enough for execution timing",
-    "Current live spread is within MAX_SPREAD",
     "Local/broker position IDs are in sync"
   ],
   "environment": {
@@ -51,8 +47,8 @@
   "sltpAlignment": {
     "aligned": false,
     "strategy": {
-      "stopLossAtr": 1.35,
-      "takeProfitAtr": 1.5
+      "stopLossAtr": 1.5,
+      "takeProfitAtr": 2.25
     },
     "execution": {
       "stopLossAtr": null,
@@ -62,7 +58,7 @@
       "stopLossAtr": 1.35,
       "takeProfitAtr": 1.5
     },
-    "details": "Strategy SL=1.35, TP=1.5; Execution SL=null, TP=null"
+    "details": "Strategy SL=1.5, TP=2.25; Execution SL=null, TP=null"
   },
   "rollingMetricsStatus": {
     "sourceCount": 19,
@@ -74,44 +70,25 @@
     "rollingGrossLoss15": 6.49,
     "performanceReviewNeeded": true,
     "performanceReviewReason": "Win Rate 10=40.00% < 50%",
-    "source": "broker_history_or_recent_outcomes"
+    "source": "state_only"
   },
   "indicatorReadiness": {
-    "marketDataSkip": false,
+    "marketDataSkip": null,
     "marketDataReason": null,
-    "latest5mCandleTime": "2026-04-07T23:45:00.000Z",
-    "latest5mCloseTime": "2026-04-07T23:50:00.000Z",
-    "candleStale": false,
-    "secondsSinceClose": 8.4,
-    "atr": 13.462391558851413,
-    "rsi": 71.00142214461079,
-    "ema20": 4789.685336046771,
-    "ema50": 4748.373843467671,
-    "emaCrossover": {
-      "detected": false,
-      "direction": null,
-      "prevDiff": 41.5441,
-      "currDiff": 41.3115
-    },
+    "latest5mCandleTime": null,
+    "latest5mCloseTime": null,
+    "candleStale": null,
+    "secondsSinceClose": null,
+    "atr": null,
+    "rsi": null,
+    "ema20": null,
+    "ema50": null,
+    "emaCrossover": null,
     "signalCandidate": null,
-    "momentumGate": {
-      "ready": null,
-      "reason": "NO_DIRECTION",
-      "netMomentum1m": null,
-      "minThreshold": 0.6731,
-      "bullishCandles": 0,
-      "bearishCandles": 0,
-      "strongBullishCandles": 0,
-      "strongBearishCandles": 0
-    },
-    "pullbackSlope": {
-      "slopePercent": 0.8822855626463628,
-      "threshold": 0.12,
-      "buyReady": true,
-      "sellReady": false
-    },
-    "debugRejectReason": "pullback: price not close enough to EMA20 (dist 22.55, threshold 14.81)",
-    "spread": 0.5
+    "momentumGate": null,
+    "pullbackSlope": null,
+    "debugRejectReason": null,
+    "spread": null
   },
   "spreadCheck": {
     "sourceFallbacksMatch": true,
@@ -125,42 +102,32 @@
   },
   "positionsAndStateIntegrity": {
     "stateIntegrityOk": true,
-    "executionCertaintyOk": true,
-    "executionCertaintyReason": null,
+    "executionCertaintyOk": false,
+    "executionCertaintyReason": "NOT_ATTEMPTED",
     "localOpenTradesCount": 0,
     "brokerPositionsCount": 0,
     "localOnlyDealIds": [],
     "brokerOnlyDealIds": [],
     "localPendingOrder": null,
-    "brokerWorkingOrdersSupported": true,
-    "brokerWorkingOrdersCount": 0
+    "brokerWorkingOrdersSupported": false,
+    "brokerWorkingOrdersCount": null
   },
   "executionDefaults": {
     "capitalEnv": "live",
     "liveTradingMode": "CONFIRMED_REAL_MONEY",
     "maxSpread": "0.5",
-    "strategyStopLossAtr": 1.35,
-    "strategyTakeProfitAtr": 1.5,
+    "strategyStopLossAtr": 1.5,
+    "strategyTakeProfitAtr": 2.25,
     "executionStopLossAtr": null,
     "executionTakeProfitAtr": null
   },
   "alignmentStatus": {
     "spreadAligned": true,
     "sltpAligned": false,
-    "positionsAligned": true,
-    "indicatorsAligned": true
+    "positionsAligned": false,
+    "indicatorsAligned": false
   },
-  "brokerSummary": {
-    "totalTrades30d": 19,
-    "totalPnl30d": -3.11,
-    "grossProfit30d": 6.76,
-    "grossLoss30d": 9.87,
-    "todayTrades": 0,
-    "todayNetPnl": 0,
-    "todayWinRate": 0
-  },
-  "detailedNotes": [
-    "Rolling metrics were derived from broker P&L history because closed-trade transaction parsing returned no discrete outcomes."
-  ],
+  "brokerSummary": null,
+  "detailedNotes": [],
   "fixesAppliedAutomatically": []
 }

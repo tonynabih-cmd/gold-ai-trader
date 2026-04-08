@@ -1,0 +1,46 @@
+Fetching Redis logs...
+Fetching Broker history...
+Processing logs for details...
+--- REPORT DATA START ---
+{
+  "summary": {
+    "today": {
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "pnl": 0,
+      "winRate": 0
+    },
+    "week": {
+      "trades": 3,
+      "wins": 0,
+      "losses": 0,
+      "pnl": 0,
+      "winRate": 0
+    },
+    "month": {
+      "trades": 9,
+      "wins": 0,
+      "losses": 0,
+      "pnl": 0,
+      "winRate": 0
+    },
+    "overall": {
+      "profitFactor": 0,
+      "maxDrawdown": 0
+    }
+  },
+  "trades": [],
+  "rejections": {},
+  "strategy": {
+    "avgAtr": 0,
+    "avgScore": 0,
+    "pullbacks": 0,
+    "crossovers": 0
+  },
+  "timing": {
+    "duplicates": 0,
+    "delays": 0
+  }
+}
+--- REPORT DATA END ---

@@ -1,0 +1,66 @@
+{
+  "executed_trades": [],
+  "v11_audit": [
+    {
+      "time": "2026-03-25T11:50:06.664Z",
+      "action": "BUY",
+      "v11Result": "LOSS",
+      "v13Action": "REJECTED",
+      "v13RejectReason": "crossover SELL: waiting 1 candle for confirmation"
+    },
+    {
+      "time": "2026-03-25T15:10:06.331Z",
+      "action": "SELL",
+      "v11Result": "WIN",
+      "v13Action": "REJECTED",
+      "v13RejectReason": "crossover SELL: waiting 1 candle for confirmation"
+    },
+    {
+      "time": "2026-03-26T08:00:10.824Z",
+      "action": "SELL",
+      "v11Result": "WIN",
+      "v13Action": "REJECTED",
+      "v13RejectReason": "crossover SELL: waiting 1 candle for confirmation"
+    },
+    {
+      "time": "2026-03-26T09:00:11.468Z",
+      "action": "SELL",
+      "v11Result": "WIN",
+      "v13Action": "REJECTED",
+      "v13RejectReason": "crossover SELL: waiting 1 candle for confirmation"
+    },
+    {
+      "time": "2026-03-26T10:40:06.711Z",
+      "action": "SELL",
+      "v11Result": "WIN",
+      "v13Action": "REJECTED",
+      "v13RejectReason": "crossover SELL: waiting 1 candle for confirmation"
+    },
+    {
+      "time": "2026-03-26T13:40:07.056Z",
+      "action": "SELL",
+      "v11Result": "WIN",
+      "v13Action": "REJECTED",
+      "v13RejectReason": "crossover SELL: waiting 1 candle for confirmation"
+    },
+    {
+      "time": "2026-03-26T15:00:11.654Z",
+      "action": "BUY",
+      "v11Result": "LOSS",
+      "v13Action": "REJECTED",
+      "v13RejectReason": "crossover SELL: waiting 1 candle for confirmation"
+    }
+  ],
+  "risk_summary": {
+    "max_drawdown": 0,
+    "avg_risk_per_trade": 0,
+    "total_v13_trades": 0,
+    "total_v11_trades": 7
+  },
+  "golden_hour_stats": {
+    "v13_captured": 0,
+    "v11_captured": 0
+  },
+  "insight_summary": "",
+  "final_pnl": 0
+}

@@ -1,0 +1,90 @@
+{
+  "bugs_and_issues": [],
+  "execution_delays": [],
+  "strategy_flaws": [
+    {
+      "time": "2026-04-07T08:25:06.032Z",
+      "filter": "BUY blocked: RSI 76.0 >= 65",
+      "price": 4687.03
+    },
+    {
+      "time": "2026-04-07T08:26:04.592Z",
+      "filter": "BUY blocked: RSI 75.2 >= 65",
+      "price": 4684.51
+    },
+    {
+      "time": "2026-04-07T08:27:03.490Z",
+      "filter": "BUY blocked: RSI 75.2 >= 65",
+      "price": 4684.51
+    },
+    {
+      "time": "2026-04-07T08:28:04.171Z",
+      "filter": "BUY blocked: RSI 75.2 >= 65",
+      "price": 4684.51
+    },
+    {
+      "time": "2026-04-07T08:29:03.452Z",
+      "filter": "BUY blocked: RSI 75.2 >= 65",
+      "price": 4684.51
+    },
+    {
+      "time": "2026-04-07T11:15:07.492Z",
+      "filter": "SELL blocked: RSI 26.8 <= 35",
+      "price": 4635.72
+    },
+    {
+      "time": "2026-04-07T11:16:04.723Z",
+      "filter": "SELL blocked: RSI 26.8 <= 35",
+      "price": 4635.72
+    },
+    {
+      "time": "2026-04-07T11:17:03.971Z",
+      "filter": "SELL blocked: RSI 26.8 <= 35",
+      "price": 4635.72
+    },
+    {
+      "time": "2026-04-07T11:18:04.803Z",
+      "filter": "SELL blocked: RSI 26.8 <= 35",
+      "price": 4635.72
+    },
+    {
+      "time": "2026-04-07T11:19:03.685Z",
+      "filter": "SELL blocked: RSI 26.8 <= 35",
+      "price": 4635.72
+    },
+    {
+      "time": "2026-04-07T11:20:07.738Z",
+      "filter": "SELL blocked: RSI 24.5 <= 35",
+      "price": 4640.135
+    },
+    {
+      "time": "2026-04-07T11:21:03.461Z",
+      "filter": "SELL blocked: RSI 31.6 <= 35",
+      "price": 4639.945
+    },
+    {
+      "time": "2026-04-07T11:22:04.672Z",
+      "filter": "SELL blocked: RSI 31.6 <= 35",
+      "price": 4639.945
+    },
+    {
+      "time": "2026-04-07T11:23:03.658Z",
+      "filter": "SELL blocked: RSI 31.6 <= 35",
+      "price": 4639.945
+    },
+    {
+      "time": "2026-04-07T11:24:04.461Z",
+      "filter": "SELL blocked: RSI 31.6 <= 35",
+      "price": 4639.945
+    }
+  ],
+  "missed_trades": [],
+  "risk_management_review": [],
+  "optimization_recommendations": [
+    "Relax RSI pullback from 62 to 70 to capture more trends.",
+    "Reduce settlement delay to 5s to stop missing Golden Hour spikes.",
+    "Implement dynamic ATR baseline to handle volatility shifts better."
+  ],
+  "health_rating": "CRITICAL",
+  "profitability_potential": "0.0% monthly (projected)"
+}

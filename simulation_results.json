@@ -1,0 +1,14 @@
+{
+  "executed_trades": [],
+  "missed_trades": [],
+  "risk_summary": {
+    "avg_risk_pct": 0,
+    "max_drawdown": "0.00%",
+    "total_trades": 0,
+    "wins": 0,
+    "losses": 0,
+    "win_rate": "0.0%"
+  },
+  "strategy_flaws": [],
+  "final_pnl": 0
+}

@@ -1,77 +1,108 @@
-Fetching Redis logs...
-Fetching Broker history...
-Processing logs for details...
---- REPORT DATA START ---
 {
-  "summary": {
-    "today": {
-      "trades": 3,
-      "wins": 0,
-      "losses": 0,
-      "pnl": 0,
-      "winRate": 0
-    },
-    "week": {
-      "trades": 3,
-      "wins": 0,
-      "losses": 0,
-      "pnl": 0,
-      "winRate": 0
-    },
-    "month": {
-      "trades": 9,
-      "wins": 0,
-      "losses": 0,
-      "pnl": 0,
-      "winRate": 0
-    },
-    "overall": {
-      "profitFactor": 0,
-      "maxDrawdown": 0
-    }
-  },
-  "trades": [
+  "bugs_and_issues": [
     {
-      "time": "4/6/2026, 5:50:08 PM",
-      "type": "SELL",
-      "entry": 4664.305,
-      "sl": 4676.852584343472,
-      "tp": 4645.4836234847935,
-      "size": 0.02,
-      "reason": "pullback",
-      "ema20": 4672.188025600878,
-      "ema50": 4677.334975515886,
-      "slope": -0.13732740822644698,
-      "atr": 8.365056228980782,
-      "rsi": 33.218816753646735,
-      "score": 4,
-      "status": "OPEN"
+      "file": "lib/risk.js / lib/strategy.js",
+      "line": "risk.js:200 / strategy.js:365",
+      "description": "Logic Mismatch: Strategy uses a minimum score of 2, but Risk layer enforces a minimum score of 3. This causes valid score-2 signals to be discarded silently by the safety gate.",
+      "severity": "MEDIUM"
+    },
+    {
+      "file": "lib/strategy.js",
+      "line": "368-370",
+      "description": "Comment/Code Inconsistency: Documentation mentions 2.25x ATR targets, but the code implements 1.50x ATR. While 1.50x is more realistic, the mismatch can lead to developer confusion.",
+      "severity": "LOW"
+    },
+    {
+      "file": "lib/market_data.js",
+      "line": "252",
+      "description": "Race Condition: Settlement delay of exactly 7.0s causes frequent 'Waiting for settlement' skips (some at 6.8s-6.9s). Coupled with a 1m cron, this can delay execution by a full minute if the window is missed by milliseconds.",
+      "severity": "MEDIUM"
     }
   ],
-  "rejections": {
-    "SKIP: Outside Golden Hour (11AM-8PM UAE / 07:00-16:00 UTC)": 6,
-    "REJECTED: Slippage too high ($3.03)": 1,
-    "SKIP: Spread too high ($0.75) - exceeds $0.50 limit": 1,
-    "SYNC_DISAPPEAR: dealId=00601567-0001-54c4-0000-00008f2e2f9d not found in active positions. firstMissingAt=2026-04-06T13:53:02.938Z | entry=4664.65": 1,
-    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 0m. Awaiting transaction history (window: 8m).": 1,
-    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 1m. Awaiting transaction history (window: 8m).": 1,
-    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 2m. Awaiting transaction history (window: 8m).": 1,
-    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 3m. Awaiting transaction history (window: 8m).": 1,
-    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 4m. Awaiting transaction history (window: 8m).": 1,
-    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 5m. Awaiting transaction history (window: 8m).": 1,
-    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 6m. Awaiting transaction history (window: 8m).": 1,
-    "SYNC_RETRY: dealId=00601567-0001-54c4-0000-00008f2e2f9d still missing at 7m. Awaiting transaction history (window: 8m).": 1,
-    "CLOSED: FALLBACK_RESOLUTION_USED | Realized P&L: $-0.40 | entry=4664.65 | dealId=00601567-0001-54c4-0000-00008f2e2f9d": 1
-  },
-  "strategy": {
-    "avgAtr": 8.365056228980782,
-    "avgScore": 4,
-    "pullbacks": 1,
-    "crossovers": 0
-  },
-  "timing": {
-    "duplicates": 0,
-    "delays": 0
+  "execution_delays": [
+    {
+      "description": "Cron Settlement Skips: Multiple occurrences of logs showing settlement delays (e.g., 6.8s) hitting the 7s threshold.",
+      "delay_seconds": 0.2,
+      "effect": "Missed immediate execution window, delaying entry by 60s until next cron cycle. In fast markets, this causes slippage rejections."
+    },
+    {
+      "description": "Duplicate Candle Skips: 80% overhead due to 1m cron polling 5m candles.",
+      "delay_seconds": 60,
+      "effect": "Inefficient resource utilization (Redis/API), though not directly causing missed trades, it increases the risk of rate-limiting."
+    }
+  ],
+  "strategy_flaws": [
+    {
+      "issue": "Late Trend Entry (RSI Block)",
+      "impact": "RSI blocks (62/38) frequently stop the bot from entering strong trends once they are established, as RSI often stays above 65 in healthy uptrends.",
+      "recommendation": "Relax RSI constraints for 'Pullback' entries to 70/30 while keeping them tight for 'Crossover' entries."
+    },
+    {
+      "issue": "EMA Separation Threshold",
+      "impact": "Pullback threshold (atr * 0.35) blocks entries in steady but low-volatility trends.",
+      "recommendation": "Use a dynamic slope-based separation check instead of a pure ATR multiplier."
+    }
+  ],
+  "missed_trade_analysis": [
+    {
+      "cause": "Price Proximity to EMA20",
+      "quantification": "Approx 35% of rejection logs",
+      "technical_vs_strategy": "Strategy design",
+      "impact": "Bot waits for a deep pullback that often never hits the EMA20 line in strong momentum, leading to 'watching the move' from the sidelines."
+    },
+    {
+      "cause": "Outside Golden Hour",
+      "quantification": "Expected rejection",
+      "technical_vs_strategy": "Risk management",
+      "impact": "Properly protects capital from low-volume chop, but could be extended to 9PM UAE to capture late-NY moves."
+    }
+  ],
+  "risk_management_review": [
+    {
+      "area": "Break-Even Protection",
+      "status": "EXCELLENT",
+      "details": "Implementation of 1.0x ATR BE move is a major improvement for capital protection."
+    },
+    {
+      "area": "Position Sizing",
+      "status": "GOOD",
+      "details": "0.75% risk per trade with AED/USD conversion is mathematically sound and conservative."
+    },
+    {
+      "area": "Drawdown Stop",
+      "status": "VULNERABLE",
+      "details": "20% hard stop is wide for an account starting with ~200 AED. One string of losses could hit this limit quickly."
+    }
+  ],
+  "infrastructure_issues": [
+    {
+      "issue": "Relentless Polling",
+      "severity": "MEDIUM",
+      "details": "1 minute cron on 'HOUR' and '5m' timeframes is overkill and generates excessive logs."
+    },
+    {
+      "issue": "Redis Lock Dependency",
+      "severity": "LOW",
+      "details": "High dependency on Redis for candle locks. If Redis latency spikes > 500ms, concurrency checks could fail."
+    }
+  ],
+  "optimization_recommendations": [
+    {
+      "target": "Trace Capture Efficiency",
+      "action": "Relax EMA20 touch requirement. Allow entry if price is within 0.15% of EMA20 instead of 1.0x ATR."
+    },
+    {
+      "target": "Execution Timing",
+      "action": "Adjust settlement delay from 7s to 5s OR implement a 2s recursive retry within the same cron cycle if settlement is pending."
+    },
+    {
+      "target": "Strategy Logic",
+      "action": "Unify score thresholds between strategy.js and risk.js to 2 points for consistent signal flow."
+    }
+  ],
+  "final_assessment": {
+    "health_rating": 8,
+    "profitability_potential": "HIGH",
+    "summary": "The bot is architecturally sound and very safe. Recent improvements like BE protection and ATR-scaled momentum have fixed early version lethargy. Current inactivity is largely due to conservative RSI blocks and tight EMA proximity rules. Harmonizing the score thresholds and relaxing pullback entry distance will significantly increase trade frequency and net profitability."
   }
 }
---- REPORT DATA END ---
