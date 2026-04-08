@@ -256,6 +256,7 @@ async function reconcilePositions(session, botState) {
         .map(t => ({
           pnl:      t.realizedPnl,
           action:   t.action,
+          entryType: t.entryType || 'pullback',
           closedAt: Date.now(),
           ref:      t.dealReference,
           dealId:   t.dealId,
@@ -347,6 +348,49 @@ export default async function handler(req, res) {
   try {
     // ── Step 1: Load state + daily reset ─────────────────────────────────────
     botState = await loadState();
+    
+    // Performance Tracking: Output summary every 24h (before daily reset)
+    const uaeDate = new Date(new Date().getTime() + (4 * 60 * 60 * 1000));
+    const today = uaeDate.toISOString().slice(0, 10);
+    if (botState.lastTradingDay && botState.lastTradingDay !== today) {
+        console.log(`[STATE] 24h summary trigger: day changed from ${botState.lastTradingDay} to ${today}`);
+        try {
+            const logs = await getLogs();
+            const stats = checkPerformance(logs, botState); // This triggers alerts if needed
+            
+            // Daily Summary Alert
+            const outcomes = Array.isArray(botState.recentOutcomes) ? botState.recentOutcomes : [];
+            const dayOutcomes = outcomes.filter(o => {
+                const oDay = new Date(o.closedAt + (4 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+                return oDay === botState.lastTradingDay;
+            });
+            
+            const dayPnl = dayOutcomes.reduce((sum, o) => sum + (o.pnl || 0), 0);
+            const dayWins = dayOutcomes.filter(o => o.pnl > 0).length;
+            const dayLosses = dayOutcomes.filter(o => o.pnl < 0).length;
+            const dayWR = dayOutcomes.length > 0 ? (dayWins / dayOutcomes.length * 100).toFixed(1) : '0';
+            
+            const breakoutTrades = dayOutcomes.filter(o => o.entryType === 'breakout');
+            const trendTrades = dayOutcomes.filter(o => o.entryType !== 'breakout'); // pullback, crossover, momentum
+            
+            const breakoutWR = breakoutTrades.length > 0 ? (breakoutTrades.filter(o => o.pnl > 0).length / breakoutTrades.length * 100).toFixed(1) : '0';
+            const trendWR = trendTrades.length > 0 ? (trendTrades.filter(o => o.pnl > 0).length / trendTrades.length * 100).toFixed(1) : '0';
+
+            await sendAlert(
+                `📊 24h PERFORMANCE SUMMARY (${botState.lastTradingDay})\n` +
+                `Total Trades: ${dayOutcomes.length}\n` +
+                `Daily P&L: AED ${dayPnl.toFixed(2)}\n` +
+                `Win Rate: ${dayWR}% (${dayWins}W / ${dayLosses}L)\n` +
+                `Drawdown: ${botState.totalDrawdown}%\n\n` +
+                `Breakout Performance: ${breakoutTrades.length} trades (${breakoutWR}% WR)\n` +
+                `Pullback/Trend Performance: ${trendTrades.length} trades (${trendWR}% WR)\n` +
+                `Profit Factor: ${botState.rollingProfitFactor15 || 'N/A'}`
+            );
+        } catch (summErr) {
+            console.error('[CRON] Summary generation failed:', summErr.message);
+        }
+    }
+
     botState = dailyReset(botState);
     invocationStateVersion = Number.isFinite(Number(botState.stateVersion))
       ? Number(botState.stateVersion)
@@ -416,49 +460,65 @@ export default async function handler(req, res) {
       return res.json({ skipped: reason });
     }
 
-    // ── STEP 4b: Break-Even Stop Loss protection ──────────────────────────────
-    // Once a trade reaches 1.0x ATR in profit, move SL to Entry to lock in 0% risk.
+    // ── STEP 4b: Trade Management (Break-Even & Trailing Stop) ────────────────
     if (Array.isArray(botState.openTrades) && botState.openTrades.length > 0) {
       const livePrice = await fetchCurrentGoldPrice(session);
       if (livePrice) {
         for (let i = 0; i < botState.openTrades.length; i++) {
           const t = botState.openTrades[i];
-          if (!t.atr || !t.entry) continue;
+          if (!t.entry || !t.stopLoss) continue;
 
-          // Compute profit in USD (GOLD is USD-based, so ATR and entry/sl are in USD)
+          // Compute R (Risk) = distance between entry and initial stop loss
+          // If initialStopLoss is not stored, we use the current stopLoss as a proxy if it hasn't moved yet.
+          const initialSL = t.initialStopLoss || t.stopLoss;
+          const riskAmount = Math.abs(t.entry - initialSL);
+          if (riskAmount <= 0) continue;
+
           const liveBid   = livePrice.bid;
           const liveOffer = livePrice.offer;
           const currentProfit = t.action === 'BUY' ? liveBid - t.entry : t.entry - liveOffer;
+          const currentR = currentProfit / riskAmount;
 
-          if (currentProfit >= t.atr) {
-            // TRAILING STOP LOGIC:
-            // 1. Move to Break-Even (entry price) on first hit
-            // 2. Afterwards, trail by 1.5x ATR (matching our initial SL distance)
-            //    to give the trade room to breathe while locking in gains.
+          let newStopLevel = null;
+          let label = '';
+
+          // 1. Trailing Stop Rule: activate after +1.5R
+          if (currentR >= 1.5) {
+            // Trail using 1.2x ATR (matching original risk distance)
+            const atr = t.atr || 2.0;
+            const trailDist = atr * 1.2;
+            const trailSL = t.action === 'BUY' ? liveBid - trailDist : liveOffer + trailDist;
             
-            const trailingDistance = t.atr * 1.5; 
-            let newStopLevel = t.action === 'BUY' 
-              ? liveBid - trailingDistance
-              : liveOffer + trailingDistance;
-
-            // Ensure we never move the stop WORSE than the current stop (only improve it)
-            // And also ensure we are at least at Break-Even (entry price)
+            // For trailing, we only move if it IMPROVES the stop
             if (t.action === 'BUY') {
-              newStopLevel = Math.max(newStopLevel, t.entry, t.stopLoss || 0);
+              if (trailSL > (t.stopLoss || 0)) {
+                newStopLevel = trailSL;
+                label = 'Trailing stop active';
+              }
             } else {
-              const currentSL = t.stopLoss || 999999;
-              newStopLevel = Math.min(newStopLevel, t.entry, currentSL);
+              if (trailSL < (t.stopLoss || 999999)) {
+                newStopLevel = trailSL;
+                label = 'Trailing stop active';
+              }
+            }
+          } 
+          // 2. Break-Even Rule: reaches +1R
+          else if (currentR >= 1.0 && !t.breakEvenMoved) {
+            newStopLevel = t.entry;
+            label = 'BE activated';
+          }
+
+          if (newStopLevel !== null) {
+            // Ensure we never move the stop WORSE than the current stop
+            if (t.action === 'BUY') {
+              newStopLevel = Math.max(newStopLevel, t.stopLoss || 0);
+            } else {
+              newStopLevel = Math.min(newStopLevel, t.stopLoss || 999999);
             }
 
-            // Only call broker if the new stop is significantly different (> $0.20)
-            // to avoid excessive API calls and "Stop level too close" errors.
             const stopDist = Math.abs(newStopLevel - (t.stopLoss || 0));
-            
             if (stopDist > 0.20) {
-              const isTrailing = t.breakEvenMoved;
-              const label = isTrailing ? 'TRAILING' : 'PROTECTING';
-              
-              console.warn(`[SYNC] ${label}: Trade ${t.dealId} profit $${currentProfit.toFixed(2)} (>= 1x ATR $${t.atr.toFixed(2)}). New SL: $${newStopLevel.toFixed(2)}.`);
+              console.log(`[SYNC] ${label}: Trade ${t.dealId} profit ${currentR.toFixed(2)}R. New SL: $${newStopLevel.toFixed(2)}.`);
 
               const mod = await modifyTradeStopLoss(session, t.dealId, {
                 stopLevel:   parseFloat(newStopLevel.toFixed(2)),
@@ -466,34 +526,21 @@ export default async function handler(req, res) {
               });
 
               if (mod.success) {
-                const wasBE = t.breakEvenMoved;
                 t.breakEvenMoved = true;
+                if (!t.initialStopLoss) t.initialStopLoss = initialSL;
                 t.stopLoss = newStopLevel;
                 
                 await saveLog({
-                  signal: {
-                    id: t.tradeId,
-                    action: t.action,
-                    entryType: 'sync_event',
-                    strategyVersion: t.strategyVersion || 'v1.1'
-                  },
+                  signal: { id: t.tradeId, action: t.action, entryType: 'sync_event' },
                   indicators: null,
                   botState: { ...botState },
                   tradeExecuted: false,
-                  reason: `${isTrailing ? 'TRAILING_MOVE' : 'BE_MOVE'}: dealId=${t.dealId} | New SL ${newStopLevel.toFixed(2)} | Price ${t.action === 'BUY' ? liveBid : liveOffer}`,
-                  result: { dbgBreakEvenMoved: true, dbgTrailingActive: true, dbgNewStop: newStopLevel }
+                  reason: label,
+                  result: { dbgNewStop: newStopLevel, dbgCurrentR: currentR }
                 });
 
-                if (!wasBE) {
-                  await sendAlert(
-                    `🛡️ PROTECTED: Moved ${t.action} Gold dealId ${t.dealId} to Break-Even Stop.\n` +
-                    `Profit hit 1x ATR threshold ($${currentProfit.toFixed(2)}).`
-                  ).catch(() => {});
-                }
-
+                await sendAlert(`🛡️ ${label}: ${t.action} Gold dealId ${t.dealId}\nNew SL: $${newStopLevel.toFixed(2)}`);
                 await saveStateCritical(botState, `stop_move:${t.dealId}`);
-              } else {
-                console.error(`[SYNC] FAILED to move SL for ${t.dealId}: ${mod.reason}`);
               }
             }
           }
