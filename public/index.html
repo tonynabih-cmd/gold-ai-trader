@@ -143,6 +143,7 @@
       .indicator-bar { grid-template-columns:repeat(2,1fr); }
       .risk-grid { grid-template-columns:1fr 1fr; }
     }
+    .badge-relaxed { display:inline-flex; align-items:center; gap:4px; font-size:9px; font-weight:600; padding:1px 5px; border-radius:4px; background:rgba(245,158,11,0.1); color:#f59e0b; border:1px solid rgba(245,158,11,0.3); margin-left:8px; text-transform:uppercase; vertical-align:middle; animation: amberpulse 2.5s ease-in-out infinite; }
   </style>
 </head>
 <body>
@@ -330,7 +331,7 @@
         </div>
         <div class="health-row">
           <span class="health-label">Strategy ver</span>
-          <span class="health-val health-ok">v1.4</span>
+          <span class="health-val health-ok">v1.4 <span id="relaxedBadge" style="display:none;" class="badge-relaxed">Relaxed Mode</span></span>
         </div>
       </div>
       <div class="btn-row">
@@ -545,6 +546,11 @@ function renderLogs(logs) {
     document.getElementById('decisionBadge').innerHTML = `<span class="decision-badge ${badgeClass}">${action}</span>`;
     document.getElementById('lastReason').textContent = last.reason || (last.tradeExecuted ? 'Trade executed on Capital.com' : 'No signal');
     document.getElementById('lastRunTime').textContent = 'Last run: ' + new Date(last.time).toLocaleString('en-US', { timeZone: 'Asia/Dubai' }) + ' UAE';
+    
+    const relaxedBadge = document.getElementById('relaxedBadge');
+    if (relaxedBadge) {
+      relaxedBadge.style.display = (last.isRelaxedMode === true) ? 'inline-flex' : 'none';
+    }
 
     if (last.ema20) document.getElementById('ema20').textContent = parseFloat(last.ema20).toFixed(2);
     if (last.ema50) document.getElementById('ema50').textContent = parseFloat(last.ema50).toFixed(2);
