@@ -72,7 +72,7 @@ async function reconcilePositions(session, botState) {
           trade.firstMissingAt = Date.now();
           console.warn(`[SYNC] Trade ${dealId} first disappeared from active positions at ${new Date(trade.firstMissingAt).toISOString()}.`);
           await saveLog({
-            signal: { id: trade.tradeId, action: trade.action, entryType: 'sync_event', entryPrice: null, strategyVersion: trade.strategyVersion || 'v1.3' },
+            signal: { id: trade.tradeId, action: trade.action, entryType: 'sync_event', entryPrice: null, strategyVersion: trade.strategyVersion || 'v1.4' },
             indicators: null,
             botState: { ...botState },
             tradeExecuted: false,
@@ -95,7 +95,7 @@ async function reconcilePositions(session, botState) {
           // Within sync window — keep tracked, do NOT block new trades
           console.warn(`[SYNC] Trade ${dealId} still missing from history (${elapsedMin}m / ${Math.floor(SYNC_WINDOW_MS / 60000)}m). Awaiting broker sync.`);
           await saveLog({
-            signal: { id: trade.tradeId, action: trade.action, entryType: 'sync_event', entryPrice: null, strategyVersion: trade.strategyVersion || 'v1.3' },
+            signal: { id: trade.tradeId, action: trade.action, entryType: 'sync_event', entryPrice: null, strategyVersion: trade.strategyVersion || 'v1.4' },
             indicators: null,
             botState: { ...botState },
             tradeExecuted: false,
@@ -173,7 +173,7 @@ async function reconcilePositions(session, botState) {
           action: closedTrade.action === 'BUY' ? 'SELL' : 'BUY',
           entryType: 'closure',
           entryPrice: null,
-          strategyVersion: closedTrade.strategyVersion || 'v1.3'
+          strategyVersion: closedTrade.strategyVersion || 'v1.4'
         },
         indicators: null,
         botState: { ...botState },
