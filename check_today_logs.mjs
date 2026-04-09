@@ -1,5 +1,20 @@
+import fs from 'fs';
+import path from 'path';
 import { getLogs } from './lib/logger.js';
-// Remove dotenv since we use node --env-file
+
+// Load .env.local manually for terminal execution
+try {
+  const envFile = fs.readFileSync('.env.local', 'utf8');
+  const envLines = envFile.split('\n');
+  envLines.forEach(line => {
+    const match = line.match(/^([^#\s=]+)="?([^"\n\r]*)"?/);
+    if (match) {
+      process.env[match[1]] = match[2];
+    }
+  });
+} catch (e) {
+  // Silent fail if .env.local is missing (might be using system env)
+}
 
 async function checkLogs() {
   console.log('Fetching logs...');

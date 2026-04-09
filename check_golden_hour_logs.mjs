@@ -1,4 +1,19 @@
+import fs from 'fs';
 import { getLogs } from './lib/logger.js';
+
+// Load .env.local manually for terminal execution
+try {
+  const envFile = fs.readFileSync('.env.local', 'utf8');
+  const envLines = envFile.split('\n');
+  envLines.forEach(line => {
+    const match = line.match(/^([^#\s=]+)="?([^"\n\r]*)"?/);
+    if (match) {
+      process.env[match[1]] = match[2];
+    }
+  });
+} catch (e) {
+  // Silent fail
+}
 
 async function checkGoldenHourLogs() {
   console.log('Fetching logs...');
