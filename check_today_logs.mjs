@@ -45,9 +45,9 @@ async function checkLogs() {
   console.log('\nLast 10 logs:');
   todayLogs.slice(-10).forEach(log => {
     console.log(`[${log.timeUAE}] Signal: ${log.signalDetected} | Executed: ${log.tradeExecuted} | Reason: ${log.reason}`);
-    if (log.signalDetected !== 'NONE' && !log.tradeExecuted) {
-        console.log(`  -> Debug Reject Reason: ${log.dbgRejectReason || 'None'}`);
-        console.log(`  -> Pullback Reason: ${log.dbgPullbackReason || 'None'}`);
+    if (log.reason && log.reason.includes('No signal generated')) {
+        console.log(`  -> Reject Reason: ${log.dbgRejectReason || 'None'}`);
+        if (log.dbgPullbackReason) console.log(`  -> Pullback Detail: ${log.dbgPullbackReason}`);
     }
   });
 }
