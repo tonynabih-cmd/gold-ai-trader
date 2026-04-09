@@ -3,7 +3,7 @@ import { getLogs } from './lib/logger.js';
 async function checkGoldenHourLogs() {
   console.log('Fetching logs...');
   const logs = await getLogs();
-  const today = '2026-04-07';
+  const today = new Date().toISOString().split('T')[0];
   
   // Filter for today AND after 07:00:00 UTC (11:00 AM UAE)
   const goldenHourLogs = logs.filter(log => {

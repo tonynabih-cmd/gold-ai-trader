@@ -4,7 +4,7 @@ import { getLogs } from './lib/logger.js';
 async function checkLogs() {
   console.log('Fetching logs...');
   const logs = await getLogs();
-  const today = '2026-04-07';
+  const today = new Date().toISOString().split('T')[0];
   
   const todayLogs = logs.filter(log => log.time.startsWith(today));
   
