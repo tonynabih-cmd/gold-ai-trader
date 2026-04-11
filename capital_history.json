@@ -1,0 +1,22 @@
+[
+  {
+    "date": "2026-03-28T00:56:44.693",
+    "dateUtc": "2026-03-27T20:56:44.693",
+    "transactionType": "DEPOSIT",
+    "note": "Deposit",
+    "reference": "123418437721814",
+    "size": "110.0",
+    "currency": "AED",
+    "status": "PROCESSED"
+  },
+  {
+    "date": "2026-03-27T23:53:50.502",
+    "dateUtc": "2026-03-27T19:53:50.502",
+    "transactionType": "DEPOSIT",
+    "note": "Deposit",
+    "reference": "123414480313853",
+    "size": "90.0",
+    "currency": "AED",
+    "status": "PROCESSED"
+  }
+]
