@@ -6,7 +6,8 @@
     "node": "20.x"
   },
   "scripts": {
-    "test": "node tests/test_indicators.mjs && node tests/test_strategy.mjs && node tests/test_risk.mjs && node tests/test_execution.mjs && node tests/test_sync.mjs"
+    "test": "node tests/test_indicators.mjs && node tests/test_strategy.mjs && node tests/test_risk.mjs && node tests/test_execution.mjs && node tests/test_sync.mjs",
+    "audit:reconciled": "node audit_reconciled.mjs"
   },
   "dependencies": {
     "@upstash/redis": "^1.28.0"
