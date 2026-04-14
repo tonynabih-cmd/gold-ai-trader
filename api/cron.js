@@ -9,6 +9,10 @@ import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyRes
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
 import { fetchWithTimeout }                from '../lib/fetch.js';
 
+// How long to suppress repeated Telegram alerts for persistent disabled/critical states.
+// Prevents flooding Telegram every 5 minutes while the bot awaits manual intervention.
+const ALERT_THROTTLE_MS = 60 * 60 * 1000; // 1 hour
+
 
 /**
  * Reconciles local openTrades with broker's actual open positions.
@@ -416,10 +420,22 @@ export default async function handler(req, res) {
 
     // ── State kill switch (fast path) ────────────────────────────────────────
     if (botState.botEnabled === false) {
+      const now = Date.now();
+      if (!botState.lastDisabledAlert || (now - botState.lastDisabledAlert) > ALERT_THROTTLE_MS) {
+        botState.lastDisabledAlert = now;
+        await saveState(botState);
+        await sendAlert('⚠️ Bot is disabled (botEnabled=false) — manual reset required in Redis').catch(() => {});
+      }
       return res.json({ skipped: 'Bot disabled via state (drawdown or performance threshold)' });
     }
 
     if (botState.criticalFailure === true) {
+      const now = Date.now();
+      if (!botState.lastCriticalAlert || (now - botState.lastCriticalAlert) > ALERT_THROTTLE_MS) {
+        botState.lastCriticalAlert = now;
+        await saveState(botState);
+        await sendAlert(`🚨 Bot is in critical failure state: ${botState.criticalFailureReason || 'unknown'} — manual reset required`).catch(() => {});
+      }
       return res.json({ skipped: `Critical failure active: ${botState.criticalFailureReason || 'manual review required'}` });
     }
 
@@ -431,6 +447,7 @@ export default async function handler(req, res) {
       const reason = `SKIP: Capital.com auth failed - ${err.message}`;
       await saveLog({ signal: null, indicators: null, botState, tradeExecuted: false, reason });
       await saveState(botState);
+      await sendAlert(`🚨 Capital.com auth failed — bot halted until credentials fixed: ${err.message}`).catch(() => {});
       return res.json({ skipped: reason });
     }
 
@@ -457,6 +474,7 @@ export default async function handler(req, res) {
       console.warn(`[CRON] ${reason}`);
       await saveLog({ signal: null, indicators: null, botState, tradeExecuted: false, reason });
       await saveState(botState);
+      await sendAlert(`🚨 Reconciliation failed — bot halted: ${reconcileResult.haltReason}`).catch(() => {});
       return res.json({ skipped: reason });
     }
 
@@ -628,6 +646,8 @@ export default async function handler(req, res) {
       botState.riskDataFresh = false;
       botState.lastRiskSyncAt = 0;
       await saveState(botState);
+      await saveLog({ signal: null, indicators: null, botState, tradeExecuted: false, reason: 'SKIP: BROKER_STATS_UNAVAILABLE' }).catch(() => {});
+      await sendAlert('🚨 Broker stats unavailable — bot halted this cycle. Will retry next cycle.').catch(() => {});
       return res.json({ skipped: 'BROKER_STATS_UNAVAILABLE' });
     }
 
