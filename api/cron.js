@@ -882,10 +882,8 @@ export default async function handler(req, res) {
     console.error('[CRON] Pipeline error:', err.message, err.stack);
     if (botState) {
       if (err?.code === 'FETCH_TIMEOUT') {
-        botState.botEnabled = false;
         botState.stateIntegrityOk = false;
-        botState.criticalFailure = true;
-        botState.criticalFailureReason = 'CRITICAL_TIMEOUT';
+        console.warn('[CRON] Fetch timeout — skipping this cycle, bot remains enabled');
       }
       try { await saveState(botState); } catch (_) {}
     }
