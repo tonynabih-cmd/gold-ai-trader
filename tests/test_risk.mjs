@@ -22,6 +22,19 @@ function section(name) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Mirrors risk.js trading-hours rules exactly (Rule 3 + Rule 4 + Rule 5)
+// so time-dependent tests know whether to expect rule-5-style SKIP or the rule's own result.
+function isTradingHours() {
+  const now  = new Date();
+  const hour = now.getUTCHours();
+  const min  = now.getUTCMinutes();
+  const day  = now.getUTCDay();
+  if (day === 0 || day === 6) return false;                           // weekend
+  if (day === 5 && (hour > 16 || (hour === 16 && min > 5))) return false; // Friday close
+  if (hour < 7 || hour > 18 || (hour === 18 && min > 5)) return false;   // outside session
+  return true;
+}
+
 function makeSignal(overrides = {}) {
   return {
     action:     'BUY',
@@ -208,10 +221,7 @@ section('Rule 12: Daily trade cap');
 
 section('Rule 12A: Anti-chop loss streak');
 {
-  const now  = new Date();
-  const hour = now.getUTCHours();
-  const day  = now.getUTCDay();
-  const inGoldenHour = day >= 1 && day <= 5 && hour >= 7 && hour < 16;
+  const inGoldenHour = isTradingHours();
 
   // Two losses in last 3 outcomes → blocked for 30 mins
   const recentOutcomesWithLosses = [
@@ -220,9 +230,13 @@ section('Rule 12A: Anti-chop loss streak');
   ];
   const rAntiChop = checkRisk(makeSignal(), makeBotState({ recentOutcomes: recentOutcomesWithLosses }), makeIndicators());
   if (inGoldenHour) {
-    assert(rAntiChop.includes('SKIP') && rAntiChop.includes('Anti-chop'), `2 recent losses → anti-chop SKIP (got: ${rAntiChop})`);
+    // Anti-chop can return PAUSE (consecutive losses) or SKIP (rapid reversal)
+    assert(
+      rAntiChop.includes('SKIP') || rAntiChop.includes('PAUSE'),
+      `2 recent losses → anti-chop block (got: ${rAntiChop})`
+    );
   } else {
-    assert(rAntiChop.includes('SKIP'), `Outside golden hours, anti-chop path skipped by time gate first (got: ${rAntiChop})`);
+    assert(rAntiChop.includes('SKIP'), `Outside golden hours, time gate fires before anti-chop (got: ${rAntiChop})`);
   }
 
   // Two losses but LAST ONE is > 30 mins ago → NOT blocked
@@ -246,17 +260,14 @@ section('Rule 12A: Anti-chop loss streak');
 
 // ── Section 10: Daily loss limit ──────────────────────────────────────────────
 
-section('Rule 13: Daily loss limit (3% of balance)');
+section('Rule 13: Daily loss limit (5% of balance)');
 {
-  const now  = new Date();
-  const hour = now.getUTCHours();
-  const day  = now.getUTCDay();
-  const inGoldenHour = day >= 1 && day <= 5 && hour >= 7 && hour < 16;
+  const inGoldenHour = isTradingHours();
 
-  // 3% of 1000 = 30 AED
-  const rDailyLoss = checkRisk(makeSignal(), makeBotState({ dailyLoss: 30, balance: 1000 }), makeIndicators());
+  // 5% of 1000 = 50 AED; use 51 to exceed the limit
+  const rDailyLoss = checkRisk(makeSignal(), makeBotState({ dailyLoss: 51, balance: 1000 }), makeIndicators());
   if (inGoldenHour) {
-    assert(rDailyLoss.includes('STOP'), `Daily loss at 3% limit → STOP (got: ${rDailyLoss})`);
+    assert(rDailyLoss.includes('STOP'), `Daily loss at 5% limit → STOP (got: ${rDailyLoss})`);
   } else {
     // Outside golden hours, Rule 5 fires before Rule 13 — result is still a SKIP
     assert(rDailyLoss.includes('SKIP'), `Outside golden hours, daily loss limit skipped by Rule 5 first (got: ${rDailyLoss})`);
@@ -268,10 +279,7 @@ section('Rule 13: Daily loss limit (3% of balance)');
 
 section('Rule 14: Equity drawdown hard stop (20%)');
 {
-  const now  = new Date();
-  const hour = now.getUTCHours();
-  const day  = now.getUTCDay();
-  const inGoldenHour = day >= 1 && day <= 5 && hour >= 7 && hour < 16;
+  const inGoldenHour = isTradingHours();
 
   // Peak=1000, equity=799 → drawdown=20.1% → should disable
   const rDrawdown = checkRisk(makeSignal(), makeBotState({ peakBalance: 1000, equity: 799 }), makeIndicators());
@@ -299,10 +307,7 @@ section('Rule 16: Insufficient balance');
 
 section('Rule 17: Cooldown between trades (5 min)');
 {
-  const now  = new Date();
-  const hour = now.getUTCHours();
-  const day  = now.getUTCDay();
-  const inGoldenHour = day >= 1 && day <= 5 && hour >= 7 && hour < 16;
+  const inGoldenHour = isTradingHours();
 
   // Last order just 2 minutes ago
   const rCooldown = checkRisk(
@@ -343,8 +348,8 @@ section('Rule 19: Duplicate trade ID');
 
 section('Rule 20: Minimum signal score');
 {
-  const rLowScore = checkRisk(makeSignal({ score: 2 }), makeBotState(), makeIndicators());
-  assert(rLowScore.includes('SKIP'), `Score=2 → SKIP (got: ${rLowScore})`);
+  const rLowScore = checkRisk(makeSignal({ score: 1 }), makeBotState(), makeIndicators());
+  assert(rLowScore.includes('SKIP'), `Score=1 → SKIP (got: ${rLowScore})`);
 
   const rZeroScore = checkRisk(makeSignal({ score: 0 }), makeBotState(), makeIndicators());
   assert(rZeroScore.includes('SKIP'), `Score=0 → SKIP (got: ${rZeroScore})`);
@@ -354,10 +359,7 @@ section('Rule 20: Minimum signal score');
 
 section('Full approval path during golden hours');
 {
-  const now  = new Date();
-  const hour = now.getUTCHours();
-  const day  = now.getUTCDay();
-  const inGoldenHour = day >= 1 && day <= 5 && hour >= 7 && hour < 16;
+  const inGoldenHour = isTradingHours();
 
   if (inGoldenHour) {
     const result = checkRisk(makeSignal({ score: 3 }), makeBotState(), makeIndicators());

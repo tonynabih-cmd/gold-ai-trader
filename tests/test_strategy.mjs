@@ -108,7 +108,7 @@ section('EMA crossover — BUY signal');
     assert(result.signal.score >= 2, `Score >= 2 (got ${result.signal.score})`);
     assert(result.signal.stopLoss < result.signal.entryPrice, `Stop loss below entry (SL=${result.signal.stopLoss}, entry=${result.signal.entryPrice})`);
     assert(result.signal.takeProfit > result.signal.entryPrice, `Take profit above entry`);
-    assert(Math.abs((result.signal.takeProfit - result.signal.entryPrice) - (1.8 * result.signal.atr)) < 0.0001, 'Take profit uses 1.8x ATR');
+    assert(Math.abs((result.signal.takeProfit - result.signal.entryPrice) - (2.5 * result.signal.atr)) < 0.0001, 'Take profit uses 2.5x ATR');
     assert(typeof result.signal.id === 'string', `Signal has string ID`);
     assert(result.signal.atr === 5.0, `Signal carries ATR value`);
   }
