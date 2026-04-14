@@ -151,6 +151,49 @@ section('Return structure for successful sizing');
   }
 }
 
+// ── Section 8: Slippage gate logic ───────────────────────────────────────────
+
+section('Slippage gate: maxSlippage priority (snapshot.maxSlippage → maxExecutionSlippage → 3.0)');
+{
+  // Helper mirrors the logic from placeTrade
+  function checkSlippage(snapshot, entryPrice, currentMarketPrice) {
+    const maxSlippage = parseFloat(snapshot.maxSlippage ?? snapshot.maxExecutionSlippage) || 3.0;
+    const expectedSlippage = Math.abs(currentMarketPrice - entryPrice);
+    return { expectedSlippage, maxSlippage, skip: expectedSlippage > maxSlippage };
+  }
+
+  // snapshot.maxSlippage takes priority
+  const r1 = checkSlippage({ maxSlippage: 2.0, maxExecutionSlippage: 5.0 }, 2000, 2001.5);
+  assert(r1.maxSlippage === 2.0, `maxSlippage=2.0 takes priority over maxExecutionSlippage`);
+  assert(!r1.skip, `expectedSlippage=1.5 ≤ maxSlippage=2.0 → do NOT skip`);
+
+  const r2 = checkSlippage({ maxSlippage: 2.0 }, 2000, 2002.5);
+  assert(r2.skip, `expectedSlippage=2.5 > maxSlippage=2.0 → skip`);
+
+  // snapshot.maxExecutionSlippage as fallback when maxSlippage absent
+  const r3 = checkSlippage({ maxExecutionSlippage: 1.5 }, 2000, 2001.0);
+  assert(r3.maxSlippage === 1.5, `maxExecutionSlippage=1.5 used when maxSlippage absent`);
+  assert(!r3.skip, `expectedSlippage=1.0 ≤ maxExecutionSlippage=1.5 → do NOT skip`);
+
+  const r4 = checkSlippage({ maxExecutionSlippage: 1.5 }, 2000, 2002.0);
+  assert(r4.skip, `expectedSlippage=2.0 > maxExecutionSlippage=1.5 → skip`);
+
+  // fallback 3.0 when neither field present
+  const r5 = checkSlippage({}, 2000, 2002.9);
+  assert(r5.maxSlippage === 3.0, `fallback maxSlippage=3.0 when snapshot has no slippage fields`);
+  assert(!r5.skip, `expectedSlippage=2.9 ≤ fallback 3.0 → do NOT skip`);
+
+  const r6 = checkSlippage({}, 2000, 2003.1);
+  assert(r6.skip, `expectedSlippage=3.1 > fallback 3.0 → skip`);
+
+  // Works for SELL direction (negative price difference)
+  const r7 = checkSlippage({ maxSlippage: 2.0 }, 2000, 1998.0);
+  assert(!r7.skip, `SELL: expectedSlippage=2.0 (abs) ≤ maxSlippage=2.0 → do NOT skip`);
+
+  const r8 = checkSlippage({ maxSlippage: 2.0 }, 2000, 1997.5);
+  assert(r8.skip, `SELL: expectedSlippage=2.5 (abs) > maxSlippage=2.0 → skip`);
+}
+
 // ── Summary ─────────────────────────────────────────────────────────────────
 
 console.log(`\n${'═'.repeat(60)}`);
