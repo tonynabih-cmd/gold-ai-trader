@@ -834,7 +834,7 @@ export default async function handler(req, res) {
         botState.criticalFailureReason = tradeResult.reason;
       }
       botState.lastHeartbeat = Date.now();
-      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: tradeResult.reason, signalDebug });
+      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: tradeResult.reason, brokerResponse: tradeResult.brokerResponse ?? null, signalDebug });
       await saveState(botState);
       return res.json({ skipped: tradeResult.reason });
     }
