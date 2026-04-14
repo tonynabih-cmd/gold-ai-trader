@@ -57,23 +57,24 @@ section('Minimum stop distance ($0.50)');
 
 // ── Section 3: Risk amount is 0.5% of balance ────────────────────────────────
 
-section('Risk target: 0.75% of AED balance');
+section('Risk target: 2% of AED balance');
 {
   // balanceAED=3672.5 AED = 1000 USD
-  // 0.75% of 1000 USD = $7.5 risk
-  // With $10 stop distance: size = $7.5 / $10 = 0.75 oz
+  // 2% of 1000 USD = $20 risk target
+  // With $25 stop distance: size = $20 / $25 = 0.80 oz (below MAX_SIZE=1.0 oz cap)
+  // actualRisk = 0.80 × $25 = $20 ≈ 2% of balance
   const balanceAED     = 3672.5;
-  const stopDistUSD    = 10.0;
+  const stopDistUSD    = 25.0;
   const currentPrUSD   = 2000;
   const availMarginAED = 10000;  // plenty of margin
 
   const r = calculatePositionSize(balanceAED, stopDistUSD, currentPrUSD, availMarginAED);
 
   if (!r.error && r.size > 0) {
-    const expectedRiskUSD = (balanceAED / USD_AED) * 0.0075;
+    const expectedRiskUSD = (balanceAED / USD_AED) * 0.02;
     const actualRisk      = r.actualRiskDollars;
     const diff            = Math.abs(actualRisk - expectedRiskUSD);
-    assert(diff < 1.0, `Risk ≈ 0.75% of balance (expected ~$${expectedRiskUSD.toFixed(2)}, got $${actualRisk.toFixed(2)})`);
+    assert(diff < 1.0, `Risk ≈ 2% of balance (expected ~$${expectedRiskUSD.toFixed(2)}, got $${actualRisk.toFixed(2)})`);
     assert(r.size >= 0.01, `Position size >= min (0.01 oz), got ${r.size}`);
     assert(r.size <= 1.0, `Position size <= max (1.0 oz), got ${r.size}`);
   } else {
@@ -100,17 +101,14 @@ section('Hard caps: MIN_SIZE=0.01 oz, MAX_SIZE=1.0 oz');
   // (may error due to 1% cap with small balance — that's correct behavior)
 }
 
-// ── Section 5: Hard cap of 1% of balance ──────────────────────────────────────
+// ── Section 5: Hard cap of 3% of balance ──────────────────────────────────────
 
-section('Hard cap: even MIN_SIZE must not risk > 1% balance');
+section('Hard cap: even MIN_SIZE must not risk > 3% balance');
 {
-  // Balance = 100 AED = ~$27.2, 1% = $0.27
-  // Min size = 0.01 oz. With stop=$10: risk = $0.01 × $10 = $0.10 ← OK, < $0.27
-  // With stop=$50: risk = $0.01 × $50 = $0.50 > $0.27 → should reject
-  const r = calculatePositionSize(100, 50, 2000, 1000);
-  // Either size=0 (error) or size=0.01 but risk check rejects it
-  assert(r.size === 0 || (r.actualRiskDollars <= (100 / USD_AED) * 0.01),
-    `Risk capped at 1% of balance for small accounts`);
+  // Balance = 100 AED = ~$27.2, hard cap 3% = ~$0.82
+  // Min size = 0.01 oz. With stop=$100: risk = $0.01 × $100 = $1.00 > $0.82 → should reject
+  const r = calculatePositionSize(100, 100, 2000, 1000);
+  assert(r.size === 0 && r.error, `MIN_SIZE with stop=$100 exceeds 3% of balance → rejected`);
 }
 
 // ── Section 6: Margin buffer check ───────────────────────────────────────────
