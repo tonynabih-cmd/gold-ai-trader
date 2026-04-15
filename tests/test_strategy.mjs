@@ -54,11 +54,12 @@ function makeIndicators(overrides = {}) {
     atr:          5.0,
     atrAverage:   4.0,
     rsi:          55,
+    efficiency12: 0.5,
     resistance:   2020,
     support:      1980,
     trend1h:      'UP',
     lastCandle:   { time: Date.now(), open: 1999.5, high: 2001, low: 1999, close: 2001 },
-    ema20arr:     [1997, 1998, 1998, 2000],
+    ema20arr:     [1997, 1998, 1999, 2001],
     ema50arr:     [1999, 1999, 1999, 1998],
   };
   return { ...base, ...overrides };

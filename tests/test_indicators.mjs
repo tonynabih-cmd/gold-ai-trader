@@ -75,7 +75,7 @@ section('Valid output structure');
   assert(result.skip === false, 'Sufficient candles → skip=false');
 
   // Required numeric fields
-  for (const field of ['currEMA20', 'currEMA50', 'prevEMA20', 'prevEMA50', 'slopePercent', 'atr', 'atrAverage', 'rsi']) {
+  for (const field of ['currEMA20', 'currEMA50', 'prevEMA20', 'prevEMA50', 'slopePercent', 'atr', 'atrAverage', 'rsi', 'efficiency12']) {
     assert(typeof result[field] === 'number' && !isNaN(result[field]), `${field} is a valid number`);
   }
 
