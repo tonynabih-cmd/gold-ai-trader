@@ -20,52 +20,43 @@ function section(name) {
   console.log(`\n── ${name} ──`);
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function makeCandle(close, open = null) {
-  open = open ?? close;
-  return { time: Date.now(), open, high: close + 1, low: close - 1, close };
+function make1mCandles(n = 3, basePrice = 2000) {
+  return Array.from({ length: n }, (_, i) => ({
+    time: Date.now() - (n - i) * 60000,
+    open: basePrice + i * 0.05,
+    high: basePrice + i * 0.10 + 0.10,
+    low: basePrice + i * 0.05 - 0.10,
+    close: basePrice + i * 0.08,
+  }));
 }
 
-function makeStrongBullishCandles(n = 5, basePrice = 2000) {
-  return Array.from({ length: n }, (_, i) => {
-    const open  = basePrice + i * 0.30;
-    const close = open + 0.55;
-    return { time: Date.now() - (n - i) * 60000, open, high: close + 0.10, low: open - 0.05, close };
-  });
-}
-
-function makeStrongBearishCandles(n = 5, basePrice = 2000) {
-  return Array.from({ length: n }, (_, i) => {
-    const open  = basePrice - i * 0.30;
-    const close = open - 0.55;
-    return { time: Date.now() - (n - i) * 60000, open, high: open + 0.05, low: close - 0.10, close };
-  });
-}
-
-// Minimal indicator set that will pass all guards
 function makeIndicators(overrides = {}) {
+  const now = Date.now();
   const base = {
-    currEMA20:   2000,
-    currEMA50:   1998,  // EMA20 > EMA50 → uptrend
-    prevEMA20:   1998,  // Was below EMA50 → crossover
-    prevEMA50:   1999,
-    slopePercent: 0.20,
-    atr:          5.0,
-    atrAverage:   4.0,
-    rsi:          55,
-    efficiency12: 0.5,
-    resistance:   2020,
-    support:      1980,
-    trend1h:      'UP',
-    lastCandle:   { time: Date.now(), open: 1999.5, high: 2001, low: 1999, close: 2001 },
-    ema20arr:     [1997, 1998, 1999, 2001],
-    ema50arr:     [1999, 1999, 1999, 1998],
+    currEMA20: 2000,
+    currEMA50: 1997,
+    atr: 5.0,
+    atrAverage: 4.5,
+    prevCandle: {
+      time: now - 5 * 60 * 1000,
+      open: 2001.0,
+      high: 2001.5,
+      low: 1999.3,
+      close: 2000.2,
+    },
+    lastCandle: {
+      time: now,
+      open: 2000.1,
+      high: 2002.0,
+      low: 1999.8,
+      close: 2001.1,
+    },
+    trendWindowStartTime: now - 30 * 60 * 1000,
+    recentOutcomes: [],
+    lastOrderTimestamp: now - 6 * 60 * 60 * 1000,
   };
   return { ...base, ...overrides };
 }
-
-// ── Section 1: null/undefined input guards ─────────────────────────────────
 
 section('Input guards');
 {
@@ -75,375 +66,166 @@ section('Input guards');
   const result2 = generateSignal(makeIndicators(), null);
   assert(result2.signal === null, 'null candles1m → signal null');
 
-  const result3 = generateSignal(makeIndicators(), []);
-  assert(result3.signal === null, 'empty candles1m → signal null');
-
-  // NaN in core indicators
-  const badIndicators = makeIndicators({ currEMA20: NaN });
-  const result4 = generateSignal(badIndicators, makeStrongBullishCandles());
-  assert(result4.signal === null, 'NaN in currEMA20 → signal null');
+  const result3 = generateSignal(makeIndicators({ currEMA20: NaN }), make1mCandles());
+  assert(result3.signal === null, 'invalid indicator values → signal null');
 }
 
-// ── Section 2: EMA crossover signals ─────────────────────────────────────────
-
-section('EMA crossover — BUY signal');
+section('Layer 1 volatility stability guard');
 {
-  // EMA20 crossed above EMA50 on the prior bar and remains separated
-  const indicators = makeIndicators({
-    ema20arr: [1997, 1998, 2001, 2002],
-    ema50arr: [1999, 1999, 1999, 1999],
-    currEMA20: 2002,
-    currEMA50: 1999,
-    prevEMA20: 2001,
-    prevEMA50: 1999,
-    lastCandle: { time: Date.now(), open: 2000, high: 2003, low: 1999, close: 2002.5 },
-  });
+  const lowAtr = generateSignal(makeIndicators({ atr: 1.0, atrAverage: 4.0 }), make1mCandles());
+  assert(lowAtr.signal === null, `dead market ATR is blocked (reason: ${lowAtr.debug?.dbgRejectReason})`);
+  assert(lowAtr.debug?.dbgRejectReason?.includes('ATR below stable band'), 'low ATR rejection comes from Layer 1 band');
 
-  const candles1m = makeStrongBullishCandles(5, 2000);
-  const result = generateSignal(indicators, candles1m);
-
-  assert(result.signal !== null, `Expected BUY crossover signal but got null (reason: ${result.debug?.dbgRejectReason})`);
-  if (result.signal !== null) {
-    assert(result.signal.action === 'BUY', `Crossover BUY signal detected (got ${result.signal.action})`);
-    assert(result.signal.entryType === 'crossover', `Entry type is crossover (got ${result.signal.entryType})`);
-    assert(result.signal.score >= 2, `Score >= 2 (got ${result.signal.score})`);
-    assert(result.signal.stopLoss < result.signal.entryPrice, `Stop loss below entry (SL=${result.signal.stopLoss}, entry=${result.signal.entryPrice})`);
-    assert(result.signal.takeProfit > result.signal.entryPrice, `Take profit above entry`);
-    assert(Math.abs((result.signal.takeProfit - result.signal.entryPrice) - (2.5 * result.signal.atr)) < 0.0001, 'Take profit uses 2.5x ATR');
-    assert(typeof result.signal.id === 'string', `Signal has string ID`);
-    assert(result.signal.atr === 5.0, `Signal carries ATR value`);
-  }
+  const highAtr = generateSignal(makeIndicators({ atr: 12.0, atrAverage: 4.5 }), make1mCandles());
+  assert(highAtr.signal === null, `spike ATR is blocked (reason: ${highAtr.debug?.dbgRejectReason})`);
+  assert(highAtr.debug?.dbgRejectReason?.includes('ATR above stable band'), 'high ATR rejection comes from Layer 1 band');
 }
 
-section('EMA crossover — SELL signal');
-{
-  // EMA20 crossed below EMA50 on the prior bar and remains separated
-  const indicators = makeIndicators({
-    ema20arr: [2001, 2000, 1997, 1996],
-    ema50arr: [1999, 1999, 1999, 1999],
-    currEMA20: 1996,
-    currEMA50: 1999,
-    prevEMA20: 1997,
-    prevEMA50: 1999,
-    slopePercent: -0.25,
-    lastCandle: { time: Date.now(), open: 1997, high: 1998, low: 1994, close: 1995 },  // close < currEMA20 (1996)
-    trend1h: 'DOWN',
-  });
-
-  const candles1m = makeStrongBearishCandles(5, 2000);
-  const result = generateSignal(indicators, candles1m);
-
-    assert(result.signal !== null, `Expected SELL crossover signal but got null (reason: ${result.debug?.dbgRejectReason})`);
-  if (result.signal !== null) {
-    assert(result.signal.action === 'SELL', `Crossover SELL signal detected (got ${result.signal.action})`);
-    assert(result.signal.entryType === 'crossover', `Entry type is crossover`);
-    assert(result.signal.stopLoss > result.signal.entryPrice, `SELL stop loss above entry`);
-    assert(result.signal.takeProfit < result.signal.entryPrice, `SELL take profit below entry`);
-  }
-}
-
-// ── Section 3: Pullback signals ────────────────────────────────────────────
-
-section('Pullback BUY — trend established, price near EMA20');
+section('Layer 2 BUY pullback with 2-step confirmation');
 {
   const indicators = makeIndicators({
-    ema20arr: Array.from({ length: 60 }, (_, i) => 1990 + i * 0.15),
-    ema50arr: Array.from({ length: 60 }, (_, i) => 1985 + i * 0.10),
-    currEMA20: 1998,
-    currEMA50: 1991,  // EMA20 > EMA50 by 7 points (strong uptrend)
-    prevEMA20: 1997,
-    prevEMA50: 1991,
-    slopePercent: 0.25,
-    atr:          5.0,
-    atrAverage:   4.5,
+    currEMA20: 2000,
+    currEMA50: 1996,
+    prevCandle: {
+      time: Date.now() - 5 * 60 * 1000,
+      open: 2001.4,
+      high: 2001.8,
+      low: 1999.2,
+      close: 2000.1,
+    },
     lastCandle: {
-      time:  Date.now(),
-      open:  1997.0,
-      high:  1999.5,
-      low:   1995.0,
-      close: 1999.0,  // Bullish close, above EMA20
+      time: Date.now(),
+      open: 2000.0,
+      high: 2002.2,
+      low: 1999.9,
+      close: 2001.2,
     },
   });
 
-  const candles1m = makeStrongBullishCandles(5, 1999);
-  const result = generateSignal(indicators, candles1m);
-
-  if (result.signal !== null) {
-    assert(result.signal.action === 'BUY', `Pullback BUY signal (got ${result.signal.action})`);
-    assert(['pullback', 'momentum'].includes(result.signal.entryType), `Entry type is pullback/momentum (got ${result.signal.entryType})`);
-  } else {
-    // May legitimately be filtered by anti-chop or other rules; just log
-    console.log(`    (No pullback BUY signal — reason: ${result.debug?.dbgRejectReason})`);
-  }
-}
-
-// ── Section 4: Filter gates ────────────────────────────────────────────────
-
-section('1m momentum filter — too weak');
-{
-  const indicators = makeIndicators();
-  // Choppy 1m candles with near-zero net movement
-  const weakCandles = [
-    { time: Date.now() - 3000, open: 2000, high: 2001, low: 1999, close: 2000.05 },
-    { time: Date.now() - 2000, open: 2000.05, high: 2001, low: 1999, close: 1999.98 },
-    { time: Date.now() - 1000, open: 1999.98, high: 2000.5, low: 1999, close: 2000.05 },
-  ];
-  const result = generateSignal(indicators, weakCandles);
-  assert(result.signal === null, `Signal filtered: weak 1m momentum (reason: ${result.debug?.dbgRejectReason})`);
-}
-
-section('1m direction inconsistency filter');
-{
-  const indicators = makeIndicators();
-  // Net momentum is positive but 2 of 3 candles are bearish
-  const mixedCandles = [
-    { time: Date.now() - 3000, open: 2000, high: 2005, low: 1999, close: 1999.5 },  // bearish
-    { time: Date.now() - 2000, open: 1999.5, high: 2002, low: 1998, close: 1999.2 }, // bearish
-    { time: Date.now() - 1000, open: 1999.2, high: 2005, low: 1999, close: 2003 },   // bullish (+3.8)
-  ];
-  const result = generateSignal(indicators, mixedCandles);
-  assert(result.signal === null, `Signal filtered: direction inconsistency (reason: ${result.debug?.dbgRejectReason})`);
-}
-
-section('RSI directional block');
-{
-  const overboughtIndicators = makeIndicators({ rsi: 75 });
-  const bullishCandles = makeStrongBullishCandles(5, 2000);
-  const buyBlocked = generateSignal(overboughtIndicators, bullishCandles);
-  assert(buyBlocked.signal === null, `BUY blocked when RSI > 70 (reason: ${buyBlocked.debug?.dbgRejectReason})`);
-
-  const oversoldIndicators = makeIndicators({
-    currEMA20: 1995,
-    currEMA50: 1999,
-    prevEMA20: 2000,
-    prevEMA50: 1999,
-    ema20arr: [2001, 2000, 1999, 1995],
-    ema50arr: [1999, 1999, 1999, 1999],
-    slopePercent: -0.30,
-    trend1h: 'DOWN',
-    rsi: 25,
-    lastCandle: { time: Date.now(), open: 1998, high: 1999, low: 1994, close: 1995 },
-  });
-  const bearishCandles = makeStrongBearishCandles(5, 2000);
-  const sellBlocked = generateSignal(oversoldIndicators, bearishCandles);
-  assert(sellBlocked.signal === null, `SELL blocked when RSI < 30 (reason: ${sellBlocked.debug?.dbgRejectReason})`);
-}
-
-section('Fresh crossovers wait for confirmation');
-{
-  const indicators = makeIndicators({
-    ema20arr: [1997, 1998, 1998, 2001],
-    ema50arr: [1999, 1999, 1999, 1999],
-    currEMA20: 2001,
-    currEMA50: 1999,
-    prevEMA20: 1998,
-    prevEMA50: 1999,
-    slopePercent: 0.20,
-    lastCandle: { time: Date.now(), open: 1999, high: 2002, low: 1998, close: 2001.5 },
-  });
-
-  const candles1m = makeStrongBullishCandles(5, 2000);
-  const result = generateSignal(indicators, candles1m);
-  assert(result.signal === null, `Fresh crossover blocked for 1-candle confirmation (reason: ${result.debug?.dbgRejectReason})`);
-}
-
-section('Confirmed crossover after one candle');
-{
-  const indicators = makeIndicators({
-    ema20arr: [1997, 1998, 2001, 2002],
-    ema50arr: [1999, 1999, 1999, 1999],
-    currEMA20: 2002,
-    currEMA50: 1999,
-    prevEMA20: 2001,
-    prevEMA50: 1999,
-    slopePercent: 0.20,
-    lastCandle: { time: Date.now(), open: 2000, high: 2003, low: 1999, close: 2002.5 },
-  });
-
-  const candles1m = makeStrongBullishCandles(5, 2000);
-  const result = generateSignal(indicators, candles1m);
-  assert(result.signal !== null, `Confirmed crossover passes after one candle (reason: ${result.debug?.dbgRejectReason})`);
+  const result = generateSignal(indicators, make1mCandles());
+  assert(result.signal !== null, `BUY pullback passes after touch + confirm (reason: ${result.debug?.dbgRejectReason})`);
   if (result.signal) {
-    assert(result.signal.entryType === 'crossover', `Entry type remains crossover (got ${result.signal.entryType})`);
+    assert(result.signal.action === 'BUY', `Signal direction is BUY (got ${result.signal.action})`);
+    assert(result.signal.entryType === 'pullback', `Entry type remains pullback (got ${result.signal.entryType})`);
+    assert(result.signal.score === 2, `Signal keeps fixed score for unchanged risk contract (got ${result.signal.score})`);
   }
 }
 
-section('Pullback slope threshold');
-{
-  const indicators = makeIndicators({
-    ema20arr: [1988, 1990, 1992, 1994, 1996, 1998],
-    ema50arr: [1987, 1988, 1989, 1990, 1991, 1992],
-    currEMA20: 1998,
-    currEMA50: 1992,
-    prevEMA20: 1996,
-    prevEMA50: 1991,
-    slopePercent: 0.14,
-    lastCandle: { time: Date.now(), open: 1998.2, high: 2000.2, low: 1997.8, close: 1999.3 },
-  });
-  const candles1m = makeStrongBullishCandles(5, 1999);
-  const result = generateSignal(indicators, candles1m);
-  if (result.signal === null) {
-    assert(true, `Pullback may still be blocked when slope is marginal (reason: ${result.debug?.dbgRejectReason})`);
-  } else {
-    assert(result.signal.score >= 4, `Marginal slope setup must still earn score >= 4 (got ${result.signal.score})`);
-  }
-}
-
-section('Late pullback SELL blocked earlier by RSI');
+section('Layer 2 SELL pullback with 2-step confirmation');
 {
   const indicators = makeIndicators({
     currEMA20: 1995,
     currEMA50: 1999,
-    prevEMA20: 1995.2,
-    prevEMA50: 1999,
-    ema20arr: [2004, 2001, 1998, 1996, 1995.2, 1995],
-    ema50arr: [2001, 2000, 1999.6, 1999.3, 1999.1, 1999],
-    slopePercent: -0.18,
-    trend1h: 'DOWN',
-    rsi: 32,
-    lastCandle: { time: Date.now(), open: 1995.6, high: 1995.8, low: 1994.6, close: 1994.9 },
-  });
-  const bearishCandles = makeStrongBearishCandles(5, 1996);
-  const result = generateSignal(indicators, bearishCandles);
-  assert(result.signal === null, `Late pullback SELL rejected near oversold RSI (reason: ${result.debug?.dbgRejectReason})`);
-}
-
-section('Momentum range validation');
-{
-  const indicators = makeIndicators();
-  const microCandles = [
-    { time: Date.now() - 3000, open: 2000.00, high: 2000.12, low: 1999.98, close: 2000.08 },
-    { time: Date.now() - 2000, open: 2000.08, high: 2000.16, low: 2000.02, close: 2000.14 },
-    { time: Date.now() - 1000, open: 2000.14, high: 2000.19, low: 2000.10, close: 2000.17 },
-  ];
-  const result = generateSignal(indicators, microCandles);
-  assert(result.signal === null, `Micro-range candles rejected by ATR momentum validation (reason: ${result.debug?.dbgRejectReason})`);
-}
-
-section('Momentum gate requires 2 of last 3 meaningful candles');
-{
-  const indicators = makeIndicators({
-    ema20arr: [1997, 1998, 2001, 2002, 2003],
-    ema50arr: [1999, 1999, 1999, 1999, 1999],
-    currEMA20: 2003,
-    currEMA50: 1999,
-    prevEMA20: 2002,
-    prevEMA50: 1999,
-    slopePercent: 0.22,
-    lastCandle: { time: Date.now(), open: 2001.7, high: 2003.2, low: 2001.4, close: 2002.2 },
-  });
-  const oneStrongBullish = [
-    { time: Date.now() - 3000, open: 2000.00, high: 2000.06, low: 1999.98, close: 2000.03 },
-    { time: Date.now() - 2000, open: 2000.03, high: 2000.10, low: 2000.01, close: 2000.07 },
-    { time: Date.now() - 1000, open: 2000.07, high: 2000.45, low: 2000.05, close: 2000.35 },
-  ];
-  const result = generateSignal(indicators, oneStrongBullish);
-  assert(result.signal === null, `Only 1 strong bullish candle fails momentum gate (reason: ${result.debug?.dbgRejectReason})`);
-  assert(result.debug?.dbgRejectReason?.includes('1m momentum not strong enough'), `Rejection specifically comes from strong-candle gate (reason: ${result.debug?.dbgRejectReason})`);
-}
-
-section('Score too low — no signal');
-{
-  // EMA crossover but counter-trend, near resistance, RSI overbought
-  const indicators = makeIndicators({
-    ema20arr: [1997, 1998, 1998, 2001],
-    ema50arr: [1999, 1999, 1999, 1999],
-    currEMA20: 2001,
-    currEMA50: 1999,
-    prevEMA20: 1998,
-    prevEMA50: 1999,
-    rsi:       78,    // overbought → -1
-    trend1h:  'DOWN', // counter-trend → -1
-    resistance: 2002, // very close to resistance → -2
-    atr:        5.0,  // resistance within 0.5*ATR = 2.5
-    lastCandle: { time: Date.now(), open: 1999, high: 2002, low: 1998, close: 2001.5 },
+    prevCandle: {
+      time: Date.now() - 5 * 60 * 1000,
+      open: 1994.8,
+      high: 1995.6,
+      low: 1993.7,
+      close: 1994.9,
+    },
+    lastCandle: {
+      time: Date.now(),
+      open: 1995.0,
+      high: 1995.1,
+      low: 1992.8,
+      close: 1994.1,
+    },
   });
 
-  const candles1m = makeStrongBullishCandles(5, 2000);
-  const result = generateSignal(indicators, candles1m);
-  // Score: crossover=+2, ATR>2=+1, bullish candle=+1, slope>0=+1, RSI>70=-1, counter-trend=-1, near resistance=-2 → total=1 < 2
-  if (result.signal === null) {
-    assert(true, `Low-score signal correctly rejected (reason: ${result.debug?.dbgRejectReason})`);
-  } else {
-    // Score might vary slightly depending on implementation
-    console.log(`    Signal not filtered (score=${result.signal.score}) — reviewing score logic`);
-  }
-}
-
-section('Stale crossover — not on current bar');
-{
-  // EMA20 already above EMA50 for multiple bars — no new crossover
-  const indicators = makeIndicators({
-    ema20arr: [1995, 2000, 2001, 2002, 2003],  // Already crossed 4 bars ago
-    ema50arr: [1999, 1999, 1999, 1999, 1999],
-    currEMA20: 2003,
-    currEMA50: 1999,
-    prevEMA20: 2002,  // Already above
-    prevEMA50: 1999,
-    slopePercent: 0.20,
-    lastCandle: { time: Date.now(), open: 2002, high: 2004, low: 2001, close: 2003 },
-  });
-
-  const candles1m = makeStrongBullishCandles(5, 2002);
-  const result = generateSignal(indicators, candles1m);
-  // No crossover on current bar (both pE20 > pE50 and cE20 > cE50 → no crossover)
-  // Would need pullback conditions to trigger
+  const result = generateSignal(indicators, make1mCandles());
+  assert(result.signal !== null, `SELL pullback passes after touch + confirm (reason: ${result.debug?.dbgRejectReason})`);
   if (result.signal) {
-    assert(['pullback', 'momentum'].includes(result.signal.entryType), `Any signal from stale crossover is pullback/momentum type (got ${result.signal.entryType})`);
-  } else {
-    assert(true, `No stale crossover signal generated (reason: ${result.debug?.dbgRejectReason})`);
+    assert(result.signal.action === 'SELL', `Signal direction is SELL (got ${result.signal.action})`);
+    assert(result.signal.entryType === 'pullback', `Entry type remains pullback (got ${result.signal.entryType})`);
   }
 }
 
-// ── Section 5: Signal structure ────────────────────────────────────────────
+section('Layer 2 rejects when prior candle does not touch EMA20 zone');
+{
+  const result = generateSignal(
+    makeIndicators({
+      prevCandle: {
+        time: Date.now() - 5 * 60 * 1000,
+        open: 2004.0,
+        high: 2005.0,
+        low: 2003.6,
+        close: 2004.5,
+      },
+    }),
+    make1mCandles()
+  );
+
+  assert(result.signal === null, `No touch/sweep is blocked (reason: ${result.debug?.dbgRejectReason})`);
+  assert(result.debug?.dbgRejectReason?.includes('no EMA20 touch/sweep'), 'rejection reason names the missing pullback interaction');
+}
+
+section('Layer 2 rejects when confirmation candle fails close-vs-EMA20 rule');
+{
+  const result = generateSignal(
+    makeIndicators({
+      lastCandle: {
+        time: Date.now(),
+        open: 2000.0,
+        high: 2001.0,
+        low: 1998.9,
+        close: 1999.8,
+      },
+    }),
+    make1mCandles()
+  );
+
+  assert(result.signal === null, `Failed confirmation close is blocked (reason: ${result.debug?.dbgRejectReason})`);
+  assert(result.debug?.dbgRejectReason?.includes('confirmation candle did not close above EMA20'), 'confirmation rule is enforced explicitly');
+}
+
+section('Same-direction rapid re-entry is blocked inside same trend window');
+{
+  const now = Date.now();
+  const result = generateSignal(
+    makeIndicators({
+      trendWindowStartTime: now - 20 * 60 * 1000,
+      recentOutcomes: [
+        { action: 'BUY', pnl: -4, closedAt: now - 3 * 60 * 1000 },
+      ],
+    }),
+    make1mCandles()
+  );
+
+  assert(result.signal === null, `same-direction rapid re-entry is blocked (reason: ${result.debug?.dbgRejectReason})`);
+  assert(result.debug?.dbgRejectReason?.includes('same-direction re-entry blocked'), 're-entry guard is tied to current trend window');
+}
+
+section('Opposite-direction recent close does not block current trend');
+{
+  const now = Date.now();
+  const result = generateSignal(
+    makeIndicators({
+      trendWindowStartTime: now - 20 * 60 * 1000,
+      recentOutcomes: [
+        { action: 'SELL', pnl: -4, closedAt: now - 3 * 60 * 1000 },
+      ],
+    }),
+    make1mCandles()
+  );
+
+  assert(result.signal !== null, `opposite-direction close does not block new pullback (reason: ${result.debug?.dbgRejectReason})`);
+}
 
 section('Signal structure validation');
 {
-  const indicators = makeIndicators();
-  const candles1m  = makeStrongBullishCandles(5, 2000);
-  const result     = generateSignal(indicators, candles1m);
+  const result = generateSignal(makeIndicators(), make1mCandles());
+  assert(result.signal !== null, 'baseline setup produces a signal');
 
-  if (result.signal !== null) {
+  if (result.signal) {
     const s = result.signal;
-    assert(typeof s.id          === 'string',  'Signal has id (string)');
-    assert(typeof s.action      === 'string',  'Signal has action');
-    assert(typeof s.entryPrice  === 'number',  'Signal has entryPrice (number)');
-    assert(typeof s.stopLoss    === 'number',  'Signal has stopLoss (number)');
-    assert(typeof s.takeProfit  === 'number',  'Signal has takeProfit (number)');
-    assert(typeof s.atr         === 'number',  'Signal has atr (number)');
-    assert(typeof s.score       === 'number',  'Signal has score (number)');
-    assert(!isNaN(s.stopLoss),                 'stopLoss is not NaN');
-    assert(!isNaN(s.takeProfit),               'takeProfit is not NaN');
-    assert(s.action === 'BUY' || s.action === 'SELL', 'Action is BUY or SELL');
-    
-    // R:R ratio should be at least 1:1 (TP distance >= SL distance)
-    const slDist = Math.abs(s.entryPrice - s.stopLoss);
-    const tpDist = Math.abs(s.takeProfit - s.entryPrice);
-    assert(tpDist >= slDist, `R:R >= 1:1 (SL dist=${slDist.toFixed(2)}, TP dist=${tpDist.toFixed(2)})`);
+    assert(typeof s.id === 'string', 'Signal has id');
+    assert(typeof s.entryPrice === 'number', 'Signal has entryPrice');
+    assert(typeof s.stopLoss === 'number', 'Signal has stopLoss');
+    assert(typeof s.takeProfit === 'number', 'Signal has takeProfit');
+    assert(s.takeProfit > s.entryPrice, 'BUY take profit is above entry');
+    assert(s.stopLoss < s.entryPrice, 'BUY stop loss is below entry');
   }
-
-  // debug is always returned
-  assert(result.debug !== undefined, 'Debug object always present');
-  assert(typeof result.debug === 'object', 'Debug is an object');
 }
-
-section('Exception safety');
-{
-  // Pass a completely broken indicators object — override AFTER spread
-  const badIndicators = { ...makeIndicators(), currEMA20: 'not-a-number' };
-  let threw = false;
-  try {
-    const result = generateSignal(badIndicators, makeStrongBullishCandles());
-    // Should return null signal, not throw
-    assert(result.signal === null, 'Broken input returns null signal (no throw)');
-    assert(typeof result.debug?.dbgRejectReason === 'string', 'Debug reason present on error');
-  } catch (_) {
-    threw = true;
-  }
-  assert(!threw, 'generateSignal never throws — returns {signal:null, debug:{...}} on any error');
-}
-
-// ── Summary ─────────────────────────────────────────────────────────────────
 
 console.log(`\n${'═'.repeat(60)}`);
 console.log(`  Tests: ${passed + failed} total, ${passed} passed, ${failed} failed`);

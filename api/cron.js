@@ -742,6 +742,7 @@ export default async function handler(req, res) {
 
     // ── Step 7: Generate signal ───────────────────────────────────────────────
     indicators.lastOrderTimestamp = botState.lastOrderTimestamp;
+    indicators.recentOutcomes = botState.recentOutcomes;
     let { signal, debug: signalDebug } = generateSignal(indicators, marketData.candles1m);
 
     // ── STEP 7.5: FORCE_TRADE MODE ───────────────────────────────────────────
