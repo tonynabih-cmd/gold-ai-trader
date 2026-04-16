@@ -88,8 +88,18 @@ async function reconcilePositions(session, botState) {
         const elapsedMs  = Date.now() - trade.firstMissingAt;
         const elapsedMin = Math.floor(elapsedMs / 60000);
 
-        // Check transaction history (internal retry handles transient API delays)
-        const realizedPnl = await fetchClosedTradePnl(session, dealId, trade.openedAt);
+        // Check transaction history (internal retry handles transient API delays).
+        // Capital.com closure history can surface under either the live position dealId
+        // or the original order dealReference, so try both identifiers before entering
+        // the cross-cycle retry window.
+        let realizedPnl = await fetchClosedTradePnl(session, dealId, trade.openedAt);
+        if (
+          realizedPnl === null &&
+          trade.dealReference &&
+          String(trade.dealReference) !== String(dealId)
+        ) {
+          realizedPnl = await fetchClosedTradePnl(session, trade.dealReference, trade.openedAt);
+        }
 
         if (realizedPnl !== null) {
           trade.realizedPnl = realizedPnl;
