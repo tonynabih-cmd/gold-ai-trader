@@ -288,6 +288,37 @@ async function reconcilePositions(session, botState) {
   }
 }
 
+function shouldFinalizeRiskOutcome(botState, signal) {
+  // If strategy generated no signal, this candle has been fully evaluated.
+  if (!signal) return true;
+
+  // Do not finalize on manual/infrastructure/uncertain state failures.
+  if (botState.botEnabled === false) return false;
+  if (botState.stateIntegrityOk === false) return false;
+  if (botState.criticalFailure === true) return false;
+  if (botState.riskDataFresh !== true) return false;
+
+  const riskSyncAgeMs = Date.now() - (parseInt(botState.lastRiskSyncAt) || 0);
+  if (riskSyncAgeMs > 6 * 60 * 1000) return false;
+
+  // Remaining risk rejections are business-final decisions for this candle.
+  return true;
+}
+
+function shouldFinalizeTradeFailure(tradeResult) {
+  const reason = String(tradeResult?.reason || '');
+  if (!reason) return false;
+
+  // Do not finalize on uncertain/transient execution failures.
+  if (reason.startsWith('CRITICAL_FAILURE')) return false;
+  if (reason.startsWith('ERROR:')) return false;
+  if (reason.startsWith('REJECTED: Market snapshot unavailable')) return false;
+  if (reason === 'REJECTED: Invalid live bid/ask snapshot') return false;
+
+  // Remaining placeTrade() failures are definitive no-trade outcomes for this candle.
+  return true;
+}
+
 export default async function handler(req, res) {
   // ── Authorization ─────────────────────────────────────────────────────────
   const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
@@ -713,7 +744,6 @@ export default async function handler(req, res) {
            marketData.skip = true;
            marketData.reason = `SKIP: Concurrency lock blocked this invocation (candle ${marketData.latestCandleTime} already being processed by another instance)`;
         } else {
-           botState.lastProcessedCandle = marketData.latestCandleTime;
            console.log(`[CRON] ✓ Candle lock acquired for ${marketData.latestCandleTime} — this invocation will process signals`);
         }
       }
@@ -779,6 +809,9 @@ export default async function handler(req, res) {
     if (riskResult !== 'APPROVED') {
       if (riskResult.startsWith('STOP:') || riskResult.startsWith('DISABLE:')) {
         await sendAlert(`🚨 ${riskResult}`).catch(() => {});
+      }
+      if (lockHandle && shouldFinalizeRiskOutcome(botState, signal)) {
+        botState.lastProcessedCandle = marketData.latestCandleTime;
       }
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: riskResult, signalDebug });
@@ -854,6 +887,9 @@ export default async function handler(req, res) {
         botState.criticalFailure = true;
         botState.criticalFailureReason = tradeResult.reason;
       }
+      if (lockHandle && shouldFinalizeTradeFailure(tradeResult)) {
+        botState.lastProcessedCandle = marketData.latestCandleTime;
+      }
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: tradeResult.reason, brokerResponse: tradeResult.brokerResponse ?? null, signalDebug });
       await saveState(botState);
@@ -861,6 +897,9 @@ export default async function handler(req, res) {
     }
 
     // ── Step 10: Log success ──────────────────────────────────────────────────
+    if (lockHandle) {
+      botState.lastProcessedCandle = marketData.latestCandleTime;
+    }
     botState.lastHeartbeat = Date.now();
     await saveLog({ signal, indicators, botState, tradeExecuted: true, result: tradeResult, reason: null, signalDebug });
     await saveState(botState);
