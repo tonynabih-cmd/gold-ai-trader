@@ -12,6 +12,7 @@ import { fetchWithTimeout }                from '../lib/fetch.js';
 // How long to suppress repeated Telegram alerts for persistent disabled/critical states.
 // Prevents flooding Telegram every 5 minutes while the bot awaits manual intervention.
 const ALERT_THROTTLE_MS = 60 * 60 * 1000; // 1 hour
+const DEBUG_SYNC_RECON = process.env.DEBUG_SYNC_RECON === 'true';
 
 
 /**
@@ -92,13 +93,50 @@ async function reconcilePositions(session, botState) {
         // Capital.com closure history can surface under either the live position dealId
         // or the original order dealReference, so try both identifiers before entering
         // the cross-cycle retry window.
+        if (DEBUG_SYNC_RECON) {
+          console.log('[SYNC_DEBUG] Missing trade lookup start', {
+            dealId,
+            dealReference: trade.dealReference ?? null,
+            openedAt: trade.openedAt ?? null,
+            openedAtIso: trade.openedAt ? new Date(trade.openedAt).toISOString() : null,
+            firstMissingAt: trade.firstMissingAt ?? null,
+          });
+        }
         let realizedPnl = await fetchClosedTradePnl(session, dealId, trade.openedAt);
+        if (DEBUG_SYNC_RECON) {
+          console.log('[SYNC_DEBUG] Lookup by dealId complete', {
+            targetId: dealId,
+            attempted: true,
+            resolved: realizedPnl !== null,
+            realizedPnl,
+          });
+        }
         if (
           realizedPnl === null &&
           trade.dealReference &&
           String(trade.dealReference) !== String(dealId)
         ) {
+          if (DEBUG_SYNC_RECON) {
+            console.log('[SYNC_DEBUG] Lookup by dealReference start', {
+              targetId: trade.dealReference,
+              attempted: true,
+            });
+          }
           realizedPnl = await fetchClosedTradePnl(session, trade.dealReference, trade.openedAt);
+          if (DEBUG_SYNC_RECON) {
+            console.log('[SYNC_DEBUG] Lookup by dealReference complete', {
+              targetId: trade.dealReference,
+              attempted: true,
+              resolved: realizedPnl !== null,
+              realizedPnl,
+            });
+          }
+        } else if (DEBUG_SYNC_RECON) {
+          console.log('[SYNC_DEBUG] Lookup by dealReference skipped', {
+            dealReference: trade.dealReference ?? null,
+            sameAsDealId: String(trade.dealReference) === String(dealId),
+            missingDealReference: !trade.dealReference,
+          });
         }
 
         if (realizedPnl !== null) {
