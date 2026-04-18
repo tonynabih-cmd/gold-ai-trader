@@ -99,11 +99,11 @@
     .setup-banner-text { line-height: 1.4; }
     .setup-banner-sub { font-size: 10px; color: rgba(245,158,11,0.7); margin-top: 1px; }
 
-    .trade-header { display:grid; grid-template-columns:90px 80px 70px 80px minmax(300px, 1fr); gap:8px; padding:0 0 8px; border-bottom:1px solid var(--border); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); font-family:var(--mono); }
+    .trade-header { display:grid; grid-template-columns:80px 70px 60px 70px 1fr; gap:8px; padding:0 0 8px; border-bottom:1px solid var(--border); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); font-family:var(--mono); }
     .trade-row-container { padding:7px 0; border-bottom:1px solid rgba(201,168,76,0.06); }
     .trade-row-container:last-child { border-bottom:none; }
-    .trade-row { display:grid; grid-template-columns:90px 80px 70px 80px minmax(300px, 1fr); gap:8px; font-size:11px; align-items:start; font-family:var(--mono); }
-    .trade-reason { min-width:300px; max-width:450px; white-space:normal; word-break:break-word; line-height:1.4; max-height:80px; overflow-y:auto; display:block; padding-right:4px; }
+    .trade-row { display:grid; grid-template-columns:80px 70px 60px 70px 1fr; gap:8px; font-size:11px; align-items:start; font-family:var(--mono); }
+    .trade-reason { min-width:300px; max-width:450px; white-space:normal; word-break:break-word; line-height:1.4; display:block; padding-right:4px; }
     #tradeLog { max-height:550px; overflow-y:auto; padding-right:8px; }
     
     .t-buy { color:var(--green); font-weight:500; }
@@ -397,7 +397,16 @@ function initChart() {
           backgroundColor: 'rgba(61,158,95,0.05)'
         },
         {
-          label: 'Reference Price',
+          label: 'EMA 20',
+          data: [],
+          borderColor: '#C9A84C',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0.3,
+          fill: false
+        },
+        {
+          label: 'EMA 50',
           data: [],
           borderColor: '#c0392b',
           borderWidth: 1.5,
@@ -870,10 +879,13 @@ function renderChartFromLogs(logs) {
   chart.data.datasets[0].pointBackgroundColor = pointColors;
   chart.data.datasets[0].pointBorderColor = '#000';
   
-  // Reference Price Dataset (Red)
-  chart.data.datasets[1].data = ema50s;
+  // EMA 20 Dataset (Gold)
+  chart.data.datasets[1].data = ema20s;
+  
+  // EMA 50 Dataset (Red)
+  chart.data.datasets[2].data = ema50s;
 
-  const validPrices = [...prices, ...ema50s.filter(v=>v)];
+  const validPrices = [...prices, ...ema20s.filter(v=>v), ...ema50s.filter(v=>v)];
   const min = Math.min(...validPrices);
   const max = Math.max(...validPrices);
   const pad = (max - min) * 0.1 || 5;
