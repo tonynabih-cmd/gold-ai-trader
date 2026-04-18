@@ -99,10 +99,11 @@
     .setup-banner-text { line-height: 1.4; }
     .setup-banner-sub { font-size: 10px; color: rgba(245,158,11,0.7); margin-top: 1px; }
 
-    .trade-header { display:grid; grid-template-columns:90px 70px 70px 70px 100px; gap:8px; padding:0 0 8px; border-bottom:1px solid var(--border); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); font-family:var(--mono); }
+    .trade-header { display:grid; grid-template-columns:90px 80px 70px 80px minmax(260px, 1fr); gap:8px; padding:0 0 8px; border-bottom:1px solid var(--border); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); font-family:var(--mono); }
     .trade-row-container { padding:7px 0; border-bottom:1px solid rgba(201,168,76,0.06); }
     .trade-row-container:last-child { border-bottom:none; }
-    .trade-row { display:grid; grid-template-columns:90px 70px 70px 70px 100px; gap:8px; font-size:11px; align-items:center; font-family:var(--mono); }
+    .trade-row { display:grid; grid-template-columns:90px 80px 70px 80px minmax(260px, 1fr); gap:8px; font-size:11px; align-items:center; font-family:var(--mono); }
+    .trade-reason { white-space:normal; overflow-wrap:anywhere; line-height:1.4; }
     
     .t-buy { color:var(--green); font-weight:500; }
     .t-sell { color:var(--red); font-weight:500; }
@@ -753,10 +754,9 @@ function renderLogs(logs) {
         reasonColorClass = 't-warn';
     }
 
-    let truncReason = cleanReason;
-    if (truncReason.length > 25) truncReason = truncReason.substring(0, 22) + '...';
+    let renderReason = cleanReason;
     if (t._compressedCount) {
-        truncReason += ` <span style="color:var(--gold-dim);font-weight:600;font-size:9px;">(x${t._compressedCount})</span>`;
+        renderReason += ` <span style="color:var(--gold-dim);font-weight:600;font-size:9px;">(x${t._compressedCount})</span>`;
     }
 
     const isTradeAction = (t.tradeExecuted || action.includes('BUY') || action.includes('SELL'));
@@ -787,7 +787,7 @@ function renderLogs(logs) {
         <span class="${typeClass}" style="line-height:1.1;">${actionHtml}</span>
         <span class="t-muted">${size}</span>
         <span class="t-muted">${price}</span>
-        <span class="${reasonColorClass}" title="${cleanReason}">${truncReason}</span>
+        <span class="trade-reason ${reasonColorClass}" title="${cleanReason}">${renderReason}</span>
       </div>
       ${nearTradeHtml}
     </div>`;
