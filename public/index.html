@@ -353,7 +353,7 @@
         </div>
         <div class="health-row">
           <span class="health-label">Strategy ver</span>
-          <span class="health-val health-ok">v1.4 <span id="relaxedBadge" class="badge-relaxed" style="display:none; margin-left:8px; font-size:8px;">Relaxed</span></span>
+          <span class="health-val health-ok"><span id="stratVer">v1.4</span> <span id="relaxedBadge" class="badge-relaxed" style="display:none; margin-left:8px; font-size:8px;">Relaxed</span></span>
         </div>
       </div>
       <div class="btn-row">
@@ -536,6 +536,9 @@ function renderState(state) {
     hbEl.className = 'health-val ' + (mins < 10 ? 'health-ok' : 'health-warn');
   }
   document.getElementById('healthDay').textContent = state.lastTradingDay || '—';
+  
+  document.getElementById('stratVer').textContent = state.strategyVersion ? state.strategyVersion : 'v1.4';
+
   const now = new Date();
   const utcHour = now.getUTCHours();
   const utcDay = now.getUTCDay();
@@ -557,7 +560,7 @@ function renderLogs(logs) {
     return;
   }
 
-  // Log compression logic (Identical consecutive reasons)
+  // Log compression logic
   const display = [];
   for (let i = 0; i < d.length; i++) {
      let current = d[i];
@@ -571,7 +574,10 @@ function renderLogs(logs) {
          let nReason = getClean(next);
          if (!nReason && next.tradeExecuted) nReason = 'TRADED';
          
-         if (cReason === nReason && current.signalDetected === next.signalDetected && !current.tradeExecuted) {
+         if (cReason === nReason &&
+             current.signalDetected === next.signalDetected &&
+             current.entryType === next.entryType &&
+             !current.tradeExecuted) {
              count++;
              i++;
          } else {
@@ -606,14 +612,38 @@ function renderLogs(logs) {
     }
     document.getElementById('lastReason').textContent = cleanLastReason;
     
-    // Decision Breakdown Panel Check
-    let bdSpread = r.includes('spread') ? '<span style="color:var(--red);font-weight:bold;">BLOCKED</span>' : '<span style="color:var(--green);font-weight:bold;">OK</span>';
+    // Decision Breakdown Panel Check (Safer + Field Priority)
+    let bdSpread = '<span style="color:var(--green);font-weight:bold;">OK</span>';
+    if (last.spread !== undefined && last.blockedBySpread !== undefined) {
+        if (last.blockedBySpread) bdSpread = '<span style="color:var(--red);font-weight:bold;">BLOCKED</span>';
+    } else if (r.includes('spread')) {
+        bdSpread = '<span style="color:var(--red);font-weight:bold;">BLOCKED</span>';
+    }
+
     let bdAtr = '<span style="color:var(--green);font-weight:bold;">OK</span>';
-    if (r.includes('atr') && r.includes('low')) bdAtr = '<span style="color:var(--red);font-weight:bold;">TOO LOW</span>';
-    else if (r.includes('atr') && (r.includes('high') || r.includes('exceed'))) bdAtr = '<span style="color:var(--red);font-weight:bold;">TOO HIGH</span>';
-    else if (r.includes('atr')) bdAtr = '<span style="color:var(--red);font-weight:bold;">BLOCKED</span>';
-    let bdSession = (r.includes('weekend') || r.includes('market') || r.includes('session') || r.includes('sleeping')) ? '<span style="color:var(--red);font-weight:bold;">CLOSED</span>' : '<span style="color:var(--green);font-weight:bold;">OK</span>';
-    let bdData = r.includes('stale') ? '<span style="color:var(--red);font-weight:bold;">STALE</span>' : '<span style="color:var(--green);font-weight:bold;">OK</span>';
+    if (last.atrRejected !== undefined) {
+        if (last.atrRejected === 'low') bdAtr = '<span style="color:var(--red);font-weight:bold;">TOO LOW</span>';
+        else if (last.atrRejected === 'high') bdAtr = '<span style="color:var(--red);font-weight:bold;">TOO HIGH</span>';
+        else if (last.atrRejected === true) bdAtr = '<span style="color:var(--red);font-weight:bold;">BLOCKED</span>';
+    } else {
+        if (r.includes('atr') && r.includes('low')) bdAtr = '<span style="color:var(--red);font-weight:bold;">TOO LOW</span>';
+        else if (r.includes('atr') && (r.includes('high') || r.includes('exceed'))) bdAtr = '<span style="color:var(--red);font-weight:bold;">TOO HIGH</span>';
+        else if (r.includes('atr')) bdAtr = '<span style="color:var(--red);font-weight:bold;">BLOCKED</span>';
+    }
+
+    let bdSession = '<span style="color:var(--green);font-weight:bold;">OK</span>';
+    if (last.marketActive !== undefined) {
+        if (!last.marketActive) bdSession = '<span style="color:var(--red);font-weight:bold;">CLOSED</span>';
+    } else if (r.includes('weekend') || r.includes('market') || r.includes('session') || r.includes('sleeping')) {
+        bdSession = '<span style="color:var(--red);font-weight:bold;">CLOSED</span>';
+    }
+
+    let bdData = '<span style="color:var(--green);font-weight:bold;">OK</span>';
+    if (last.isStale !== undefined || last.staleData !== undefined) {
+         if (last.isStale || last.staleData) bdData = '<span style="color:var(--red);font-weight:bold;">STALE</span>';
+    } else if (r.includes('stale')) {
+        bdData = '<span style="color:var(--red);font-weight:bold;">STALE</span>';
+    }
     
     document.getElementById('bdSpread').innerHTML = bdSpread;
     document.getElementById('bdAtr').innerHTML = bdAtr;
@@ -631,8 +661,9 @@ function renderLogs(logs) {
     }
     document.getElementById('modeBadges').innerHTML = modeBadgesStr.join('');
 
-    // Indicator freshness
-    const latestHasValidEma = last.ema20 !== undefined && last.ema20 !== null && last.ema20 !== '—' && !isNaN(parseFloat(last.ema20));
+    // Indicator freshness (Multi-Field strict check)
+    const vC = (val) => val !== undefined && val !== null && val !== '—' && val !== '' && !isNaN(parseFloat(val));
+    const latestHasValidEma = vC(last.ema20) && vC(last.ema50) && vC(last.atr) && vC(last.rsi);
     document.getElementById('indTitleAux').innerHTML = latestHasValidEma ? '' : '<span class="ind-stale-badge">Indicators from last valid cycle</span>';
     document.getElementById('indicatorBar').className = 'indicator-bar' + (latestHasValidEma ? '' : ' stale');
 
@@ -741,11 +772,13 @@ function renderLogs(logs) {
     let nearTradeHtml = '';
     if (t.dbgScore !== undefined || t.dbgSetupReady !== undefined || t.dbg1mMomentumNet !== undefined) {
         let parts = [];
-        if (t.dbgScore !== undefined) parts.push(`Score: ${parseFloat(t.dbgScore).toFixed(1)}`);
+        if (t.dbgScore !== undefined && !isNaN(parseFloat(t.dbgScore))) parts.push(`Score: ${parseFloat(t.dbgScore).toFixed(1)}`);
         if (t.dbgSetupReady !== undefined) parts.push(`Setup: ${t.dbgSetupReady ? 'YES' : 'NO'}`);
-        if (t.dbg1mMomentumNet !== undefined) parts.push(`Mom: ${parseFloat(t.dbg1mMomentumNet).toFixed(1)}`);
+        if (t.dbg1mMomentumNet !== undefined && !isNaN(parseFloat(t.dbg1mMomentumNet))) parts.push(`Mom: ${parseFloat(t.dbg1mMomentumNet).toFixed(1)}`);
         
-        nearTradeHtml = `<div style="grid-column: 1 / -1; font-size:9px; color:var(--text3); padding-left:160px; margin-top:-6px; line-height:1.2; padding-bottom:6px;">↳ <span style="font-family:var(--mono);">${parts.join(' | ')}</span></div>`;
+        if (parts.length > 0) {
+            nearTradeHtml = `<div style="grid-column: 1 / -1; font-size:9px; color:var(--text3); padding-left:160px; margin-top:-6px; line-height:1.2; padding-bottom:6px;">↳ <span style="font-family:var(--mono);">${parts.join(' | ')}</span></div>`;
+        }
     }
 
     return `<div class="trade-row-container">
