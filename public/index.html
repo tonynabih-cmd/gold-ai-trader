@@ -103,7 +103,7 @@
     .trade-row-container { padding:7px 0; border-bottom:1px solid rgba(201,168,76,0.06); }
     .trade-row-container:last-child { border-bottom:none; }
     .trade-row { display:grid; grid-template-columns:90px 80px 70px 80px minmax(300px, 1fr); gap:8px; font-size:11px; align-items:start; font-family:var(--mono); }
-    .trade-reason { min-width:300px; white-space:normal; word-break:break-word; line-height:1.4; max-height:80px; overflow-y:auto; display:block; padding-right:4px; }
+    .trade-reason { min-width:300px; max-width:450px; white-space:normal; word-break:break-word; line-height:1.4; max-height:80px; overflow-y:auto; display:block; padding-right:4px; }
     #tradeLog { max-height:550px; overflow-y:auto; padding-right:8px; }
     
     .t-buy { color:var(--green); font-weight:500; }
@@ -747,15 +747,21 @@ function renderLogs(logs) {
   }
 
   log.innerHTML = display.map(t => {
-    let action = t.signalDetected || 'SKIP';
-    if(action === 'NONE') action = 'SKIP';
+    let action = t.signalDetected || 'NO SIGNAL';
+    if(action === 'NONE') action = 'NO SIGNAL';
+    if(action === 'ERROR') action = 'ERROR';
     
     let actionHtml = action;
     if (t.entryType) {
         actionHtml += `<span style="display:block;font-size:8px;opacity:0.75;margin-top:2px;">${t.entryType}</span>`;
     }
 
-    const typeClass = action.includes('BUY') ? 't-buy' : action.includes('SELL') ? 't-sell' : 't-skip';
+    let typeClass = 't-muted';
+    if (action.includes('BUY')) typeClass = 't-buy';
+    else if (action.includes('SELL')) typeClass = 't-sell';
+    else if (action === 'SKIP') typeClass = 't-warn';
+    else if (action.includes('ERROR') || action.includes('FAIL')) typeClass = 't-neg';
+
     const timeStr = new Date(t.time).toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour:'2-digit', minute:'2-digit' });
     
     let cleanReason = t.reason ? t.reason.replace(/^SKIP:\s*/i, '') : (t.tradeExecuted ? 'TRADED' : 'No target setup');
@@ -764,25 +770,37 @@ function renderLogs(logs) {
     let reasonColorClass = 't-muted';
     if (t.tradeExecuted) {
         reasonColorClass = 't-pos';
-    } else if (rLower.includes('stale') || rLower.includes('market') || rLower.includes('weekend') || rLower.includes('session') || rLower.includes('sleeping') || rLower.includes('risk') || rLower.includes('spread') || rLower.includes('blocked')) {
+    } else if (rLower.includes('stale') || rLower.includes('market') || rLower.includes('weekend') || rLower.includes('session') || rLower.includes('sleeping') || rLower.includes('risk') || rLower.includes('spread') || rLower.includes('blocked') || rLower.includes('limit') || rLower.includes('error')) {
         reasonColorClass = 't-neg';
     } else if (rLower.includes('momentum') || rLower.includes('confirm') || rLower.includes('doji') || rLower.includes('score') || rLower.includes('weak') || rLower.includes('reject') || rLower.includes('pullback') || rLower.includes('candle') || rLower.includes('zone')) {
         reasonColorClass = 't-warn';
     }
 
     let renderReason = cleanReason;
+    
+    const keyPhrases = ['Stale market data', 'Market closed', 'Spread too high', 'Risk limit', 'Drawdown limit', 'Missing data', 'Outside trading hours', 'Spread threshold exceeded'];
+    keyPhrases.forEach(kp => {
+        const regex = new RegExp(`(${kp})`, 'gi');
+        renderReason = renderReason.replace(regex, '<strong style="color:var(--gold-light); font-weight:600;">$1</strong>');
+    });
+
+    if (renderReason.includes(' - ')) {
+        let parts = renderReason.split(' - ');
+        renderReason = parts[0] + `<br><span style="padding-left:6px; border-left:2px solid var(--border); color:var(--text3); font-size:10px; display:inline-block; margin-top:3px;">${parts.slice(1).join(' - ')}</span>`;
+    }
+
     if (t._compressedCount) {
-        renderReason += ` <span style="color:var(--gold-dim);font-weight:600;font-size:9px;">(x${t._compressedCount})</span>`;
+        renderReason += ` <span style="color:var(--gold-light);font-weight:600;font-size:10px;margin-left:4px;">(x${t._compressedCount})</span>`;
     }
 
     const isTradeAction = (t.tradeExecuted || action.includes('BUY') || action.includes('SELL'));
     
-    let price = '<span style="color:var(--text3);font-size:10px;">N/A</span>';
-    let size = '<span style="color:var(--text3);font-size:10px;">N/A</span>';
+    let price = '<span style="color:var(--text3);font-size:10px;">—</span>';
+    let size = '<span style="color:var(--text3);font-size:10px;">—</span>';
     
     if (isTradeAction) {
-        price = t.entryPrice ? '$' + parseFloat(t.entryPrice).toFixed(2) : (t.price ? '$' + parseFloat(t.price).toFixed(2) : '<span style="color:var(--text3);font-size:10px;">N/A</span>');
-        size  = t.size ? t.size + 'oz' : '<span style="color:var(--text3);font-size:10px;">N/A</span>';
+        price = t.entryPrice ? '$' + parseFloat(t.entryPrice).toFixed(2) : (t.price ? '$' + parseFloat(t.price).toFixed(2) : '<span style="color:var(--text3);font-size:10px;">—</span>');
+        size  = t.size ? t.size + 'oz' : '<span style="color:var(--text3);font-size:10px;">—</span>';
     }
 
     let nearTradeHtml = '';
