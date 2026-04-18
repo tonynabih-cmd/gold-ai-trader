@@ -103,7 +103,7 @@
     .trade-row-container { padding:7px 0; border-bottom:1px solid rgba(201,168,76,0.06); }
     .trade-row-container:last-child { border-bottom:none; }
     .trade-row { display:grid; grid-template-columns:90px 80px 70px 80px minmax(300px, 1fr); gap:8px; font-size:11px; align-items:start; font-family:var(--mono); }
-    .trade-reason { white-space:normal; overflow-wrap:anywhere; line-height:1.5; max-height:80px; overflow-y:auto; display:block; padding-right:4px; }
+    .trade-reason { min-width:300px; white-space:normal; word-break:break-word; line-height:1.4; max-height:80px; overflow-y:auto; display:block; padding-right:4px; }
     #tradeLog { max-height:550px; overflow-y:auto; padding-right:8px; }
     
     .t-buy { color:var(--green); font-weight:500; }
@@ -554,8 +554,9 @@ function renderState(state) {
 }
 
 function renderLogs(logs) {
+  console.log("Total logs:", logs.length);
   const log = document.getElementById('tradeLog');
-  const d = [...logs].reverse().slice(0, 50);
+  const d = [...logs].sort((a, b) => new Date(b.time) - new Date(a.time));
 
   if (!d.length) {
     log.innerHTML = '<div class="empty-log">No decisions yet — bot runs every minute.</div>';
@@ -731,7 +732,7 @@ function renderLogs(logs) {
     }
   }
 
-  log.innerHTML = display.slice(0, 30).map(t => {
+  log.innerHTML = display.map(t => {
     let action = t.signalDetected || 'SKIP';
     if(action === 'NONE') action = 'SKIP';
     
