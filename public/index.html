@@ -37,7 +37,7 @@
     .right { display:flex; flex-direction:column; gap:14px; }
 
     .card { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:16px; }
-    .card-title { font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:var(--text2); margin-bottom:14px; font-family:var(--mono); }
+    .card-title { font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:var(--text2); margin-bottom:14px; font-family:var(--mono); display:flex; justify-content:space-between; align-items:center; }
 
     .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
     .metric { background:var(--bg2); padding:14px 16px; }
@@ -53,13 +53,16 @@
 
     .chart-container { position:relative; width:100%; height:200px; }
 
-    .indicator-bar { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+    .indicator-bar { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; transition:opacity 0.2s; }
+    .indicator-bar.stale { opacity:0.5; }
     .ind-item { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
     .ind-label { font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); margin-bottom:4px; font-family:var(--mono); }
     .ind-value { font-size:14px; font-weight:500; font-family:var(--mono); color:var(--text); }
     .ind-sub { font-size:9px; color:var(--text2); margin-top:2px; font-family:var(--mono); }
     .up { color:var(--green); }
     .down { color:var(--red); }
+    
+    .ind-stale-badge { font-size:9px; color:var(--gold-dim); border:1px solid var(--border2); padding:3px 6px; border-radius:4px; background:rgba(139,105,20,0.1); text-transform:none; letter-spacing:0; }
 
     .risk-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
     .risk-item { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
@@ -74,7 +77,7 @@
     /* ── Setup-ready amber banner ─────────────────────────────────────────── */
     :root { --amber: #f59e0b; --amber-bg: rgba(245,158,11,0.1); --amber-border: rgba(245,158,11,0.35); }
     .setup-banner {
-      display: none; /* hidden by default; JS shows it */
+      display: none;
       align-items: center;
       gap: 10px;
       padding: 11px 16px;
@@ -97,12 +100,15 @@
     .setup-banner-sub { font-size: 10px; color: rgba(245,158,11,0.7); margin-top: 1px; }
 
     .trade-header { display:grid; grid-template-columns:90px 70px 70px 70px 100px; gap:8px; padding:0 0 8px; border-bottom:1px solid var(--border); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); font-family:var(--mono); }
-    .trade-row { display:grid; grid-template-columns:90px 70px 70px 70px 100px; gap:8px; padding:7px 0; border-bottom:1px solid rgba(201,168,76,0.06); font-size:11px; align-items:center; font-family:var(--mono); }
-    .trade-row:last-child { border-bottom:none; }
+    .trade-row-container { padding:7px 0; border-bottom:1px solid rgba(201,168,76,0.06); }
+    .trade-row-container:last-child { border-bottom:none; }
+    .trade-row { display:grid; grid-template-columns:90px 70px 70px 70px 100px; gap:8px; font-size:11px; align-items:center; font-family:var(--mono); }
+    
     .t-buy { color:var(--green); font-weight:500; }
     .t-sell { color:var(--red); font-weight:500; }
     .t-skip { color:var(--text2); }
     .t-pos { color:var(--green); }
+    .t-warn { color:var(--gold-light); }
     .t-neg { color:var(--red); }
     .t-muted { color:var(--text2); }
     .empty-log { text-align:center; padding:2rem 0; font-size:12px; color:var(--text2); font-family:var(--mono); }
@@ -211,8 +217,11 @@
     </div>
 
     <div class="card">
-      <div class="card-title">Live Indicators <span style="font-size:8px; color:var(--text3); font-weight:normal; text-transform:none; margin-left:8px;">(Reflects latest check with sufficient data)</span></div>
-      <div class="indicator-bar">
+      <div class="card-title">
+         <span>Live Indicators</span>
+         <span id="indTitleAux"></span>
+      </div>
+      <div class="indicator-bar" id="indicatorBar">
         <div class="ind-item">
           <div class="ind-label">EMA 20</div>
           <div class="ind-value" id="ema20">—</div>
@@ -256,6 +265,14 @@
         <div id="decisionStage" style="font-size:10px; padding:3px 8px; border-radius:4px; background:var(--bg3); color:var(--gold-light); font-family:var(--mono); border:1px solid var(--border);">Stage: —</div>
       </div>
       <div style="font-size:11px;line-height:1.7;color:var(--text3);font-family:var(--mono);" id="lastReason">Loading...</div>
+      
+      <div id="breakdownPanel" style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:12px; padding:10px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; font-family:var(--mono);">
+         <div style="font-size:10px;color:var(--text2);">Spread: <span id="bdSpread" style="color:var(--text);">—</span></div>
+         <div style="font-size:10px;color:var(--text2);">ATR: <span id="bdAtr" style="color:var(--text);">—</span></div>
+         <div style="font-size:10px;color:var(--text2);">Session: <span id="bdSession" style="color:var(--text);">—</span></div>
+         <div style="font-size:10px;color:var(--text2);">Data: <span id="bdData" style="color:var(--text);">—</span></div>
+      </div>
+
       <div id="modeBadges" style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;"></div>
       <div style="font-size:10px;color:var(--text2);margin-top:10px;font-family:var(--mono);" id="lastRunTime">—</div>
     </div>
@@ -336,7 +353,7 @@
         </div>
         <div class="health-row">
           <span class="health-label">Strategy ver</span>
-          <span class="health-val health-ok">v1.4 <span id="relaxedBadge" style="display:none;" class="badge-relaxed" style="margin-left:8px; font-size:8px;">Relaxed</span></span>
+          <span class="health-val health-ok">v1.4 <span id="relaxedBadge" class="badge-relaxed" style="display:none; margin-left:8px; font-size:8px;">Relaxed</span></span>
         </div>
       </div>
       <div class="btn-row">
@@ -373,6 +390,26 @@ function initChart() {
           tension: 0.3,
           fill: true,
           backgroundColor: 'rgba(201,168,76,0.05)'
+        },
+        {
+          label: 'EMA 20',
+          data: [],
+          borderColor: 'rgba(61,158,95,0.7)',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          borderDash: [3, 3],
+          tension: 0.3,
+          fill: false
+        },
+        {
+          label: 'EMA 50',
+          data: [],
+          borderColor: 'rgba(192,57,43,0.7)',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          borderDash: [3, 3],
+          tension: 0.3,
+          fill: false
         }
       ]
     },
@@ -428,38 +465,28 @@ async function refreshDashboard() {
 
 function renderEnv(env) {
   const isLive = env === 'live';
-  
-  // Logo
   const logoSub = document.getElementById('logoSub');
   logoSub.textContent = isLive ? 'XAU/USD · 24/7 Auto Trading · LIVE' : 'XAU/USD · 24/7 Auto Trading · Demo';
   logoSub.style.color = isLive ? 'var(--gold-light)' : 'var(--text2)';
 
-  // Icon
   const logoIcon = document.getElementById('logoIcon');
   logoIcon.style.borderColor = isLive ? 'var(--gold-light)' : 'var(--gold)';
   logoIcon.style.color = isLive ? 'var(--gold-light)' : 'var(--gold)';
   logoIcon.style.boxShadow = isLive ? '0 0 15px rgba(201,168,76,0.3)' : 'none';
 
-  // Banner
   const bannerText = document.getElementById('bannerText');
   bannerText.textContent = isLive ? 'EMA 20/50 strategy · Capital.com LIVE · Triggers every 1 min via Vercel Cron' : 'EMA 20/50 strategy · Capital.com demo · Triggers every 1 min via cron-job.org';
 
-  // Balance Metric
   const balanceSub = document.getElementById('balanceSub');
   balanceSub.textContent = isLive ? 'Real money account' : 'Demo account';
   balanceSub.style.color = isLive ? 'var(--green)' : 'var(--text2)';
 }
 
 function renderState(state) {
-  // Balance
   const balance = parseFloat(state.balance || 100);
   document.getElementById('balance').textContent = 'AED ' + balance.toFixed(2);
-
-  // Daily trades
   const dailyTrades = parseInt(state.dailyTrades || 0);
   document.getElementById('dailyTrades').textContent = dailyTrades + '/10';
-
-  // Daily P&L
   const startOfDay = parseFloat(state.startOfDayBalance || 0);
   const dailyPnl   = startOfDay > 0 ? balance - startOfDay : 0;
   const dailyLoss  = parseFloat(state.dailyLoss || 0);
@@ -474,14 +501,10 @@ function renderState(state) {
     pnlEl.textContent = 'AED 0.00';
     pnlEl.className = 'metric-value';
   }
-  // Drawdown
   const drawdown = parseFloat(state.totalDrawdown || 0);
   document.getElementById('drawdown').textContent = 'Drawdown: ' + drawdown.toFixed(1) + '%';
-
-  // Margin & Exposure panel
   const availableMargin = parseFloat(state.availableMargin || 0);
   document.getElementById('marginAvailable').textContent = availableMargin > 0 ? 'AED ' + availableMargin.toFixed(2) : '—';
-
   const openTrades = Array.isArray(state.openTrades) ? state.openTrades : [];
   const totalMarginUsed     = openTrades.reduce((sum, t) => sum + (parseFloat(t.marginRequired) || 0), 0);
   const totalNotionalExposure = openTrades.reduce((sum, t) => sum + (parseFloat(t.notionalValue)   || 0), 0);
@@ -493,35 +516,26 @@ function renderState(state) {
   document.getElementById('marginExposure').textContent = totalNotionalExposure > 0
     ? 'AED ' + totalNotionalExposure.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : 'AED 0.00';
-
-  // Risk panel
   document.getElementById('riskDailyLoss').textContent = 'AED ' + Math.abs(dailyLoss).toFixed(2);
   const dailyLossPct = Math.min(100, (Math.abs(dailyLoss) / (balance * 0.05)) * 100);
   const dailyLossBar = document.getElementById('dailyLossBar');
   dailyLossBar.style.width = dailyLossPct + '%';
   dailyLossBar.className = 'progress-fill ' + (dailyLossPct > 80 ? 'danger' : 'safe');
-
   document.getElementById('riskDrawdown').textContent = drawdown.toFixed(1) + '%';
   const drawdownBar = document.getElementById('drawdownBar');
   drawdownBar.style.width = Math.min(100, (drawdown / 20) * 100) + '%';
   drawdownBar.className = 'progress-fill ' + (drawdown > 15 ? 'danger' : drawdown > 10 ? 'warning' : 'safe');
-
   document.getElementById('riskOpenTrades').textContent = (state.openTrades || []).length + '/2';
   document.getElementById('riskPeakBalance').textContent = 'AED ' + parseFloat(state.peakBalance || 100).toFixed(2);
-
-  // System health
   document.getElementById('healthBot').textContent = state.botEnabled !== false ? 'ENABLED' : 'DISABLED';
   document.getElementById('healthBot').className = 'health-val ' + (state.botEnabled !== false ? 'health-ok' : 'health-err');
-
   if (state.lastHeartbeat) {
     const mins = Math.round((Date.now() - state.lastHeartbeat) / 60000);
     const hbEl = document.getElementById('healthHeartbeat');
     hbEl.textContent = mins < 2 ? 'Just now' : mins + ' min ago';
     hbEl.className = 'health-val ' + (mins < 10 ? 'health-ok' : 'health-warn');
   }
-
   document.getElementById('healthDay').textContent = state.lastTradingDay || '—';
-
   const now = new Date();
   const utcHour = now.getUTCHours();
   const utcDay = now.getUTCDay();
@@ -529,7 +543,6 @@ function renderState(state) {
   const isGoldenHour = utcHour >= 7 && utcHour < 16;
   const isFridayClose = utcDay === 5 && utcHour >= 16;
   const marketActive = !isWeekend && isGoldenHour && !isFridayClose;
-
   const mktEl = document.getElementById('healthMarket');
   mktEl.textContent = marketActive ? 'ACTIVE (Golden Hour)' : isWeekend ? 'WEEKEND' : 'SLEEPING';
   mktEl.className = 'health-val ' + (marketActive ? 'health-ok' : 'health-warn');
@@ -537,11 +550,36 @@ function renderState(state) {
 
 function renderLogs(logs) {
   const log = document.getElementById('tradeLog');
-  const display = [...logs].reverse().slice(0, 30);
+  const d = [...logs].reverse().slice(0, 50);
 
-  if (!display.length) {
+  if (!d.length) {
     log.innerHTML = '<div class="empty-log">No decisions yet — bot runs every minute.</div>';
     return;
+  }
+
+  // Log compression logic (Identical consecutive reasons)
+  const display = [];
+  for (let i = 0; i < d.length; i++) {
+     let current = d[i];
+     let count = 1;
+     let getClean = (l) => l.reason ? l.reason.replace(/^SKIP:\s*/i, '').trim() : '';
+     let cReason = getClean(current);
+     if (!cReason && current.tradeExecuted) cReason = 'TRADED';
+     
+     while (i + 1 < d.length) {
+         let next = d[i + 1];
+         let nReason = getClean(next);
+         if (!nReason && next.tradeExecuted) nReason = 'TRADED';
+         
+         if (cReason === nReason && current.signalDetected === next.signalDetected && !current.tradeExecuted) {
+             count++;
+             i++;
+         } else {
+             break;
+         }
+     }
+     if (count > 1) current._compressedCount = count;
+     display.push(current);
   }
 
   const last = display[0];
@@ -560,7 +598,6 @@ function renderLogs(logs) {
     else if (r.includes('momentum') || r.includes('doji') || r.includes('engulfing') || r.includes('rejection') || (r.includes('candle') && !r.includes('pullback')) || r.includes('confirm')) stage = 'Confirmation';
     else if (last.dbgSetupReady) stage = 'Setup Ready';
     else stage = 'Setup Detection';
-    
     document.getElementById('decisionStage').textContent = 'Stage: ' + stage;
 
     let cleanLastReason = last.reason ? last.reason.replace(/^SKIP:\s*/i, '') : '';
@@ -568,14 +605,23 @@ function renderLogs(logs) {
        cleanLastReason = last.tradeExecuted ? 'Trade executed successfully' : 'No clear signal found';
     }
     document.getElementById('lastReason').textContent = cleanLastReason;
+    
+    // Decision Breakdown Panel Check
+    let bdSpread = r.includes('spread') ? '<span style="color:var(--red);font-weight:bold;">BLOCKED</span>' : '<span style="color:var(--green);font-weight:bold;">OK</span>';
+    let bdAtr = '<span style="color:var(--green);font-weight:bold;">OK</span>';
+    if (r.includes('atr') && r.includes('low')) bdAtr = '<span style="color:var(--red);font-weight:bold;">TOO LOW</span>';
+    else if (r.includes('atr') && (r.includes('high') || r.includes('exceed'))) bdAtr = '<span style="color:var(--red);font-weight:bold;">TOO HIGH</span>';
+    else if (r.includes('atr')) bdAtr = '<span style="color:var(--red);font-weight:bold;">BLOCKED</span>';
+    let bdSession = (r.includes('weekend') || r.includes('market') || r.includes('session') || r.includes('sleeping')) ? '<span style="color:var(--red);font-weight:bold;">CLOSED</span>' : '<span style="color:var(--green);font-weight:bold;">OK</span>';
+    let bdData = r.includes('stale') ? '<span style="color:var(--red);font-weight:bold;">STALE</span>' : '<span style="color:var(--green);font-weight:bold;">OK</span>';
+    
+    document.getElementById('bdSpread').innerHTML = bdSpread;
+    document.getElementById('bdAtr').innerHTML = bdAtr;
+    document.getElementById('bdSession').innerHTML = bdSession;
+    document.getElementById('bdData').innerHTML = bdData;
+
     document.getElementById('lastRunTime').textContent = 'Last run: ' + new Date(last.time).toLocaleString('en-US', { timeZone: 'Asia/Dubai' }) + ' UAE';
     
-    const relaxedBadge = document.getElementById('relaxedBadge');
-    if (relaxedBadge) {
-      relaxedBadge.style.display = (last.isRelaxedMode || last.dbgRelaxedUsed) ? 'inline-flex' : 'none';
-    }
-    
-    // Mode badges
     const modeBadgesStr = [];
     if (last.isRelaxedMode || last.dbgRelaxedUsed) {
       modeBadgesStr.push('<span class="badge-relaxed">Relaxed Mode</span>');
@@ -585,21 +631,35 @@ function renderLogs(logs) {
     }
     document.getElementById('modeBadges').innerHTML = modeBadgesStr.join('');
 
-    // Safe formatting for indicators, finding the latest log in the batch that has valid ind values
-    const indicatorLog = display.find(l => typeof l.ema20 !== 'undefined' && l.ema20 !== null && l.ema20 !== '—' && !isNaN(parseFloat(l.ema20))) || last;
+    // Indicator freshness
+    const latestHasValidEma = last.ema20 !== undefined && last.ema20 !== null && last.ema20 !== '—' && !isNaN(parseFloat(last.ema20));
+    document.getElementById('indTitleAux').innerHTML = latestHasValidEma ? '' : '<span class="ind-stale-badge">Indicators from last valid cycle</span>';
+    document.getElementById('indicatorBar').className = 'indicator-bar' + (latestHasValidEma ? '' : ' stale');
+
+    const getMostRecentValid = (field) => {
+      const match = d.find(l => l[field] !== undefined && l[field] !== null && l[field] !== '—' && l[field] !== '' && !isNaN(parseFloat(l[field])));
+      return match ? match[field] : undefined;
+    };
 
     const safeParse = (val, dec) => {
       if (val === undefined || val === null || val === '—' || val === '') return '<span style="color:var(--text3);font-size:11px;">N/A</span>';
       const p = parseFloat(val);
-      if (isNaN(p)) return '<span style="color:var(--text3);font-size:11px;">Skipped</span>';
+      if (isNaN(p)) return '<span style="color:var(--text3);font-size:11px;">N/A</span>';
       return p.toFixed(dec);
     };
 
-    document.getElementById('ema20').innerHTML = safeParse(indicatorLog.ema20, 2);
-    document.getElementById('ema50').innerHTML = safeParse(indicatorLog.ema50, 2);
+    const recentEma20 = getMostRecentValid('ema20');
+    const recentEma50 = getMostRecentValid('ema50');
+    const recentEmaSlope = getMostRecentValid('emaSlope');
+    const recentAtr = getMostRecentValid('atr');
+    const recentAtrAvg = getMostRecentValid('atrAverage');
+    const recentRsi = getMostRecentValid('rsi');
+
+    document.getElementById('ema20').innerHTML = safeParse(recentEma20, 2);
+    document.getElementById('ema50').innerHTML = safeParse(recentEma50, 2);
     
-    if (indicatorLog.emaSlope !== undefined && indicatorLog.emaSlope !== null && !isNaN(parseFloat(indicatorLog.emaSlope))) {
-      const slope = parseFloat(indicatorLog.emaSlope);
+    if (recentEmaSlope !== undefined) {
+      const slope = parseFloat(recentEmaSlope);
       document.getElementById('emaSlope').textContent = 'Slope: ' + slope.toFixed(3) + '%';
       document.getElementById('ema20dir').className = 'ind-sub ' + (slope > 0 ? 'up' : 'down');
       document.getElementById('ema20dir').textContent = slope > 0 ? '↑ Uptrend' : '↓ Downtrend';
@@ -609,15 +669,15 @@ function renderLogs(logs) {
       document.getElementById('ema20dir').textContent = '—';
     }
     
-    document.getElementById('atr').innerHTML = safeParse(indicatorLog.atr, 2);
-    if (indicatorLog.atrAverage !== undefined && indicatorLog.atrAverage !== null && !isNaN(parseFloat(indicatorLog.atrAverage))) {
-      document.getElementById('atrAvg').textContent = 'Avg: ' + parseFloat(indicatorLog.atrAverage).toFixed(2);
+    document.getElementById('atr').innerHTML = safeParse(recentAtr, 2);
+    if (recentAtrAvg !== undefined) {
+      document.getElementById('atrAvg').textContent = 'Avg: ' + parseFloat(recentAtrAvg).toFixed(2);
     } else {
       document.getElementById('atrAvg').textContent = 'Avg: N/A';
     }
 
-    if (indicatorLog.rsi !== undefined && indicatorLog.rsi !== null && indicatorLog.rsi !== '—' && !isNaN(parseFloat(indicatorLog.rsi))) {
-      const rsi = parseFloat(indicatorLog.rsi);
+    if (recentRsi !== undefined) {
+      const rsi = parseFloat(recentRsi);
       document.getElementById('rsi').textContent = rsi.toFixed(0);
       document.getElementById('rsiZone').textContent = rsi > 70 ? 'Overbought' : rsi < 30 ? 'Oversold' : 'Neutral';
       document.getElementById('rsi').className = 'ind-value ' + (rsi > 70 ? 'down' : rsi < 30 ? 'up' : '');
@@ -627,7 +687,6 @@ function renderLogs(logs) {
       document.getElementById('rsi').className = 'ind-value';
     }
 
-    // Setup ready banner fallback logic
     const setupBanner = document.getElementById('setupReadyBanner');
     const setupReason = document.getElementById('setupReadyReason');
     if (last.dbgSetupReady === true) {
@@ -639,14 +698,12 @@ function renderLogs(logs) {
     }
   }
 
-  // Trade row rendering
-  log.innerHTML = display.map(t => {
+  log.innerHTML = display.slice(0, 30).map(t => {
     let action = t.signalDetected || 'SKIP';
     if(action === 'NONE') action = 'SKIP';
     
-    // Add entry type (e.g. BREAKOUT, PULLBACK) if available
     let actionHtml = action;
-    if ((action.includes('BUY') || action.includes('SELL')) && t.entryType) {
+    if (t.entryType) {
         actionHtml += `<span style="display:block;font-size:8px;opacity:0.75;margin-top:2px;">${t.entryType}</span>`;
     }
 
@@ -654,8 +711,22 @@ function renderLogs(logs) {
     const timeStr = new Date(t.time).toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour:'2-digit', minute:'2-digit' });
     
     let cleanReason = t.reason ? t.reason.replace(/^SKIP:\s*/i, '') : (t.tradeExecuted ? 'TRADED' : 'No target setup');
-    let shortReason = cleanReason;
-    if (shortReason.length > 25) shortReason = shortReason.substring(0, 22) + '...';
+    
+    let rLower = cleanReason.toLowerCase();
+    let reasonColorClass = 't-muted';
+    if (t.tradeExecuted) {
+        reasonColorClass = 't-pos';
+    } else if (rLower.includes('stale') || rLower.includes('market') || rLower.includes('weekend') || rLower.includes('session') || rLower.includes('sleeping') || rLower.includes('risk') || rLower.includes('spread') || rLower.includes('blocked')) {
+        reasonColorClass = 't-neg';
+    } else if (rLower.includes('momentum') || rLower.includes('confirm') || rLower.includes('doji') || rLower.includes('score') || rLower.includes('weak') || rLower.includes('reject') || rLower.includes('pullback') || rLower.includes('candle') || rLower.includes('zone')) {
+        reasonColorClass = 't-warn';
+    }
+
+    let truncReason = cleanReason;
+    if (truncReason.length > 25) truncReason = truncReason.substring(0, 22) + '...';
+    if (t._compressedCount) {
+        truncReason += ` <span style="color:var(--gold-dim);font-weight:600;font-size:9px;">(x${t._compressedCount})</span>`;
+    }
 
     const isTradeAction = (t.tradeExecuted || action.includes('BUY') || action.includes('SELL'));
     
@@ -663,16 +734,29 @@ function renderLogs(logs) {
     let size = '<span style="color:var(--text3);font-size:10px;">N/A</span>';
     
     if (isTradeAction) {
-        price = t.entryPrice ? '$' + parseFloat(t.entryPrice).toFixed(2) : (t.price ? '$' + parseFloat(t.price).toFixed(2) : '<span style="color:var(--text3);font-size:10px;">—</span>');
-        size  = t.size ? t.size + 'oz' : '<span style="color:var(--text3);font-size:10px;">—</span>';
+        price = t.entryPrice ? '$' + parseFloat(t.entryPrice).toFixed(2) : (t.price ? '$' + parseFloat(t.price).toFixed(2) : '<span style="color:var(--text3);font-size:10px;">N/A</span>');
+        size  = t.size ? t.size + 'oz' : '<span style="color:var(--text3);font-size:10px;">N/A</span>';
     }
 
-    return `<div class="trade-row">
-      <span class="t-muted">${timeStr}</span>
-      <span class="${typeClass}" style="line-height:1.1;">${actionHtml}</span>
-      <span class="t-muted">${size}</span>
-      <span class="t-muted">${price}</span>
-      <span class="t-muted" title="${cleanReason}">${shortReason}</span>
+    let nearTradeHtml = '';
+    if (t.dbgScore !== undefined || t.dbgSetupReady !== undefined || t.dbg1mMomentumNet !== undefined) {
+        let parts = [];
+        if (t.dbgScore !== undefined) parts.push(`Score: ${parseFloat(t.dbgScore).toFixed(1)}`);
+        if (t.dbgSetupReady !== undefined) parts.push(`Setup: ${t.dbgSetupReady ? 'YES' : 'NO'}`);
+        if (t.dbg1mMomentumNet !== undefined) parts.push(`Mom: ${parseFloat(t.dbg1mMomentumNet).toFixed(1)}`);
+        
+        nearTradeHtml = `<div style="grid-column: 1 / -1; font-size:9px; color:var(--text3); padding-left:160px; margin-top:-6px; line-height:1.2; padding-bottom:6px;">↳ <span style="font-family:var(--mono);">${parts.join(' | ')}</span></div>`;
+    }
+
+    return `<div class="trade-row-container">
+      <div class="trade-row" style="border-bottom:none;">
+        <span class="t-muted">${timeStr}</span>
+        <span class="${typeClass}" style="line-height:1.1;">${actionHtml}</span>
+        <span class="t-muted">${size}</span>
+        <span class="t-muted">${price}</span>
+        <span class="${reasonColorClass}" title="${cleanReason}">${truncReason}</span>
+      </div>
+      ${nearTradeHtml}
     </div>`;
   }).join('');
 }
@@ -685,6 +769,9 @@ function renderChartFromLogs(logs) {
     .map(l => ({
       time: l.time,
       price: parseFloat(l.goldPrice || l.price || l.ema20),
+      ema20: parseFloat(l.ema20) || null,
+      ema50: parseFloat(l.ema50) || null,
+      signal: l.signalDetected
     }));
 
   if (pricePoints.length === 0) return;
@@ -697,13 +784,33 @@ function renderChartFromLogs(logs) {
     const d = new Date(p.time);
     return d.toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour: '2-digit', minute: '2-digit' });
   });
+  
   const prices = pricePoints.map(p => p.price);
+  const ema20s = pricePoints.map(p => p.ema20);
+  const ema50s = pricePoints.map(p => p.ema50);
+  const radii = pricePoints.map(p => (p.signal && p.signal !== 'NONE' && p.signal !== 'SKIP') ? 4 : 0);
+  const pointColors = pricePoints.map(p => {
+    if (p.signal === 'BUY') return '#3d9e5f';
+    if (p.signal === 'SELL') return '#c0392b';
+    return '#C9A84C';
+  });
 
   chart.data.labels = labels;
+  
+  // Price Dataset
   chart.data.datasets[0].data = prices;
+  chart.data.datasets[0].pointRadius = radii;
+  chart.data.datasets[0].pointBackgroundColor = pointColors;
+  chart.data.datasets[0].pointBorderColor = '#000';
+  
+  // EMA 20 Dataset
+  chart.data.datasets[1].data = ema20s;
+  // EMA 50 Dataset
+  chart.data.datasets[2].data = ema50s;
 
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
+  const validPrices = [...prices, ...ema20s.filter(v=>v), ...ema50s.filter(v=>v)];
+  const min = Math.min(...validPrices);
+  const max = Math.max(...validPrices);
   const pad = (max - min) * 0.1 || 5;
   chart.options.scales.y.min = min - pad;
   chart.options.scales.y.max = max + pad;
