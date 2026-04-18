@@ -215,7 +215,10 @@
 
     <div class="card">
       <div class="card-title">XAU/USD Price History</div>
-      <div class="chart-container"><canvas id="priceChart"></canvas></div>
+      <div class="chart-container">
+        <div id="marketClosedBadge" style="display:none; position:absolute; top:10px; right:10px; background:rgba(192,57,43,0.9); color:#fff; padding:4px 8px; border-radius:4px; font-size:10px; font-family:var(--mono); font-weight:bold; z-index:10; border:1px solid var(--red-border); text-transform:uppercase;">Market Closed</div>
+        <canvas id="priceChart"></canvas>
+      </div>
     </div>
 
     <div class="card">
@@ -384,29 +387,19 @@ function initChart() {
       labels: [],
       datasets: [
         {
-          label: 'Price',
+          label: 'Current Price',
           data: [],
-          borderColor: '#C9A84C',
+          borderColor: '#3d9e5f',
           borderWidth: 1.5,
           pointRadius: 0,
           tension: 0.3,
           fill: true,
-          backgroundColor: 'rgba(201,168,76,0.05)'
+          backgroundColor: 'rgba(61,158,95,0.05)'
         },
         {
-          label: 'EMA 20',
+          label: 'Reference Price',
           data: [],
-          borderColor: 'rgba(61,158,95,0.7)',
-          borderWidth: 1.5,
-          pointRadius: 0,
-          borderDash: [3, 3],
-          tension: 0.3,
-          fill: false
-        },
-        {
-          label: 'EMA 50',
-          data: [],
-          borderColor: 'rgba(192,57,43,0.7)',
+          borderColor: '#c0392b',
           borderWidth: 1.5,
           pointRadius: 0,
           borderDash: [3, 3],
@@ -418,10 +411,29 @@ function initChart() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      interaction: {
+        mode: 'index',
+        intersect: false,
+      },
+      plugins: { 
+        legend: { 
+          display: true, 
+          position: 'top', 
+          labels: { color: '#e8e0cc', font: { family: 'JetBrains Mono', size: 10 }, boxWidth: 12 } 
+        },
+        tooltip: {
+          enabled: true,
+          callbacks: {
+            label: function(context) {
+              return ' ' + context.dataset.label + ': $' + context.parsed.y.toLocaleString('en-US', {minimumFractionDigits: 2});
+            }
+          }
+        }
+      },
       scales: {
         x: { display: false },
         y: {
+          position: 'right',
           grid: { color: 'rgba(201,168,76,0.06)' },
           ticks: {
             font: { family: 'JetBrains Mono', size: 10 },
@@ -551,6 +563,8 @@ function renderState(state) {
   const mktEl = document.getElementById('healthMarket');
   mktEl.textContent = marketActive ? 'ACTIVE (Golden Hour)' : isWeekend ? 'WEEKEND' : 'SLEEPING';
   mktEl.className = 'health-val ' + (marketActive ? 'health-ok' : 'health-warn');
+  const badge = document.getElementById('marketClosedBadge');
+  if (badge) badge.style.display = marketActive ? 'none' : 'block';
 }
 
 function renderLogs(logs) {
@@ -832,18 +846,16 @@ function renderChartFromLogs(logs) {
 
   chart.data.labels = labels;
   
-  // Price Dataset
+  // Current Price Dataset (Green)
   chart.data.datasets[0].data = prices;
   chart.data.datasets[0].pointRadius = radii;
   chart.data.datasets[0].pointBackgroundColor = pointColors;
   chart.data.datasets[0].pointBorderColor = '#000';
   
-  // EMA 20 Dataset
-  chart.data.datasets[1].data = ema20s;
-  // EMA 50 Dataset
-  chart.data.datasets[2].data = ema50s;
+  // Reference Price Dataset (Red)
+  chart.data.datasets[1].data = ema50s;
 
-  const validPrices = [...prices, ...ema20s.filter(v=>v), ...ema50s.filter(v=>v)];
+  const validPrices = [...prices, ...ema50s.filter(v=>v)];
   const min = Math.min(...validPrices);
   const max = Math.max(...validPrices);
   const pad = (max - min) * 0.1 || 5;
