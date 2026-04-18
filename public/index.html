@@ -16,7 +16,7 @@
       --text: #e8e0cc; --text2: #6b6358; --text3: #9a9080;
       --green: #3d9e5f; --green-bg: rgba(61,158,95,0.1); --green-border: rgba(61,158,95,0.3);
       --red: #c0392b; --red-bg: rgba(192,57,43,0.1); --red-border: rgba(192,57,43,0.3);
-      --blue: #4a9ebb; --blue-bg: rgba(74,158,187,0.1);
+      --blue: #4a9ebb; --blue-bg: rgba(74,158,187,0.1); --blue-border: rgba(74,158,187,0.3);
       --font: 'Space Grotesk', sans-serif; --mono: 'JetBrains Mono', monospace;
     }
     body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
@@ -96,8 +96,8 @@
     .setup-banner-text { line-height: 1.4; }
     .setup-banner-sub { font-size: 10px; color: rgba(245,158,11,0.7); margin-top: 1px; }
 
-    .trade-header { display:grid; grid-template-columns:90px 50px 70px 90px 70px; gap:8px; padding:0 0 8px; border-bottom:1px solid var(--border); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); font-family:var(--mono); }
-    .trade-row { display:grid; grid-template-columns:90px 50px 70px 90px 70px; gap:8px; padding:7px 0; border-bottom:1px solid rgba(201,168,76,0.06); font-size:11px; align-items:center; font-family:var(--mono); }
+    .trade-header { display:grid; grid-template-columns:90px 70px 70px 70px 100px; gap:8px; padding:0 0 8px; border-bottom:1px solid var(--border); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); font-family:var(--mono); }
+    .trade-row { display:grid; grid-template-columns:90px 70px 70px 70px 100px; gap:8px; padding:7px 0; border-bottom:1px solid rgba(201,168,76,0.06); font-size:11px; align-items:center; font-family:var(--mono); }
     .trade-row:last-child { border-bottom:none; }
     .t-buy { color:var(--green); font-weight:500; }
     .t-sell { color:var(--red); font-weight:500; }
@@ -107,7 +107,7 @@
     .t-muted { color:var(--text2); }
     .empty-log { text-align:center; padding:2rem 0; font-size:12px; color:var(--text2); font-family:var(--mono); }
 
-    .decision-badge { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:500; padding:5px 12px; border-radius:5px; margin-bottom:10px; letter-spacing:0.08em; text-transform:uppercase; font-family:var(--mono); }
+    .decision-badge { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:500; padding:5px 12px; border-radius:5px; margin-bottom:0; letter-spacing:0.08em; text-transform:uppercase; font-family:var(--mono); }
     .dec-buy { background:var(--green-bg); color:var(--green); border:1px solid var(--green-border); }
     .dec-sell { background:var(--red-bg); color:var(--red); border:1px solid var(--red-border); }
     .dec-skip { background:var(--bg3); color:var(--text2); border:1px solid var(--border); }
@@ -143,7 +143,8 @@
       .indicator-bar { grid-template-columns:repeat(2,1fr); }
       .risk-grid { grid-template-columns:1fr 1fr; }
     }
-    .badge-relaxed { display:inline-flex; align-items:center; gap:4px; font-size:9px; font-weight:600; padding:1px 5px; border-radius:4px; background:rgba(245,158,11,0.1); color:#f59e0b; border:1px solid rgba(245,158,11,0.3); margin-left:8px; text-transform:uppercase; vertical-align:middle; animation: amberpulse 2.5s ease-in-out infinite; }
+    .badge-relaxed { display:inline-flex; align-items:center; gap:4px; font-size:9px; font-weight:600; padding:2px 6px; border-radius:4px; background:var(--amber-bg); color:var(--amber); border:1px solid var(--amber-border); text-transform:uppercase; font-family:var(--mono); letter-spacing:0.04em;}
+    .badge-fallback { display:inline-flex; align-items:center; gap:4px; font-size:9px; font-weight:600; padding:2px 6px; border-radius:4px; background:var(--blue-bg); color:var(--blue); border:1px solid var(--blue-border); text-transform:uppercase; font-family:var(--mono); letter-spacing:0.04em;}
   </style>
 </head>
 <body>
@@ -210,7 +211,7 @@
     </div>
 
     <div class="card">
-      <div class="card-title">Live Indicators</div>
+      <div class="card-title">Live Indicators <span style="font-size:8px; color:var(--text3); font-weight:normal; text-transform:none; margin-left:8px;">(Reflects latest check with sufficient data)</span></div>
       <div class="indicator-bar">
         <div class="ind-item">
           <div class="ind-label">EMA 20</div>
@@ -238,7 +239,7 @@
     <div class="card">
       <div class="card-title">Trade Log</div>
       <div class="trade-header">
-        <span>Time</span><span>Type</span><span>Size</span><span>Price</span><span>Reason</span>
+        <span>Time</span><span>Action</span><span>Size</span><span>Price</span><span>Reason</span>
       </div>
       <div id="tradeLog"><div class="empty-log">Loading trades...</div></div>
       <div class="next-run" id="nextRun">Next run: calculating...</div>
@@ -250,9 +251,13 @@
 
     <div class="card">
       <div class="card-title">Last Decision</div>
-      <div id="decisionBadge"></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <div id="decisionBadge"></div>
+        <div id="decisionStage" style="font-size:10px; padding:3px 8px; border-radius:4px; background:var(--bg3); color:var(--gold-light); font-family:var(--mono); border:1px solid var(--border);">Stage: —</div>
+      </div>
       <div style="font-size:11px;line-height:1.7;color:var(--text3);font-family:var(--mono);" id="lastReason">Loading...</div>
-      <div style="font-size:10px;color:var(--text2);margin-top:8px;font-family:var(--mono);" id="lastRunTime">—</div>
+      <div id="modeBadges" style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;"></div>
+      <div style="font-size:10px;color:var(--text2);margin-top:10px;font-family:var(--mono);" id="lastRunTime">—</div>
     </div>
 
     <div class="card">
@@ -331,7 +336,7 @@
         </div>
         <div class="health-row">
           <span class="health-label">Strategy ver</span>
-          <span class="health-val health-ok">v1.4 <span id="relaxedBadge" style="display:none;" class="badge-relaxed">Relaxed Mode</span></span>
+          <span class="health-val health-ok">v1.4 <span id="relaxedBadge" style="display:none;" class="badge-relaxed" style="margin-left:8px; font-size:8px;">Relaxed</span></span>
         </div>
       </div>
       <div class="btn-row">
@@ -532,7 +537,7 @@ function renderState(state) {
 
 function renderLogs(logs) {
   const log = document.getElementById('tradeLog');
-  const display = [...logs].reverse().slice(0, 25);
+  const display = [...logs].reverse().slice(0, 30);
 
   if (!display.length) {
     log.innerHTML = '<div class="empty-log">No decisions yet — bot runs every minute.</div>';
@@ -541,59 +546,133 @@ function renderLogs(logs) {
 
   const last = display[0];
   if (last) {
-    const action = last.signalDetected || 'SKIP';
+    let action = last.signalDetected || 'SKIP';
+    if(action === 'NONE') action = 'SKIP';
     const badgeClass = action === 'BUY' ? 'dec-buy' : action === 'SELL' ? 'dec-sell' : 'dec-skip';
     document.getElementById('decisionBadge').innerHTML = `<span class="decision-badge ${badgeClass}">${action}</span>`;
-    document.getElementById('lastReason').textContent = last.reason || (last.tradeExecuted ? 'Trade executed on Capital.com' : 'No signal');
+    
+    // Infer Stage
+    let stage = 'Execution';
+    let r = (last.reason || '').toLowerCase();
+    if (last.tradeExecuted) stage = 'Trade Sent';
+    else if (r.includes('weekend') || r.includes('market') || r.includes('session') || r.includes('sleeping')) stage = 'Market Filter';
+    else if (r.includes('spread') || r.includes('risk') || r.includes('exposure') || r.includes('drawdown') || r.includes('daily loss') || r.includes('max trades')) stage = 'Risk Filter';
+    else if (r.includes('momentum') || r.includes('doji') || r.includes('engulfing') || r.includes('rejection') || (r.includes('candle') && !r.includes('pullback')) || r.includes('confirm')) stage = 'Confirmation';
+    else if (last.dbgSetupReady) stage = 'Setup Ready';
+    else stage = 'Setup Detection';
+    
+    document.getElementById('decisionStage').textContent = 'Stage: ' + stage;
+
+    let cleanLastReason = last.reason ? last.reason.replace(/^SKIP:\s*/i, '') : '';
+    if (!cleanLastReason) {
+       cleanLastReason = last.tradeExecuted ? 'Trade executed successfully' : 'No clear signal found';
+    }
+    document.getElementById('lastReason').textContent = cleanLastReason;
     document.getElementById('lastRunTime').textContent = 'Last run: ' + new Date(last.time).toLocaleString('en-US', { timeZone: 'Asia/Dubai' }) + ' UAE';
     
     const relaxedBadge = document.getElementById('relaxedBadge');
     if (relaxedBadge) {
-      relaxedBadge.style.display = (last.isRelaxedMode === true) ? 'inline-flex' : 'none';
+      relaxedBadge.style.display = (last.isRelaxedMode || last.dbgRelaxedUsed) ? 'inline-flex' : 'none';
     }
+    
+    // Mode badges
+    const modeBadgesStr = [];
+    if (last.isRelaxedMode || last.dbgRelaxedUsed) {
+      modeBadgesStr.push('<span class="badge-relaxed">Relaxed Mode</span>');
+    }
+    if (last.isFallbackMode || last.dbgFallbackMode || last.fallbackUsed) {
+      modeBadgesStr.push('<span class="badge-fallback">Fallback Logic Used</span>');
+    }
+    document.getElementById('modeBadges').innerHTML = modeBadgesStr.join('');
 
-    if (last.ema20) document.getElementById('ema20').textContent = parseFloat(last.ema20).toFixed(2);
-    if (last.ema50) document.getElementById('ema50').textContent = parseFloat(last.ema50).toFixed(2);
-    if (last.emaSlope) {
-      const slope = parseFloat(last.emaSlope);
+    // Safe formatting for indicators, finding the latest log in the batch that has valid ind values
+    const indicatorLog = display.find(l => typeof l.ema20 !== 'undefined' && l.ema20 !== null && l.ema20 !== '—' && !isNaN(parseFloat(l.ema20))) || last;
+
+    const safeParse = (val, dec) => {
+      if (val === undefined || val === null || val === '—' || val === '') return '<span style="color:var(--text3);font-size:11px;">N/A</span>';
+      const p = parseFloat(val);
+      if (isNaN(p)) return '<span style="color:var(--text3);font-size:11px;">Skipped</span>';
+      return p.toFixed(dec);
+    };
+
+    document.getElementById('ema20').innerHTML = safeParse(indicatorLog.ema20, 2);
+    document.getElementById('ema50').innerHTML = safeParse(indicatorLog.ema50, 2);
+    
+    if (indicatorLog.emaSlope !== undefined && indicatorLog.emaSlope !== null && !isNaN(parseFloat(indicatorLog.emaSlope))) {
+      const slope = parseFloat(indicatorLog.emaSlope);
       document.getElementById('emaSlope').textContent = 'Slope: ' + slope.toFixed(3) + '%';
       document.getElementById('ema20dir').className = 'ind-sub ' + (slope > 0 ? 'up' : 'down');
       document.getElementById('ema20dir').textContent = slope > 0 ? '↑ Uptrend' : '↓ Downtrend';
+    } else {
+      document.getElementById('emaSlope').textContent = 'Slope: N/A';
+      document.getElementById('ema20dir').className = 'ind-sub';
+      document.getElementById('ema20dir').textContent = '—';
     }
-    if (last.atr) document.getElementById('atr').textContent = parseFloat(last.atr).toFixed(2);
-    if (last.atrAverage) document.getElementById('atrAvg').textContent = 'Avg: ' + parseFloat(last.atrAverage).toFixed(2);
-    if (last.rsi != null) {
-      const rsi = parseFloat(last.rsi);
+    
+    document.getElementById('atr').innerHTML = safeParse(indicatorLog.atr, 2);
+    if (indicatorLog.atrAverage !== undefined && indicatorLog.atrAverage !== null && !isNaN(parseFloat(indicatorLog.atrAverage))) {
+      document.getElementById('atrAvg').textContent = 'Avg: ' + parseFloat(indicatorLog.atrAverage).toFixed(2);
+    } else {
+      document.getElementById('atrAvg').textContent = 'Avg: N/A';
+    }
+
+    if (indicatorLog.rsi !== undefined && indicatorLog.rsi !== null && indicatorLog.rsi !== '—' && !isNaN(parseFloat(indicatorLog.rsi))) {
+      const rsi = parseFloat(indicatorLog.rsi);
       document.getElementById('rsi').textContent = rsi.toFixed(0);
       document.getElementById('rsiZone').textContent = rsi > 70 ? 'Overbought' : rsi < 30 ? 'Oversold' : 'Neutral';
       document.getElementById('rsi').className = 'ind-value ' + (rsi > 70 ? 'down' : rsi < 30 ? 'up' : '');
+    } else {
+      document.getElementById('rsi').innerHTML = '<span style="color:var(--text3);font-size:11px;">N/A</span>';
+      document.getElementById('rsiZone').textContent = '—';
+      document.getElementById('rsi').className = 'ind-value';
     }
 
+    // Setup ready banner fallback logic
     const setupBanner = document.getElementById('setupReadyBanner');
     const setupReason = document.getElementById('setupReadyReason');
     if (last.dbgSetupReady === true) {
       setupBanner.style.display = 'flex';
-      setupReason.textContent   = last.dbgPullbackReason || '';
+      setupReason.textContent = last.dbgPullbackReason || last.dbgRejectReason || last.reason || 'Setup detected, waiting for confirmation';
     } else {
       setupBanner.style.display = 'none';
-      setupReason.textContent   = '';
+      setupReason.textContent = '';
     }
   }
 
+  // Trade row rendering
   log.innerHTML = display.map(t => {
-    const action = t.signalDetected || 'NONE';
-    const typeClass = action === 'BUY' ? 't-buy' : action === 'SELL' ? 't-sell' : 't-skip';
+    let action = t.signalDetected || 'SKIP';
+    if(action === 'NONE') action = 'SKIP';
+    
+    // Add entry type (e.g. BREAKOUT, PULLBACK) if available
+    let actionHtml = action;
+    if ((action.includes('BUY') || action.includes('SELL')) && t.entryType) {
+        actionHtml += `<span style="display:block;font-size:8px;opacity:0.75;margin-top:2px;">${t.entryType}</span>`;
+    }
+
+    const typeClass = action.includes('BUY') ? 't-buy' : action.includes('SELL') ? 't-sell' : 't-skip';
     const timeStr = new Date(t.time).toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour:'2-digit', minute:'2-digit' });
-    const reason = t.reason ? t.reason.replace('SKIP: ', '').substring(0, 15) + '...' : (t.tradeExecuted ? 'TRADED' : '—');
-    const price = t.entryPrice ? '$' + parseFloat(t.entryPrice).toFixed(2) : '—';
-    const size = t.size ? t.size + 'oz' : '—';
+    
+    let cleanReason = t.reason ? t.reason.replace(/^SKIP:\s*/i, '') : (t.tradeExecuted ? 'TRADED' : 'No target setup');
+    let shortReason = cleanReason;
+    if (shortReason.length > 25) shortReason = shortReason.substring(0, 22) + '...';
+
+    const isTradeAction = (t.tradeExecuted || action.includes('BUY') || action.includes('SELL'));
+    
+    let price = '<span style="color:var(--text3);font-size:10px;">N/A</span>';
+    let size = '<span style="color:var(--text3);font-size:10px;">N/A</span>';
+    
+    if (isTradeAction) {
+        price = t.entryPrice ? '$' + parseFloat(t.entryPrice).toFixed(2) : (t.price ? '$' + parseFloat(t.price).toFixed(2) : '<span style="color:var(--text3);font-size:10px;">—</span>');
+        size  = t.size ? t.size + 'oz' : '<span style="color:var(--text3);font-size:10px;">—</span>';
+    }
 
     return `<div class="trade-row">
       <span class="t-muted">${timeStr}</span>
-      <span class="${typeClass}">${action}</span>
+      <span class="${typeClass}" style="line-height:1.1;">${actionHtml}</span>
       <span class="t-muted">${size}</span>
       <span class="t-muted">${price}</span>
-      <span class="t-muted" title="${t.reason || ''}">${reason}</span>
+      <span class="t-muted" title="${cleanReason}">${shortReason}</span>
     </div>`;
   }).join('');
 }
@@ -601,11 +680,11 @@ function renderLogs(logs) {
 function renderChartFromLogs(logs) {
   if (!logs || logs.length === 0) return;
   const pricePoints = logs
-    .filter(l => (l.goldPrice || l.ema20) && !isNaN(parseFloat(l.goldPrice || l.ema20)))
+    .filter(l => (l.goldPrice || l.price || l.ema20) && !isNaN(parseFloat(l.goldPrice || l.price || l.ema20)))
     .slice(-60)
     .map(l => ({
       time: l.time,
-      price: parseFloat(l.goldPrice || l.ema20),
+      price: parseFloat(l.goldPrice || l.price || l.ema20),
     }));
 
   if (pricePoints.length === 0) return;
