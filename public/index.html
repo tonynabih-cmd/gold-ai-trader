@@ -214,9 +214,11 @@
     </div>
 
     <div class="card">
-      <div class="card-title">XAU/USD Price History</div>
+      <div class="card-title">
+        <span>XAU/USD Price History</span>
+        <span id="marketClosedBadge" style="display:none; background:rgba(192,57,43,0.9); color:#fff; padding:4px 8px; border-radius:4px; font-size:10px; font-family:var(--mono); font-weight:bold; border:1px solid var(--red-border); text-transform:uppercase;">Market Closed</span>
+      </div>
       <div class="chart-container">
-        <div id="marketClosedBadge" style="display:none; position:absolute; top:10px; right:10px; background:rgba(192,57,43,0.9); color:#fff; padding:4px 8px; border-radius:4px; font-size:10px; font-family:var(--mono); font-weight:bold; z-index:10; border:1px solid var(--red-border); text-transform:uppercase;">Market Closed</div>
         <canvas id="priceChart"></canvas>
       </div>
     </div>
@@ -812,18 +814,15 @@ function renderLogs(logs) {
         size  = t.size ? t.size + 'oz' : '<span style="color:var(--text3);font-size:10px;">—</span>';
     }
 
-    let nearTradeHtml = '';
+    let inlineDebug = '';
     if (t.dbgScore !== undefined || t.dbgSetupReady !== undefined || t.dbg1mMomentumNet !== undefined) {
         let parts = [];
-        if (t.dbgScore !== undefined && !isNaN(parseFloat(t.dbgScore))) parts.push(`Score: ${parseFloat(t.dbgScore).toFixed(1)}`);
         if (t.dbgSetupReady !== undefined) parts.push(`Setup: ${t.dbgSetupReady ? 'YES' : 'NO'}`);
+        if (t.dbgScore !== undefined && !isNaN(parseFloat(t.dbgScore))) parts.push(`Score: ${parseFloat(t.dbgScore).toFixed(1)}`);
         if (t.dbg1mMomentumNet !== undefined && !isNaN(parseFloat(t.dbg1mMomentumNet))) parts.push(`Mom: ${parseFloat(t.dbg1mMomentumNet).toFixed(1)}`);
         
         if (parts.length > 0) {
-            nearTradeHtml = `<div class="trade-row" style="border-bottom:none; margin-top:-6px; padding-bottom:6px;">
-                <span></span><span></span><span></span><span></span>
-                <span style="font-size:9px; color:var(--text3); line-height:1.2;">↳ <span style="font-family:var(--mono);">${parts.join(' | ')}</span></span>
-            </div>`;
+            inlineDebug = ` <span style="font-size:10px; color:var(--text3); opacity:0.8;">· ${parts.join(' · ')}</span>`;
         }
     }
 
@@ -833,9 +832,8 @@ function renderLogs(logs) {
         <span class="${typeClass}" style="line-height:1.1;">${actionHtml}</span>
         <span class="t-muted">${size}</span>
         <span class="t-muted">${price}</span>
-        <span class="trade-reason ${reasonColorClass}" title="${cleanReason}">${renderReason}</span>
+        <span class="trade-reason ${reasonColorClass}" title="${cleanReason}">${renderReason}${inlineDebug}</span>
       </div>
-      ${nearTradeHtml}
     </div>`;
   }).join('');
 }
