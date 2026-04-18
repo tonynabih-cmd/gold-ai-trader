@@ -103,7 +103,7 @@
     .trade-row-container { padding:7px 0; border-bottom:1px solid rgba(201,168,76,0.06); }
     .trade-row-container:last-child { border-bottom:none; }
     .trade-row { display:grid; grid-template-columns:80px 70px 60px 70px 1fr; gap:8px; font-size:11px; align-items:start; font-family:var(--mono); }
-    .trade-reason { min-width:300px; max-width:450px; white-space:normal; word-break:break-word; line-height:1.4; display:block; padding-right:4px; }
+    .trade-reason { white-space:normal; word-break:break-word; line-height:1.4; display:block; padding-right:4px; }
     #tradeLog { max-height:550px; overflow-y:auto; padding-right:8px; }
     
     .t-buy { color:var(--green); font-weight:500; }
@@ -616,9 +616,10 @@ function renderLogs(logs) {
 
   const last = display[0];
   if (last) {
-    let action = last.signalDetected || 'SKIP';
-    if(action === 'NONE') action = 'SKIP';
-    const badgeClass = action === 'BUY' ? 'dec-buy' : action === 'SELL' ? 'dec-sell' : 'dec-skip';
+    let action = last.signalDetected || 'NO SIGNAL';
+    if(action === 'NONE' || action === 'SKIP') action = 'NO SIGNAL';
+    if(action === 'ERROR') action = 'ERROR';
+    const badgeClass = action === 'BUY' ? 'dec-buy' : action === 'SELL' ? 'dec-sell' : (action === 'ERROR' ? 'dec-sell' : 'dec-skip');
     document.getElementById('decisionBadge').innerHTML = `<span class="decision-badge ${badgeClass}">${action}</span>`;
     
     // Infer Stage
@@ -757,7 +758,7 @@ function renderLogs(logs) {
 
   log.innerHTML = display.map(t => {
     let action = t.signalDetected || 'NO SIGNAL';
-    if(action === 'NONE') action = 'NO SIGNAL';
+    if(action === 'NONE' || action === 'SKIP') action = 'NO SIGNAL';
     if(action === 'ERROR') action = 'ERROR';
     
     let actionHtml = action;
@@ -808,8 +809,8 @@ function renderLogs(logs) {
     let size = '<span style="color:var(--text3);font-size:10px;">—</span>';
     
     if (isTradeAction) {
-        price = t.entryPrice ? '$' + parseFloat(t.entryPrice).toFixed(2) : (t.price ? '$' + parseFloat(t.price).toFixed(2) : '<span style="color:var(--text3);font-size:10px;">—</span>');
-        size  = t.size ? t.size + 'oz' : '<span style="color:var(--text3);font-size:10px;">—</span>';
+        price = t.entryPrice ? '$' + parseFloat(t.entryPrice).toFixed(2) : (t.price ? '$' + parseFloat(t.price).toFixed(2) : '<span style="color:var(--text3);font-size:10px;">N/A</span>');
+        size  = t.size ? t.size + 'oz' : '<span style="color:var(--text3);font-size:10px;">N/A</span>';
     }
 
     let nearTradeHtml = '';
@@ -820,7 +821,10 @@ function renderLogs(logs) {
         if (t.dbg1mMomentumNet !== undefined && !isNaN(parseFloat(t.dbg1mMomentumNet))) parts.push(`Mom: ${parseFloat(t.dbg1mMomentumNet).toFixed(1)}`);
         
         if (parts.length > 0) {
-            nearTradeHtml = `<div style="grid-column: 1 / -1; font-size:9px; color:var(--text3); padding-left:160px; margin-top:-6px; line-height:1.2; padding-bottom:6px;">↳ <span style="font-family:var(--mono);">${parts.join(' | ')}</span></div>`;
+            nearTradeHtml = `<div class="trade-row" style="border-bottom:none; margin-top:-6px; padding-bottom:6px;">
+                <span></span><span></span><span></span><span></span>
+                <span style="font-size:9px; color:var(--text3); line-height:1.2;">↳ <span style="font-family:var(--mono);">${parts.join(' | ')}</span></span>
+            </div>`;
         }
     }
 
