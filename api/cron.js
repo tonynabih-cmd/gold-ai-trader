@@ -336,6 +336,7 @@ async function reconcilePositions(session, botState) {
   }
 }
 
+function shouldFinalizeRiskOutcome(botState, signal) {
   // If strategy generated no signal, do NOT finalize yet. Allow retries within the window.
   if (!signal) return false;
 
