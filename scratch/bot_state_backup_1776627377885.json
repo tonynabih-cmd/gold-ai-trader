@@ -1,0 +1,238 @@
+{
+  "lastProcessedCandle": 1776509400000,
+  "previousProcessedCandle": 0,
+  "openTrades": [],
+  "dailyLoss": 0,
+  "dailyTrades": 0,
+  "totalDrawdown": 6.26,
+  "peakBalance": 203.6,
+  "balance": 190.85,
+  "equity": 190.85,
+  "availableMargin": 190.85,
+  "startOfDayBalance": 190.85,
+  "lastTradingDay": "2026-04-19",
+  "lastHeartbeat": 1776627365961,
+  "botEnabled": true,
+  "recentTradeIds": [
+    "1774860007163_BUY_v1.1",
+    "1774872607465_BUY_v1.1",
+    "1774875305885_BUY_v1.1",
+    "1774879962875_SELL_v1.1",
+    "1774881907842_SELL_v1.1",
+    "1774955407688_SELL_v1.1",
+    "1774958100000_BUY_v1.1",
+    "1774959900000_BUY_v1.1",
+    "1775056500000_BUY_v1.1",
+    "1775121900000_SELL_v1.1",
+    "1775143500000_BUY_v1.1",
+    "1775483100000_SELL_v1.1",
+    "1775732700000_BUY_v1.4",
+    "1775742600000_BUY_v1.4",
+    "1775744400000_BUY_v1.4",
+    "1775751300000_BUY_v1.4",
+    "1776262200000_BUY_v1.5",
+    "1776324900000_BUY_v1.5",
+    "1776348900000_SELL_v1.5",
+    "1776413100000_SELL_v1.5"
+  ],
+  "lastOrderTimestamp": 1776413407213,
+  "brokerGrossProfit": 12.17,
+  "brokerGrossLoss": 21.34,
+  "peakBrokerPnl": 0,
+  "strategyVersion": "v1.1",
+  "lastStateSyncAt": 1776627363874,
+  "stateIntegrityOk": true,
+  "criticalFailure": false,
+  "criticalFailureReason": "",
+  "pendingOrder": null,
+  "recentOrderKeys": [
+    "gold-61cbc3c54d4d1d34a8e19586",
+    "gold-7d4d8a74e96b42d6216171f4",
+    "gold-63fc02d4f72806dffda77dbe",
+    "gold-c2aa8ab8538736772793ac2c",
+    "gold-86dc871b41b3091694dafebd",
+    "gold-fd9d5b4e9da9d2660d6f128b",
+    "gold-715b0377fa961e15ebdedd74",
+    "gold-4556ac39d70faf4fb6377b6d",
+    "gold-540a7142d2210d7eebcc26c5",
+    "gold-f1edd032e50adf0e731e2442",
+    "gold-84674c15386edcebdd87d804",
+    "gold-11325b37108a6cf2d16d39b3"
+  ],
+  "riskDataFresh": true,
+  "lastRiskSyncAt": 1776627364742,
+  "recentOutcomes": [
+    {
+      "pnl": 0.43,
+      "action": null,
+      "closedAt": 8,
+      "ref": null,
+      "dealId": "broker_pnl_8"
+    },
+    {
+      "pnl": 1,
+      "action": null,
+      "closedAt": 9,
+      "ref": null,
+      "dealId": "broker_pnl_9"
+    },
+    {
+      "pnl": 1.02,
+      "action": null,
+      "closedAt": 10,
+      "ref": null,
+      "dealId": "broker_pnl_10"
+    },
+    {
+      "pnl": 1.09,
+      "action": null,
+      "closedAt": 11,
+      "ref": null,
+      "dealId": "broker_pnl_11"
+    },
+    {
+      "pnl": -0.98,
+      "action": null,
+      "closedAt": 12,
+      "ref": null,
+      "dealId": "broker_pnl_12"
+    },
+    {
+      "pnl": -0.79,
+      "action": null,
+      "closedAt": 13,
+      "ref": null,
+      "dealId": "broker_pnl_13"
+    },
+    {
+      "pnl": -0.8,
+      "action": null,
+      "closedAt": 14,
+      "ref": null,
+      "dealId": "broker_pnl_14"
+    },
+    {
+      "pnl": -1.39,
+      "action": null,
+      "closedAt": 15,
+      "ref": null,
+      "dealId": "broker_pnl_15"
+    },
+    {
+      "pnl": -1.18,
+      "action": null,
+      "closedAt": 16,
+      "ref": null,
+      "dealId": "broker_pnl_16"
+    },
+    {
+      "pnl": 1.55,
+      "action": null,
+      "closedAt": 17,
+      "ref": null,
+      "dealId": "broker_pnl_17"
+    },
+    {
+      "pnl": 1.65,
+      "action": null,
+      "closedAt": 18,
+      "ref": null,
+      "dealId": "broker_pnl_18"
+    },
+    {
+      "pnl": -1.27,
+      "action": null,
+      "closedAt": 19,
+      "ref": null,
+      "dealId": "broker_pnl_19"
+    },
+    {
+      "pnl": 2.31,
+      "action": "BUY",
+      "entryType": "pullback",
+      "closedAt": 1775734932321,
+      "ref": "o_0b24e54b-1fd4-4e58-bfc8-8b3b9b3908fb",
+      "dealId": "00601567-0001-54c4-0000-00008f5124e2"
+    },
+    {
+      "pnl": 0.11,
+      "action": "BUY",
+      "entryType": "breakout",
+      "closedAt": 1775744891778,
+      "ref": "o_1db553d2-47d9-4bf1-b021-41898e562a32",
+      "dealId": "00601567-0001-54c4-0000-00008f530772"
+    },
+    {
+      "pnl": -0.95,
+      "action": "BUY",
+      "entryType": "pullback",
+      "closedAt": 1775745614555,
+      "ref": "p_00601567-0001-54c4-0000-00008f536b34",
+      "dealId": "00601567-0001-54c4-0000-00008f536b34"
+    },
+    {
+      "pnl": -0.7,
+      "action": "BUY",
+      "entryType": "breakout",
+      "closedAt": 1775753414037,
+      "ref": "o_d73dce6b-5a96-43bf-a143-01da476ffa57",
+      "dealId": "00601567-0001-54c4-0000-00008f550315"
+    },
+    {
+      "pnl": -2.24,
+      "action": "BUY",
+      "entryType": "breakout",
+      "closedAt": 1776264550819,
+      "ref": "o_b5205773-6259-4d20-bb4f-3671e249f856",
+      "dealId": "00601567-0001-54c4-0000-00008f7bb92d"
+    },
+    {
+      "pnl": -6.57,
+      "action": "BUY",
+      "entryType": "pullback",
+      "closedAt": 1776327014595,
+      "ref": "o_00528aee-ba8f-45ea-93c9-f0140cb24400",
+      "dealId": "00601567-0001-54c4-0000-00008f80da0f"
+    },
+    {
+      "pnl": 1.25,
+      "action": "SELL",
+      "entryType": "pullback",
+      "closedAt": 1776351022394,
+      "ref": "o_8eae09d5-1070-405d-af6d-c193eaf2c6fe",
+      "dealId": "00601567-0001-54c4-0000-00008f83e5d0"
+    },
+    {
+      "pnl": -4.26,
+      "action": "SELL",
+      "entryType": "pullback",
+      "closedAt": 1776415878903,
+      "ref": "o_14e762d5-b06c-48cf-905a-a6978ed5cfd5",
+      "dealId": "00601567-0001-54c4-0000-00008f88ef65"
+    }
+  ],
+  "rollingWinRate10": 40,
+  "rollingProfitFactor15": 0.34,
+  "rollingGrossProfit15": 6.87,
+  "rollingGrossLoss15": 20.15,
+  "performanceReviewNeeded": true,
+  "performanceReviewReason": "Win Rate 10=40.00% < 50% | PF 15=0.34 < 1.00",
+  "stateVersion": 27311,
+  "lastDisabledAlert": 0,
+  "lastCriticalAlert": 0,
+  "todayTrades": 0,
+  "todayBuys": 0,
+  "todaySells": 0,
+  "todayWinRate": 0,
+  "todayBest": 0,
+  "todayWorst": 0,
+  "brokerTotalTrades": 27,
+  "brokerTotalPnl": -9.17,
+  "brokerWins": 9,
+  "brokerWinRate": 33.33,
+  "brokerBestTrade": 4.41,
+  "brokerWorstTrade": -3.99,
+  "lastBrokerSync": "2026-04-19T19:36:04.741Z",
+  "brokerLosses": 18,
+  "stateUpdatedAt": 1776627365970
+}

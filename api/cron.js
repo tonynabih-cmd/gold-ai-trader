@@ -336,9 +336,8 @@ async function reconcilePositions(session, botState) {
   }
 }
 
-function shouldFinalizeRiskOutcome(botState, signal) {
-  // If strategy generated no signal, this candle has been fully evaluated.
-  if (!signal) return true;
+  // If strategy generated no signal, do NOT finalize yet. Allow retries within the window.
+  if (!signal) return false;
 
   // Do not finalize on manual/infrastructure/uncertain state failures.
   if (botState.botEnabled === false) return false;

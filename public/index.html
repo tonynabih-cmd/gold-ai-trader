@@ -692,7 +692,7 @@ function renderLogs(logs) {
 
     // Indicator freshness (Multi-Field strict check)
     const vC = (val) => val !== undefined && val !== null && val !== '—' && val !== '' && !isNaN(parseFloat(val));
-    const latestHasValidEma = vC(last.ema20) && vC(last.ema50) && vC(last.atr) && vC(last.rsi);
+    const latestHasValidEma = vC(last.ema20) && vC(last.ema50) && vC(last.atr);
     document.getElementById('indTitleAux').innerHTML = latestHasValidEma ? '' : '<span class="ind-stale-badge">Indicators from last valid cycle</span>';
     document.getElementById('indicatorBar').className = 'indicator-bar' + (latestHasValidEma ? '' : ' stale');
 

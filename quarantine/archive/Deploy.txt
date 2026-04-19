@@ -1,6 +1,6 @@
 cd C:\Users\Antho\Downloads\gold-trader
 git add .
-git commit -m "fix everything"
+git commit -m "fix"
 git pull --rebase origin main
 git push
 npx vercel --prod
@@ -17,3 +17,5 @@ node check_today_logs.mjs
 
 cd C:\Users\Antho\Downloads\gold-trader
 npx @openai/codex
+
+
