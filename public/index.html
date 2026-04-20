@@ -230,24 +230,21 @@
       </div>
       <div class="indicator-bar" id="indicatorBar">
         <div class="ind-item">
+          <div class="ind-label">1H Trend</div>
+          <div class="ind-value" id="trend1h">—</div>
+        </div>
+        <div class="ind-item">
           <div class="ind-label">EMA 20</div>
           <div class="ind-value" id="ema20">—</div>
-          <div class="ind-sub" id="ema20dir">—</div>
         </div>
         <div class="ind-item">
           <div class="ind-label">EMA 50</div>
           <div class="ind-value" id="ema50">—</div>
-          <div class="ind-sub" id="emaSlope">Slope: —</div>
         </div>
         <div class="ind-item">
           <div class="ind-label">ATR (14)</div>
           <div class="ind-value" id="atr">—</div>
           <div class="ind-sub" id="atrAvg">Avg: —</div>
-        </div>
-        <div class="ind-item">
-          <div class="ind-label">RSI (14)</div>
-          <div class="ind-value" id="rsi">—</div>
-          <div class="ind-sub" id="rsiZone">—</div>
         </div>
       </div>
     </div>
@@ -369,7 +366,7 @@
     </div>
 
     <div class="card" id="auditCard" style="display:none">
-      <div class="card-title">Claude Daily Audit</div>
+      <div class="card-title">Daily Audit</div>
       <div class="audit-content" id="auditReport">—</div>
       <div style="font-size:10px;color:var(--text2);margin-top:8px;font-family:var(--mono);" id="auditDate">—</div>
     </div>
@@ -562,7 +559,7 @@ function renderState(state) {
   }
   document.getElementById('healthDay').textContent = state.lastTradingDay || '—';
   
-  document.getElementById('stratVer').textContent = state.strategyVersion ? state.strategyVersion : 'v1.5';
+  document.getElementById('stratVer').textContent = state.strategyVersion ? state.strategyVersion : 'v1.5'; // Will be overridden by latestLog.strategyVersion if available
 
   const now = new Date();
   const utcHour = now.getUTCHours();
@@ -617,9 +614,36 @@ function renderLogs(logs) {
      display.push(current);
   }
 
-  const last = display[0];
-  if (last) {
-    let action = last.signalDetected || 'NO SIGNAL';
+  const lastRaw = display[0];
+  if (lastRaw) {
+    // 1. Normalize latest log payload to only current active fields
+    const latestLog = {
+      strategyVersion: lastRaw.strategyVersion,
+      trend1h: lastRaw.trend1h,
+      signalDetected: lastRaw.signalDetected,
+      tradeExecuted: !!lastRaw.tradeExecuted,
+      entryType: lastRaw.entryType,
+      reason: lastRaw.reason,
+      dbgSetupReady: lastRaw.dbgSetupReady,
+      dbgPullbackReason: lastRaw.dbgPullbackReason,
+      dbgRejectReason: lastRaw.dbgRejectReason,
+      isRelaxedMode: !!lastRaw.isRelaxedMode || !!lastRaw.dbgRelaxedUsed,
+      isFallbackMode: !!lastRaw.isFallbackMode || !!lastRaw.dbgFallbackMode || !!lastRaw.fallbackUsed,
+      blockedBySpread: !!lastRaw.blockedBySpread,
+      spread: lastRaw.spread,
+      atrRejected: lastRaw.atrRejected,
+      marketActive: lastRaw.marketActive,
+      isStale: !!lastRaw.isStale || !!lastRaw.staleData,
+      time: lastRaw.time
+    };
+
+    // Fix strategy version mapping
+    const stratVerEl = document.getElementById('stratVer');
+    if (stratVerEl && latestLog.strategyVersion) {
+      stratVerEl.textContent = latestLog.strategyVersion;
+    }
+
+    let action = latestLog.signalDetected || 'NO SIGNAL';
     if(action === 'NONE' || action === 'SKIP') action = 'NO SIGNAL';
     if(action === 'ERROR') action = 'ERROR';
     const badgeClass = action === 'BUY' ? 'dec-buy' : action === 'SELL' ? 'dec-sell' : (action === 'ERROR' ? 'dec-sell' : 'dec-skip');
@@ -627,34 +651,34 @@ function renderLogs(logs) {
     
     // Infer Stage
     let stage = 'Execution';
-    let r = (last.reason || '').toLowerCase();
-    if (last.tradeExecuted) stage = 'Trade Sent';
+    let r = (latestLog.reason || '').toLowerCase();
+    if (latestLog.tradeExecuted) stage = 'Trade Sent';
     else if (r.includes('weekend') || r.includes('market') || r.includes('session') || r.includes('sleeping')) stage = 'Market Filter';
     else if (r.includes('spread') || r.includes('risk') || r.includes('exposure') || r.includes('drawdown') || r.includes('daily loss') || r.includes('max trades')) stage = 'Risk Filter';
     else if (r.includes('momentum') || r.includes('doji') || r.includes('engulfing') || r.includes('rejection') || (r.includes('candle') && !r.includes('pullback')) || r.includes('confirm')) stage = 'Confirmation';
-    else if (last.dbgSetupReady) stage = 'Setup Ready';
+    else if (latestLog.dbgSetupReady) stage = 'Setup Ready';
     else stage = 'Setup Detection';
     document.getElementById('decisionStage').textContent = 'Stage: ' + stage;
 
-    let cleanLastReason = last.reason ? last.reason.replace(/^SKIP:\s*/i, '') : '';
+    let cleanLastReason = latestLog.reason ? latestLog.reason.replace(/^SKIP:\s*/i, '') : '';
     if (!cleanLastReason) {
-       cleanLastReason = last.tradeExecuted ? 'Trade executed successfully' : 'No clear signal found';
+       cleanLastReason = latestLog.tradeExecuted ? 'Trade executed successfully' : 'No clear signal found';
     }
     document.getElementById('lastReason').textContent = cleanLastReason;
     
     // Decision Breakdown Panel Check (Safer + Field Priority)
     let bdSpread = '<span style="color:var(--green);font-weight:bold;">OK</span>';
-    if (last.spread !== undefined && last.blockedBySpread !== undefined) {
-        if (last.blockedBySpread) bdSpread = '<span style="color:var(--red);font-weight:bold;">BLOCKED</span>';
+    if (latestLog.spread !== undefined && latestLog.blockedBySpread !== undefined) {
+        if (latestLog.blockedBySpread) bdSpread = '<span style="color:var(--red);font-weight:bold;">BLOCKED</span>';
     } else if (r.includes('spread')) {
         bdSpread = '<span style="color:var(--red);font-weight:bold;">BLOCKED</span>';
     }
 
     let bdAtr = '<span style="color:var(--green);font-weight:bold;">OK</span>';
-    if (last.atrRejected !== undefined) {
-        if (last.atrRejected === 'low') bdAtr = '<span style="color:var(--red);font-weight:bold;">TOO LOW</span>';
-        else if (last.atrRejected === 'high') bdAtr = '<span style="color:var(--red);font-weight:bold;">TOO HIGH</span>';
-        else if (last.atrRejected === true) bdAtr = '<span style="color:var(--red);font-weight:bold;">BLOCKED</span>';
+    if (latestLog.atrRejected !== undefined) {
+        if (latestLog.atrRejected === 'low') bdAtr = '<span style="color:var(--red);font-weight:bold;">TOO LOW</span>';
+        else if (latestLog.atrRejected === 'high') bdAtr = '<span style="color:var(--red);font-weight:bold;">TOO HIGH</span>';
+        else if (latestLog.atrRejected === true) bdAtr = '<span style="color:var(--red);font-weight:bold;">BLOCKED</span>';
     } else {
         if (r.includes('atr') && r.includes('low')) bdAtr = '<span style="color:var(--red);font-weight:bold;">TOO LOW</span>';
         else if (r.includes('atr') && (r.includes('high') || r.includes('exceed'))) bdAtr = '<span style="color:var(--red);font-weight:bold;">TOO HIGH</span>';
@@ -662,15 +686,15 @@ function renderLogs(logs) {
     }
 
     let bdSession = '<span style="color:var(--green);font-weight:bold;">OK</span>';
-    if (last.marketActive !== undefined) {
-        if (!last.marketActive) bdSession = '<span style="color:var(--red);font-weight:bold;">CLOSED</span>';
+    if (latestLog.marketActive !== undefined) {
+        if (!latestLog.marketActive) bdSession = '<span style="color:var(--red);font-weight:bold;">CLOSED</span>';
     } else if (r.includes('weekend') || r.includes('market') || r.includes('session') || r.includes('sleeping')) {
         bdSession = '<span style="color:var(--red);font-weight:bold;">CLOSED</span>';
     }
 
     let bdData = '<span style="color:var(--green);font-weight:bold;">OK</span>';
-    if (last.isStale !== undefined || last.staleData !== undefined) {
-         if (last.isStale || last.staleData) bdData = '<span style="color:var(--red);font-weight:bold;">STALE</span>';
+    if (latestLog.isStale !== undefined) {
+         if (latestLog.isStale) bdData = '<span style="color:var(--red);font-weight:bold;">STALE</span>';
     } else if (r.includes('stale')) {
         bdData = '<span style="color:var(--red);font-weight:bold;">STALE</span>';
     }
@@ -680,13 +704,13 @@ function renderLogs(logs) {
     document.getElementById('bdSession').innerHTML = bdSession;
     document.getElementById('bdData').innerHTML = bdData;
 
-    document.getElementById('lastRunTime').textContent = 'Last run: ' + new Date(last.time).toLocaleString('en-US', { timeZone: 'Asia/Dubai' }) + ' UAE';
+    document.getElementById('lastRunTime').textContent = 'Last run: ' + new Date(latestLog.time).toLocaleString('en-US', { timeZone: 'Asia/Dubai' }) + ' UAE';
     
     const modeBadgesStr = [];
-    if (last.isRelaxedMode || last.dbgRelaxedUsed) {
+    if (latestLog.isRelaxedMode) {
       modeBadgesStr.push('<span class="badge-relaxed">Relaxed Mode</span>');
     }
-    if (last.isFallbackMode || last.dbgFallbackMode || last.fallbackUsed) {
+    if (latestLog.isFallbackMode) {
       modeBadgesStr.push('<span class="badge-fallback">Fallback Logic Used</span>');
     }
     document.getElementById('modeBadges').innerHTML = modeBadgesStr.join('');
@@ -711,24 +735,20 @@ function renderLogs(logs) {
 
     const recentEma20 = getMostRecentValid('ema20');
     const recentEma50 = getMostRecentValid('ema50');
-    const recentEmaSlope = getMostRecentValid('emaSlope');
     const recentAtr = getMostRecentValid('atr');
     const recentAtrAvg = getMostRecentValid('atrAverage');
-    const recentRsi = getMostRecentValid('rsi');
+    const recentTrend1h = getMostRecentValid('trend1h');
+
+    if (recentTrend1h !== undefined && recentTrend1h !== null && recentTrend1h !== '') {
+      document.getElementById('trend1h').textContent = recentTrend1h.toUpperCase();
+      document.getElementById('trend1h').className = 'ind-value ' + (recentTrend1h.toLowerCase().includes('up') ? 'up' : recentTrend1h.toLowerCase().includes('down') ? 'down' : '');
+    } else {
+      document.getElementById('trend1h').innerHTML = '<span style="color:var(--text3);font-size:11px;">N/A</span>';
+      document.getElementById('trend1h').className = 'ind-value';
+    }
 
     document.getElementById('ema20').innerHTML = safeParse(recentEma20, 2);
     document.getElementById('ema50').innerHTML = safeParse(recentEma50, 2);
-    
-    if (recentEmaSlope !== undefined) {
-      const slope = parseFloat(recentEmaSlope);
-      document.getElementById('emaSlope').textContent = 'Slope: ' + slope.toFixed(3) + '%';
-      document.getElementById('ema20dir').className = 'ind-sub ' + (slope > 0 ? 'up' : 'down');
-      document.getElementById('ema20dir').textContent = slope > 0 ? '↑ Uptrend' : '↓ Downtrend';
-    } else {
-      document.getElementById('emaSlope').textContent = 'Slope: N/A';
-      document.getElementById('ema20dir').className = 'ind-sub';
-      document.getElementById('ema20dir').textContent = '—';
-    }
     
     document.getElementById('atr').innerHTML = safeParse(recentAtr, 2);
     if (recentAtrAvg !== undefined) {
@@ -737,22 +757,11 @@ function renderLogs(logs) {
       document.getElementById('atrAvg').textContent = 'Avg: N/A';
     }
 
-    if (recentRsi !== undefined) {
-      const rsi = parseFloat(recentRsi);
-      document.getElementById('rsi').textContent = rsi.toFixed(0);
-      document.getElementById('rsiZone').textContent = rsi > 70 ? 'Overbought' : rsi < 30 ? 'Oversold' : 'Neutral';
-      document.getElementById('rsi').className = 'ind-value ' + (rsi > 70 ? 'down' : rsi < 30 ? 'up' : '');
-    } else {
-      document.getElementById('rsi').innerHTML = '<span style="color:var(--text3);font-size:11px;">N/A</span>';
-      document.getElementById('rsiZone').textContent = '—';
-      document.getElementById('rsi').className = 'ind-value';
-    }
-
     const setupBanner = document.getElementById('setupReadyBanner');
     const setupReason = document.getElementById('setupReadyReason');
-    if (last.dbgSetupReady === true) {
+    if (latestLog.dbgSetupReady === true) {
       setupBanner.style.display = 'flex';
-      setupReason.textContent = last.dbgPullbackReason || last.dbgRejectReason || last.reason || 'Setup detected, waiting for confirmation';
+      setupReason.textContent = latestLog.dbgPullbackReason || latestLog.dbgRejectReason || latestLog.reason || 'Setup detected, waiting for confirmation';
     } else {
       setupBanner.style.display = 'none';
       setupReason.textContent = '';
