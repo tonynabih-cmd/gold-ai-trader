@@ -637,6 +637,102 @@ async function generateLocalAudit(logs, botState) {
   }
 }
 
+// ── REAL-TIME ANOMALY DETECTION ──────────────────────────────────────────────
+async function detectRealtimeIssues(recentLogs, botState) {
+  if (!recentLogs || recentLogs.length === 0) return false;
+
+  const totalCycles = recentLogs.length;
+  if (totalCycles < 20) return false;
+
+  const issues = [];
+  
+  // Track counts
+  const trades = recentLogs.filter(l => l.tradeExecuted === true).length;
+  const setups = recentLogs.filter(l => l.dbgSetupReady === true).length;
+  const sigNone = recentLogs.filter(l => !l.signalDetected || l.signalDetected === 'NONE').length;
+  
+  const dupSkips = recentLogs.filter(l =>
+    typeof l.reason === 'string' && (
+      l.reason.startsWith('SKIP: Duplicate candle') ||
+      l.reason.startsWith('SKIP: Signal from already processed candle') ||
+      l.reason.startsWith('SKIP: No new candle')
+    )
+  ).length;
+
+  const staleSkips = recentLogs.filter(l =>
+    typeof l.reason === 'string' && l.reason.toLowerCase().includes('stale')
+  ).length;
+
+  const brokerErrors = recentLogs.filter(l =>
+    l.brokerResponse && typeof l.brokerResponse === 'object'
+  ).length;
+
+  const indicatorLogs = recentLogs.filter(l => 
+    typeof l.ema20 === 'number' &&
+    typeof l.ema50 === 'number' &&
+    typeof l.atr === 'number' &&
+    typeof l.atrAverage === 'number'
+  );
+
+  // Use conservative thresholds to avoid noise at startup or during sparse cycles
+  if (setups === 0) {
+    issues.push({ id: 'no_setups', msg: '⚠️ No setups detected in last 30 cycles.' });
+  }
+  
+  if (setups > 0 && trades === 0) {
+    issues.push({ id: 'no_trades', msg: '⚠️ Setups detected but no trades executed recently.' });
+  }
+
+  if ((sigNone / totalCycles) > 0.95) {
+    issues.push({ id: 'high_no_signal', msg: '⚠️ NO_SIGNAL rate extremely high in recent cycles.' });
+  }
+
+  if ((dupSkips / totalCycles) > 0.25) {
+    issues.push({ id: 'high_dups', msg: '⚠️ High duplicate candle skips — check lastProcessedCandle logic.' });
+  }
+
+  if ((staleSkips / totalCycles) > 0.20) {
+    issues.push({ id: 'high_stale', msg: '⚠️ High stale rate — check scheduler timing.' });
+  }
+
+  const missingIndicatorPct = (totalCycles - indicatorLogs.length) / totalCycles;
+  if (missingIndicatorPct > 0.50) {
+    issues.push({ id: 'missing_indicators', msg: '⚠️ Missing indicator data in many recent cycles.' });
+  }
+
+  if (brokerErrors > 0) {
+    issues.push({ id: 'broker_errors', msg: '⚠️ Broker errors detected in recent cycles.' });
+  }
+
+  if (issues.length === 0) return false;
+
+  // Enforce cooldowns
+  const now = Date.now();
+  const COOLDOWN_MS = 60 * 60 * 1000; // 60 minutes
+  if (!botState.lastRealtimeAlertAtByType) {
+    botState.lastRealtimeAlertAtByType = {};
+  }
+
+  const activeIssues = [];
+  let stateModified = false;
+
+  for (const issue of issues) {
+    const lastAlertAt = botState.lastRealtimeAlertAtByType[issue.id] || 0;
+    if (now - lastAlertAt > COOLDOWN_MS) {
+      activeIssues.push(issue.msg);
+      botState.lastRealtimeAlertAtByType[issue.id] = now;
+      stateModified = true;
+    }
+  }
+
+  if (activeIssues.length > 0) {
+    const msg = `🚨 REALTIME ALERT\n\n` + activeIssues.join('\n');
+    console.log(`[REALTIME] Triggering alert with ${activeIssues.length} issues.`);
+    await sendAlert(msg).catch(() => {});
+  }
+
+  return stateModified;
+}
 
 export default async function handler(req, res) {
   // ── Authorization ─────────────────────────────────────────────────────────
@@ -1238,6 +1334,18 @@ export default async function handler(req, res) {
     await sendAlert(`🚨 Bot pipeline error: ${err.message}`).catch(() => {});
     return res.status(500).json({ error: err.message });
   } finally {
+    try {
+      if (typeof botState !== 'undefined' && botState) {
+        const recentLogs = await getLogs(30);
+        const stateModified = await detectRealtimeIssues(recentLogs, botState);
+        if (stateModified) {
+          await saveState(botState);
+        }
+      }
+    } catch (realtimeErr) {
+      console.error('[CRON] Real-time anomaly check failed:', realtimeErr.message);
+    }
+
     if (lockHandle) {
       await releaseCandleLock(lockHandle).catch(() => {});
     }
