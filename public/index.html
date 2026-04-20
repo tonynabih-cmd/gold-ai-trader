@@ -472,6 +472,7 @@ async function refreshDashboard() {
   try {
     const res = await fetch('/api/dashboard');
     const data = await res.json();
+    console.log('Dashboard Data response:', data);
     renderState(data.state);
     renderEnv(data.env || 'demo');
     if (data.logs && data.logs.length > 0) {
@@ -637,6 +638,8 @@ function renderLogs(logs) {
       time: lastRaw.time
     };
 
+    console.log('Normalized latest log:', latestLog);
+
     // Fix strategy version mapping
     const stratVerEl = document.getElementById('stratVer');
     if (stratVerEl && latestLog.strategyVersion) {
@@ -717,7 +720,7 @@ function renderLogs(logs) {
 
     // Indicator freshness (Multi-Field strict check)
     const vC = (val) => val !== undefined && val !== null && val !== '—' && val !== '' && !isNaN(parseFloat(val));
-    const latestHasValidEma = vC(last.ema20) && vC(last.ema50) && vC(last.atr);
+    const latestHasValidEma = vC(lastRaw.ema20) && vC(lastRaw.ema50) && vC(lastRaw.atr);
     document.getElementById('indTitleAux').innerHTML = latestHasValidEma ? '' : '<span class="ind-stale-badge">Indicators from last valid cycle</span>';
     document.getElementById('indicatorBar').className = 'indicator-bar' + (latestHasValidEma ? '' : ' stale');
 
