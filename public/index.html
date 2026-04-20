@@ -360,7 +360,7 @@
         </div>
         <div class="health-row">
           <span class="health-label">Strategy ver</span>
-          <span class="health-val health-ok"><span id="stratVer">v1.4</span> <span id="relaxedBadge" class="badge-relaxed" style="display:none; margin-left:8px; font-size:8px;">Relaxed</span></span>
+          <span class="health-val health-ok"><span id="stratVer">v1.5</span> <span id="relaxedBadge" class="badge-relaxed" style="display:none; margin-left:8px; font-size:8px;">Relaxed</span></span>
         </div>
       </div>
       <div class="btn-row">
@@ -562,7 +562,7 @@ function renderState(state) {
   }
   document.getElementById('healthDay').textContent = state.lastTradingDay || '—';
   
-  document.getElementById('stratVer').textContent = state.strategyVersion ? state.strategyVersion : 'v1.4';
+  document.getElementById('stratVer').textContent = state.strategyVersion ? state.strategyVersion : 'v1.5';
 
   const now = new Date();
   const utcHour = now.getUTCHours();
