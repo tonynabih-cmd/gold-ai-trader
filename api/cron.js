@@ -363,6 +363,14 @@ function shouldFinalizeTradeFailure(tradeResult) {
   if (reason.startsWith('REJECTED: Market snapshot unavailable')) return false;
   if (reason === 'REJECTED: Invalid live bid/ask snapshot') return false;
 
+  // Transient market microstructure conditions — slippage and spread can improve
+  // within the same 5m candle window. Do not finalize; allow retry on next GHA cycle
+  // within the 295s stale ceiling. The Redis candle lock (released in finally block)
+  // and verifyExecutionCertainty() prevent double-execution if retry succeeds.
+  if (reason.startsWith('REJECTED: Slippage too high')) return false;
+  if (reason.startsWith('REJECTED: Spread too wide')) return false;
+  if (reason === 'SKIPPED: slippage too high') return false;
+
   // Remaining placeTrade() failures are definitive no-trade outcomes for this candle.
   return true;
 }
