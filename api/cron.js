@@ -639,6 +639,18 @@ async function generateLocalAudit(logs, botState) {
 
 // ── REAL-TIME ANOMALY DETECTION ──────────────────────────────────────────────
 async function detectRealtimeIssues(recentLogs, botState) {
+  // Session filter: only run alerts during active market hours (07:00 - 18:05 UTC)
+  const now = new Date();
+  const utcDay = now.getUTCDay();
+  const timeFloat = now.getUTCHours() + now.getUTCMinutes() / 60;
+  
+  const isWeekend = utcDay === 0 || utcDay === 6;
+  const isFridayClose = utcDay === 5 && timeFloat >= 18.083;
+  
+  if (isWeekend || timeFloat < 7 || timeFloat >= 18.083 || isFridayClose) {
+    return false;
+  }
+
   if (!recentLogs || recentLogs.length === 0) return false;
 
   const totalCycles = recentLogs.length;
