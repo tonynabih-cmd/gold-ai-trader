@@ -22,7 +22,21 @@ jobs:
         run: |
           set -euo pipefail
 
+          POST_CLOSE_BUFFER_SECONDS=10
+
           for i in $(seq 1 "${RUNS_PER_JOB}"); do
+            if [ "${i}" -eq 1 ]; then
+              NOW_EPOCH=$(date -u +%s)
+              CURRENT_BOUNDARY=$(( (NOW_EPOCH / 300) * 300 ))
+              CURRENT_TARGET=$(( CURRENT_BOUNDARY + POST_CLOSE_BUFFER_SECONDS ))
+              INITIAL_WAIT=$(( CURRENT_TARGET - NOW_EPOCH ))
+
+              if [ "${INITIAL_WAIT}" -gt 0 ]; then
+                echo "Waiting ${INITIAL_WAIT}s for first boundary-aligned trigger at $(date -u -d "@${CURRENT_TARGET}" +"%Y-%m-%dT%H:%M:%SZ")"
+                sleep "${INITIAL_WAIT}"
+              fi
+            fi
+
             echo "Iteration ${i}/${RUNS_PER_JOB} at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
             curl -fsS \
               --max-time 90 \
@@ -32,6 +46,11 @@ jobs:
             echo
 
             if [ "${i}" -lt "${RUNS_PER_JOB}" ]; then
-              sleep 300
+              NOW_EPOCH=$(date -u +%s)
+              NEXT_BOUNDARY=$(( ((NOW_EPOCH / 300) + 1) * 300 ))
+              NEXT_TARGET=$(( NEXT_BOUNDARY + POST_CLOSE_BUFFER_SECONDS ))
+              NEXT_WAIT=$(( NEXT_TARGET - NOW_EPOCH ))
+              echo "Sleeping ${NEXT_WAIT}s until next boundary-aligned trigger at $(date -u -d "@${NEXT_TARGET}" +"%Y-%m-%dT%H:%M:%SZ")"
+              sleep "${NEXT_WAIT}"
             fi
           done
