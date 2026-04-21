@@ -10,8 +10,13 @@ on:
 jobs:
   ping:
     runs-on: ubuntu-latest
+    env:
+      BOT_URL: ${{ secrets.BOT_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
       - name: Hit Vercel Cron Endpoint
         run: |
-          curl -s -X GET "${{ secrets.BOT_URL }}/api/cron" \
-          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          curl -fsS \
+            -X GET "${BOT_URL}/api/cron" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "User-Agent: GitHub-Actions-Cron"
