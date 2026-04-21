@@ -1,22 +1,37 @@
-name: 5-Minute Trigger
+name: Session Cron Runner
 
 on:
   schedule:
-    # Equivalent 5-minute weekday schedule; changing the cron syntax reactivates
-    # a GitHub scheduled workflow if it was auto-disabled after inactivity.
-    - cron: '0/5 * * * 1-5'
+    # GitHub's native 5-minute schedules have proven sporadic for this repo.
+    # Start one runner for the London window and one for the NY window; each
+    # runner pings the bot every 5 minutes from inside the job.
+    - cron: '55 6 * * 1-5'
+    - cron: '55 12 * * 1-5'
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
+    timeout-minutes: 355
     env:
       BOT_URL: ${{ secrets.BOT_URL }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      RUNS_PER_JOB: 71
     steps:
-      - name: Hit Vercel Cron Endpoint
+      - name: Run 5-minute bot loop
         run: |
-          curl -fsS \
-            -X GET "${BOT_URL}/api/cron" \
-            -H "Authorization: Bearer ${CRON_SECRET}" \
-            -H "User-Agent: GitHub-Actions-Cron"
+          set -euo pipefail
+
+          for i in $(seq 1 "${RUNS_PER_JOB}"); do
+            echo "Iteration ${i}/${RUNS_PER_JOB} at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            curl -fsS \
+              --max-time 90 \
+              -X GET "${BOT_URL}/api/cron" \
+              -H "Authorization: Bearer ${CRON_SECRET}" \
+              -H "User-Agent: GitHub-Actions-Cron"
+            echo
+
+            if [ "${i}" -lt "${RUNS_PER_JOB}" ]; then
+              sleep 300
+            fi
+          done
