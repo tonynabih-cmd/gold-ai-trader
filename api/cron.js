@@ -2,7 +2,7 @@ import { getCapitalSession }               from '../lib/session.js';
 import { getMarketData }                   from '../lib/market_data.js';
 import { calculateIndicators }             from '../lib/indicators.js';
 import { generateSignal, STRATEGY_VERSION } from '../lib/strategy.js';
-import { checkRisk, calculateDrawdown }              from '../lib/risk.js';
+import { checkRisk, calculateDrawdown, getAdaptiveSpreadLimit }              from '../lib/risk.js';
 import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty, SYNC_WINDOW_MS, fetchCurrentGoldPrice, USD_AED_PEG, modifyTradeStopLoss } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock, pingRedis, CANDLE_LOCK_TTL_SECONDS } from '../lib/state.js';
@@ -394,6 +394,7 @@ function logDecisionStep(step, passed, detail) {
 
 function logSignalAndRiskSteps({ signal, indicators, signalDebug }) {
   const spreadLimit = getAdaptiveSpreadLimit(process.env.MAX_SPREAD, indicators?.atr);
+  console.log(`[RISK] Adaptive spread limit: ${spreadLimit.toFixed(2)}`);
   const spreadValue = indicators?.spread;
   const spreadPass = Number.isFinite(spreadValue) && spreadValue <= spreadLimit;
   logDecisionStep('Spread check', spreadPass, `spread=${Number.isFinite(spreadValue) ? spreadValue.toFixed(2) : 'N/A'} limit=${spreadLimit.toFixed(2)}`);
