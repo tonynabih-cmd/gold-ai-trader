@@ -151,11 +151,11 @@ section('Return structure for successful sizing');
 
 // ── Section 8: Slippage gate logic ───────────────────────────────────────────
 
-section('Slippage gate: maxSlippage priority (snapshot.maxSlippage → maxExecutionSlippage → 3.0)');
+section('Slippage gate: maxSlippage priority (snapshot.maxSlippage → maxExecutionSlippage → base fallback)');
 {
   // Helper mirrors the logic from placeTrade
   function checkSlippage(snapshot, entryPrice, currentMarketPrice) {
-    const maxSlippage = parseFloat(snapshot.maxSlippage ?? snapshot.maxExecutionSlippage) || 3.0;
+    const maxSlippage = parseFloat(snapshot.maxSlippage ?? snapshot.maxExecutionSlippage) || 4.0;
     const expectedSlippage = Math.abs(currentMarketPrice - entryPrice);
     return { expectedSlippage, maxSlippage, skip: expectedSlippage > maxSlippage };
   }
@@ -176,13 +176,13 @@ section('Slippage gate: maxSlippage priority (snapshot.maxSlippage → maxExecut
   const r4 = checkSlippage({ maxExecutionSlippage: 1.5 }, 2000, 2002.0);
   assert(r4.skip, `expectedSlippage=2.0 > maxExecutionSlippage=1.5 → skip`);
 
-  // fallback 3.0 when neither field present
+  // fallback 4.0 when neither field present
   const r5 = checkSlippage({}, 2000, 2002.9);
-  assert(r5.maxSlippage === 3.0, `fallback maxSlippage=3.0 when snapshot has no slippage fields`);
-  assert(!r5.skip, `expectedSlippage=2.9 ≤ fallback 3.0 → do NOT skip`);
+  assert(r5.maxSlippage === 4.0, `fallback maxSlippage=4.0 when snapshot has no slippage fields`);
+  assert(!r5.skip, `expectedSlippage=2.9 ≤ fallback 4.0 → do NOT skip`);
 
-  const r6 = checkSlippage({}, 2000, 2003.1);
-  assert(r6.skip, `expectedSlippage=3.1 > fallback 3.0 → skip`);
+  const r6 = checkSlippage({}, 2000, 2004.1);
+  assert(r6.skip, `expectedSlippage=4.1 > fallback 4.0 → skip`);
 
   // Works for SELL direction (negative price difference)
   const r7 = checkSlippage({ maxSlippage: 2.0 }, 2000, 1998.0);
