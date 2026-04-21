@@ -1007,155 +1007,81 @@ export default async function handler(req, res) {
       return res.json({ skipped: reason });
     }
 
-    // ── STEP 4b: Trade Management (v1.5 — Partial Close + Delayed BE + Trailing) ──
-    // FIX 2 & 3: The old logic moved BE at +1R to entry, choking winners at 0.1–0.5R.
-    // New logic:
-    //   +1.0R → Partial close 50% (lock in profit, let rest run)
-    //   +1.5R → Move SL to entry + 0.3R (never a scratch trade)
-    //   +2.0R → Trailing stop with 1.0 ATR distance (tighter trail in deep profit)
+    // ── STEP 4b: Trade Management (Break-Even Only) ───────────────────────────
     if (Array.isArray(botState.openTrades) && botState.openTrades.length > 0) {
       const livePrice = await fetchCurrentGoldPrice(session);
       if (livePrice) {
         for (let i = 0; i < botState.openTrades.length; i++) {
           const t = botState.openTrades[i];
           if (!t.entry || !t.stopLoss) continue;
+          
+          console.log(`[TRADE_MGMT] Break-even checked for dealId ${t.dealId}`);
 
-          // Compute R (Risk) = distance between entry and initial stop loss
-          const initialSL = t.initialStopLoss || t.stopLoss;
-          const riskAmount = Math.abs(t.entry - initialSL);
-          if (riskAmount <= 0) continue;
+          if (t.breakEvenMoved) {
+            console.log(`[TRADE_MGMT] Break-even already applied for dealId ${t.dealId}`);
+            continue; // Trigger only once per trade
+          }
+
+          const entryAtr = t.atr ? parseFloat(t.atr) : (indicators?.atr ? parseFloat(indicators.atr) : 3.0);
+          if (!Number.isFinite(entryAtr) || entryAtr <= 0) continue;
 
           const liveBid   = livePrice.bid;
           const liveOffer = livePrice.offer;
+          
           const currentProfit = t.action === 'BUY' ? liveBid - t.entry : t.entry - liveOffer;
-          const currentR = currentProfit / riskAmount;
 
-          // ── Phase 0: Partial Close at +1.0R ──────────────────────────────────
-          // Close 50% of the position to lock in profit. The remaining 50% runs to TP.
-          // This only fires once (tracked by t.partialClosed flag).
-          if (currentR >= 1.0 && !t.partialClosed && t.size > 0.02) {
-            const closeSize = parseFloat((t.size * 0.5).toFixed(2));
-            // Minimum closeable size on Capital.com is 0.01 oz
-            if (closeSize >= 0.01) {
-              try {
-                const { baseUrl, cst, securityToken } = session;
-                const closeDirection = t.action === 'BUY' ? 'SELL' : 'BUY';
-                const closeRes = await fetchWithTimeout(`${baseUrl}/api/v1/positions/${t.dealId}`, {
-                  method: 'DELETE',
-                  headers: {
-                    'X-CAP-API-KEY':    process.env.CAPITAL_API_KEY,
-                    'CST':              cst,
-                    'X-SECURITY-TOKEN': securityToken,
-                    'Content-Type':     'application/json',
-                    '_method':          'DELETE',
-                  },
-                  body: JSON.stringify({
-                    direction: closeDirection,
-                    size:      closeSize,
-                  }),
-                });
-
-                if (closeRes.ok) {
-                  t.partialClosed = true;
-                  t.partialCloseSize = closeSize;
-                  t.partialCloseR = parseFloat(currentR.toFixed(2));
-                  t.size = parseFloat((t.size - closeSize).toFixed(2));
-                  
-                  console.log(`[TRADE_MGMT] ✅ Partial close: ${closeSize}oz of ${t.dealId} at +${currentR.toFixed(2)}R. Remaining: ${t.size}oz`);
-                  await sendAlert(
-                    `💰 PARTIAL CLOSE (+${currentR.toFixed(1)}R): ${t.action} Gold\n` +
-                    `Closed: ${closeSize}oz | Remaining: ${t.size}oz\n` +
-                    `dealId: ${t.dealId}`
-                  );
-                  await saveLog({
-                    signal: { id: t.tradeId, action: t.action, entryType: 'partial_close' },
-                    indicators: null,
-                    botState: { ...botState },
-                    tradeExecuted: false,
-                    reason: `PARTIAL_CLOSE: ${closeSize}oz at +${currentR.toFixed(2)}R`,
-                    result: { dbgPartialSize: closeSize, dbgRemainingSize: t.size, dbgCurrentR: currentR }
-                  });
-                  await saveStateCritical(botState, `partial_close:${t.dealId}`);
-                } else {
-                  const errBody = await closeRes.text().catch(() => '(unreadable)');
-                  console.warn(`[TRADE_MGMT] Partial close failed for ${t.dealId} (HTTP ${closeRes.status}): ${errBody}`);
-                }
-              } catch (partialErr) {
-                console.warn(`[TRADE_MGMT] Partial close error for ${t.dealId}: ${partialErr.message}`);
-              }
-            }
-          }
-
-          let newStopLevel = null;
-          let label = '';
-
-          // ── Phase 1: Trailing Stop — activate after +2.0R ────────────────────
-          // v1.5: was +1.5R. Delayed to let winners run further before trailing.
-          // Trail distance tightened to 1.0 ATR (was 1.2) for better profit lock.
-          if (currentR >= 2.0) {
-            const atr = t.atr || 2.0;
-            const trailDist = atr * 1.0;  // v1.5: was 1.2 — tighter trail in deep profit
-            const trailSL = t.action === 'BUY' ? liveBid - trailDist : liveOffer + trailDist;
+          // Trigger when profit reaches +1 ATR from entry
+          if (currentProfit >= entryAtr) {
+            // Buffer based on a tiny fixed safe amount to cover spread/slippage
+            const safeBuffer = 0.30; 
+            const minDistance = 0.50; // Capital.com's typical minimum stop distance
             
+            let tentativeBE = t.action === 'BUY' 
+                ? t.entry + safeBuffer 
+                : t.entry - safeBuffer;
+            
+            // Ensure we never worsen the stop loss
             if (t.action === 'BUY') {
-              if (trailSL > (t.stopLoss || 0)) {
-                newStopLevel = trailSL;
-                label = 'Trailing stop active (+2R)';
-              }
+              if (tentativeBE <= t.stopLoss) continue; 
             } else {
-              if (trailSL < (t.stopLoss || 999999)) {
-                newStopLevel = trailSL;
-                label = 'Trailing stop active (+2R)';
-              }
-            }
-          } 
-          // ── Phase 2: Break-Even — activate after +1.5R ───────────────────────
-          // v1.5: was +1.0R at entry. Now +1.5R at entry + 0.3R.
-          // This ensures: (a) trade has real profit before BE, (b) BE itself locks in 0.3R.
-          else if (currentR >= 1.5 && !t.breakEvenMoved) {
-            // Move SL to entry + 0.3R (not just entry) to guarantee small profit if stopped
-            const beProfitBuffer = riskAmount * 0.3;
-            newStopLevel = t.action === 'BUY' 
-              ? t.entry + beProfitBuffer 
-              : t.entry - beProfitBuffer;
-            label = 'BE activated (+1.5R → entry+0.3R)';
-          }
-
-          if (newStopLevel !== null) {
-            // Ensure we never move the stop WORSE than the current stop
-            if (t.action === 'BUY') {
-              newStopLevel = Math.max(newStopLevel, t.stopLoss || 0);
-            } else {
-              newStopLevel = Math.min(newStopLevel, t.stopLoss || 999999);
+              if (tentativeBE >= t.stopLoss) continue;
             }
 
-            const stopDist = Math.abs(newStopLevel - (t.stopLoss || 0));
-            if (stopDist > 0.20) {
-              console.log(`[TRADE_MGMT] ${label}: Trade ${t.dealId} profit ${currentR.toFixed(2)}R. New SL: $${newStopLevel.toFixed(2)}.`);
+            // Ensure we respect min stop distance from current price safely
+            const distToCurrent = Math.abs((t.action === 'BUY' ? liveBid : liveOffer) - tentativeBE);
+            if (distToCurrent < minDistance) {
+              console.warn(`[TRADE_MGMT] Cannot move BE for ${t.dealId}: new SL $${tentativeBE.toFixed(2)} is too close to live price.`);
+              continue;
+            }
 
-              const mod = await modifyTradeStopLoss(session, t.dealId, {
-                stopLevel:   parseFloat(newStopLevel.toFixed(2)),
-                profitLevel: t.takeProfit ? parseFloat(t.takeProfit.toFixed(2)) : null
+            console.log(`[TRADE_MGMT] Break-Even triggered for ${t.dealId}: +1 ATR profit reached (Profit: $${currentProfit.toFixed(2)}, ATR: $${entryAtr.toFixed(2)}). New SL: $${tentativeBE.toFixed(2)}`);
+
+            const mod = await modifyTradeStopLoss(session, t.dealId, {
+              stopLevel: parseFloat(tentativeBE.toFixed(2)),
+              profitLevel: t.takeProfit ? parseFloat(t.takeProfit.toFixed(2)) : null
+            });
+
+            if (mod.success) {
+              t.breakEvenMoved = true;
+              if (!t.initialStopLoss) t.initialStopLoss = t.stopLoss;
+              t.stopLoss = tentativeBE;
+              
+              await saveLog({
+                signal: { id: t.tradeId, action: t.action, entryType: 'trade_management', strategyVersion: t.strategyVersion || STRATEGY_VERSION },
+                indicators: null,
+                botState: { ...botState },
+                tradeExecuted: false,
+                reason: 'Break-Even Stop Loss Applied (+1 ATR)',
+                result: { dbgNewStop: tentativeBE, dbgCurrentProfit: currentProfit, dbgAtrUsed: entryAtr }
               });
 
-              if (mod.success) {
-                t.breakEvenMoved = true;
-                if (!t.initialStopLoss) t.initialStopLoss = initialSL;
-                t.stopLoss = newStopLevel;
-                
-                await saveLog({
-                  signal: { id: t.tradeId, action: t.action, entryType: 'trade_management' },
-                  indicators: null,
-                  botState: { ...botState },
-                  tradeExecuted: false,
-                  reason: label,
-                  result: { dbgNewStop: newStopLevel, dbgCurrentR: currentR }
-                });
-
-                await sendAlert(`🛡️ ${label}: ${t.action} Gold dealId ${t.dealId}\nNew SL: $${newStopLevel.toFixed(2)} | Profit: +${currentR.toFixed(2)}R`);
-                await saveStateCritical(botState, `stop_move:${t.dealId}`);
-              }
+              await sendAlert(`🛡️ BREAK-EVEN APPLIED: ${t.action} Gold dealId ${t.dealId}\nNew SL: $${tentativeBE.toFixed(2)} (Entry: $${t.entry.toFixed(2)})\nProfit: +$${currentProfit.toFixed(2)} (>= +1 ATR)`);
+              await saveStateCritical(botState, `be_applied:${t.dealId}`);
+            } else {
+              console.warn(`[TRADE_MGMT] Break-Even modification rejected by broker for ${t.dealId}: ${mod.reason}`);
             }
+          } else {
+            console.log(`[TRADE_MGMT] Break-even not triggered yet for dealId ${t.dealId} (Profit: $${currentProfit.toFixed(2)}, Reqs: $${entryAtr.toFixed(2)})`);
           }
         }
       }
