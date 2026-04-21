@@ -216,6 +216,7 @@
     <div class="card">
       <div class="card-title">
         <span>XAU/USD Price History</span>
+        <span id="chartStatusAux"></span>
         <span id="marketClosedBadge" style="display:none; background:rgba(192,57,43,0.9); color:#fff; padding:4px 8px; border-radius:4px; font-size:10px; font-family:var(--mono); font-weight:bold; border:1px solid var(--red-border); text-transform:uppercase;">Market Closed</span>
       </div>
       <div class="chart-container">
@@ -356,6 +357,22 @@
           <span class="health-val" id="healthDay">—</span>
         </div>
         <div class="health-row">
+          <span class="health-label">Current cycle</span>
+          <span class="health-val" id="healthCurrentCycle">—</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">Last valid data</span>
+          <span class="health-val" id="healthLastValid">—</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">Data freshness</span>
+          <span class="health-val" id="healthFreshness">—</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">Scheduler</span>
+          <span class="health-val" id="healthScheduler">—</span>
+        </div>
+        <div class="health-row">
           <span class="health-label">Strategy ver</span>
           <span class="health-val health-ok"><span id="stratVer">v1.5</span> <span id="relaxedBadge" class="badge-relaxed" style="display:none; margin-left:8px; font-size:8px;">Relaxed</span></span>
         </div>
@@ -377,6 +394,12 @@
 <script>
 let chart;
 let lastLogs = [];
+let lastDashboardMeta = null;
+
+function formatDubaiTime(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString('en-US', { timeZone: 'Asia/Dubai' });
+}
 
 function initChart() {
   const ctx = document.getElementById('priceChart').getContext('2d');
@@ -473,12 +496,13 @@ async function refreshDashboard() {
     const res = await fetch('/api/dashboard');
     const data = await res.json();
     console.log('Dashboard Data response:', data);
-    renderState(data.state);
+    lastDashboardMeta = data.dashboardMeta || null;
+    renderState(data.state, data.dashboardMeta || null);
     renderEnv(data.env || 'demo');
     if (data.logs && data.logs.length > 0) {
       lastLogs = data.logs;
-      renderLogs(data.logs);
-      renderChartFromLogs(data.logs);
+      renderLogs(data.logs, data.dashboardMeta || null, data.state);
+      renderChartFromLogs(data.logs, data.state, data.dashboardMeta || null);
     }
     if (data.lastAudit) renderAudit(data.lastAudit);
   } catch(e) {
@@ -498,14 +522,14 @@ function renderEnv(env) {
   logoIcon.style.boxShadow = isLive ? '0 0 15px rgba(201,168,76,0.3)' : 'none';
 
   const bannerText = document.getElementById('bannerText');
-  bannerText.textContent = isLive ? 'EMA 20/50 strategy · Capital.com LIVE · Triggers every 1 min via Vercel Cron' : 'EMA 20/50 strategy · Capital.com demo · Triggers every 1 min via cron-job.org';
+  bannerText.textContent = isLive ? 'EMA 20/50 strategy · Capital.com LIVE · Scheduled via GitHub Actions / manual cron runs' : 'EMA 20/50 strategy · Capital.com demo · Scheduled via GitHub Actions / manual cron runs';
 
   const balanceSub = document.getElementById('balanceSub');
   balanceSub.textContent = isLive ? 'Real money account' : 'Demo account';
   balanceSub.style.color = isLive ? 'var(--green)' : 'var(--text2)';
 }
 
-function renderState(state) {
+function renderState(state, meta) {
   const balance = parseFloat(state.balance || 100);
   document.getElementById('balance').textContent = 'AED ' + balance.toFixed(2);
   const dailyTrades = parseInt(state.dailyTrades || 0);
@@ -559,6 +583,13 @@ function renderState(state) {
     hbEl.className = 'health-val ' + (mins < 10 ? 'health-ok' : 'health-warn');
   }
   document.getElementById('healthDay').textContent = state.lastTradingDay || '—';
+  document.getElementById('healthCurrentCycle').textContent = formatDubaiTime(meta?.currentCycleTime || state.currentCycleTime);
+  document.getElementById('healthLastValid').textContent = formatDubaiTime(meta?.lastValidDataTime || state.lastValidDataTime);
+  const freshness = meta?.dataFreshnessStatus || state.dataFreshnessStatus || 'UNKNOWN';
+  const freshnessEl = document.getElementById('healthFreshness');
+  freshnessEl.textContent = freshness;
+  freshnessEl.className = 'health-val ' + (freshness === 'FRESH' ? 'health-ok' : freshness === 'STALE' ? 'health-warn' : 'health-err');
+  document.getElementById('healthScheduler').textContent = meta?.schedulerSource || state.schedulerSource || 'unknown';
   
   document.getElementById('stratVer').textContent = state.strategyVersion ? state.strategyVersion : 'v1.5'; // Will be overridden by latestLog.strategyVersion if available
 
@@ -577,7 +608,7 @@ function renderState(state) {
   if (badge) badge.style.display = marketActive ? 'none' : 'block';
 }
 
-function renderLogs(logs) {
+function renderLogs(logs, meta, state) {
   console.log("Total logs:", logs.length);
   const log = document.getElementById('tradeLog');
   const d = [...logs].sort((a, b) => new Date(b.time) - new Date(a.time));
@@ -635,7 +666,13 @@ function renderLogs(logs) {
       atrRejected: lastRaw.atrRejected,
       marketActive: lastRaw.marketActive,
       isStale: !!lastRaw.isStale || !!lastRaw.staleData,
-      time: lastRaw.time
+      time: lastRaw.time,
+      currentCycleTime: lastRaw.currentCycleTime ?? meta?.currentCycleTime ?? state?.currentCycleTime ?? null,
+      lastValidDataTime: lastRaw.lastValidDataTime ?? meta?.lastValidDataTime ?? state?.lastValidDataTime ?? null,
+      dataFreshnessStatus: lastRaw.dataFreshnessStatus ?? meta?.dataFreshnessStatus ?? state?.dataFreshnessStatus ?? 'UNKNOWN',
+      chartUpdatedThisCycle: lastRaw.chartUpdatedThisCycle ?? meta?.chartUpdatedThisCycle ?? state?.chartUpdatedThisCycle ?? false,
+      schedulerSource: lastRaw.schedulerSource ?? meta?.schedulerSource ?? state?.schedulerSource ?? 'unknown',
+      currentCycleReason: lastRaw.currentCycleReason ?? state?.currentCycleReason ?? ''
     };
 
     console.log('Normalized latest log:', latestLog);
@@ -707,7 +744,10 @@ function renderLogs(logs) {
     document.getElementById('bdSession').innerHTML = bdSession;
     document.getElementById('bdData').innerHTML = bdData;
 
-    document.getElementById('lastRunTime').textContent = 'Last run: ' + new Date(latestLog.time).toLocaleString('en-US', { timeZone: 'Asia/Dubai' }) + ' UAE';
+    document.getElementById('lastRunTime').textContent =
+      'Current cycle: ' + formatDubaiTime(latestLog.currentCycleTime) +
+      ' | Last valid data: ' + formatDubaiTime(latestLog.lastValidDataTime) +
+      ' | Scheduler: ' + latestLog.schedulerSource;
     
     const modeBadgesStr = [];
     if (latestLog.isRelaxedMode) {
@@ -718,16 +758,13 @@ function renderLogs(logs) {
     }
     document.getElementById('modeBadges').innerHTML = modeBadgesStr.join('');
 
-    // Indicator freshness (Multi-Field strict check)
+    // Indicator freshness must reflect the latest cycle, not older fallback logs.
     const vC = (val) => val !== undefined && val !== null && val !== '—' && val !== '' && !isNaN(parseFloat(val));
     const latestHasValidEma = vC(lastRaw.ema20) && vC(lastRaw.ema50) && vC(lastRaw.atr);
-    document.getElementById('indTitleAux').innerHTML = latestHasValidEma ? '' : '<span class="ind-stale-badge">Indicators from last valid cycle</span>';
+    document.getElementById('indTitleAux').innerHTML = latestHasValidEma
+      ? ''
+      : `<span class="ind-stale-badge">Current cycle failed · last valid ${formatDubaiTime(latestLog.lastValidDataTime)}</span>`;
     document.getElementById('indicatorBar').className = 'indicator-bar' + (latestHasValidEma ? '' : ' stale');
-
-    const getMostRecentValid = (field) => {
-      const match = d.find(l => l[field] !== undefined && l[field] !== null && l[field] !== '—' && l[field] !== '' && !isNaN(parseFloat(l[field])));
-      return match ? match[field] : undefined;
-    };
 
     const safeParse = (val, dec) => {
       if (val === undefined || val === null || val === '—' || val === '') return '<span style="color:var(--text3);font-size:11px;">N/A</span>';
@@ -736,26 +773,26 @@ function renderLogs(logs) {
       return p.toFixed(dec);
     };
 
-    const recentEma20 = getMostRecentValid('ema20');
-    const recentEma50 = getMostRecentValid('ema50');
-    const recentAtr = getMostRecentValid('atr');
-    const recentAtrAvg = getMostRecentValid('atrAverage');
-    const recentTrend1h = getMostRecentValid('trend1h');
+    const currentEma20 = lastRaw.ema20;
+    const currentEma50 = lastRaw.ema50;
+    const currentAtr = lastRaw.atr;
+    const currentAtrAvg = lastRaw.atrAverage;
+    const currentTrend1h = lastRaw.trend1h;
 
-    if (recentTrend1h !== undefined && recentTrend1h !== null && recentTrend1h !== '') {
-      document.getElementById('trend1h').textContent = recentTrend1h.toUpperCase();
-      document.getElementById('trend1h').className = 'ind-value ' + (recentTrend1h.toLowerCase().includes('up') ? 'up' : recentTrend1h.toLowerCase().includes('down') ? 'down' : '');
+    if (currentTrend1h !== undefined && currentTrend1h !== null && currentTrend1h !== '' && currentTrend1h !== 'N/A') {
+      document.getElementById('trend1h').textContent = currentTrend1h.toUpperCase();
+      document.getElementById('trend1h').className = 'ind-value ' + (currentTrend1h.toLowerCase().includes('up') ? 'up' : currentTrend1h.toLowerCase().includes('down') ? 'down' : '');
     } else {
       document.getElementById('trend1h').innerHTML = '<span style="color:var(--text3);font-size:11px;">N/A</span>';
       document.getElementById('trend1h').className = 'ind-value';
     }
 
-    document.getElementById('ema20').innerHTML = safeParse(recentEma20, 2);
-    document.getElementById('ema50').innerHTML = safeParse(recentEma50, 2);
+    document.getElementById('ema20').innerHTML = safeParse(currentEma20, 2);
+    document.getElementById('ema50').innerHTML = safeParse(currentEma50, 2);
     
-    document.getElementById('atr').innerHTML = safeParse(recentAtr, 2);
-    if (recentAtrAvg !== undefined) {
-      document.getElementById('atrAvg').textContent = 'Avg: ' + parseFloat(recentAtrAvg).toFixed(2);
+    document.getElementById('atr').innerHTML = safeParse(currentAtr, 2);
+    if (currentAtrAvg !== undefined && currentAtrAvg !== null && currentAtrAvg !== '') {
+      document.getElementById('atrAvg').textContent = 'Avg: ' + parseFloat(currentAtrAvg).toFixed(2);
     } else {
       document.getElementById('atrAvg').textContent = 'Avg: N/A';
     }
@@ -851,20 +888,36 @@ function renderLogs(logs) {
   }).join('');
 }
 
-function renderChartFromLogs(logs) {
-  if (!logs || logs.length === 0) return;
-  const pricePoints = logs
-    .filter(l => (l.goldPrice || l.price || l.ema20) && !isNaN(parseFloat(l.goldPrice || l.price || l.ema20)))
-    .slice(-60)
-    .map(l => ({
-      time: l.time,
-      price: parseFloat(l.goldPrice || l.price || l.ema20),
-      ema20: parseFloat(l.ema20) || null,
-      ema50: parseFloat(l.ema50) || null,
-      signal: l.signalDetected
-    }));
+function renderChartFromLogs(logs, state, meta) {
+  const snapshot = Array.isArray(state?.dashboardChart) ? state.dashboardChart : [];
+  const pricePoints = snapshot.length > 0
+    ? snapshot.map(p => ({
+        time: p.time,
+        price: parseFloat(p.price),
+        ema20: p.ema20 != null ? parseFloat(p.ema20) : null,
+        ema50: p.ema50 != null ? parseFloat(p.ema50) : null,
+        signal: null
+      }))
+    : (logs || [])
+        .filter(l => (l.goldPrice || l.price || l.ema20) && !isNaN(parseFloat(l.goldPrice || l.price || l.ema20)))
+        .slice(-60)
+        .map(l => ({
+          time: l.time,
+          price: parseFloat(l.goldPrice || l.price || l.ema20),
+          ema20: parseFloat(l.ema20) || null,
+          ema50: parseFloat(l.ema50) || null,
+          signal: l.signalDetected
+        }));
 
   if (pricePoints.length === 0) return;
+
+  const chartStatusAux = document.getElementById('chartStatusAux');
+  const freshness = meta?.dataFreshnessStatus || state?.dataFreshnessStatus || 'UNKNOWN';
+  if (freshness === 'FRESH') {
+    chartStatusAux.innerHTML = '';
+  } else {
+    chartStatusAux.innerHTML = `<span class="ind-stale-badge">Showing last valid chart · ${formatDubaiTime(meta?.lastValidDataTime || state?.lastValidDataTime)}</span>`;
+  }
 
   const latest = pricePoints[pricePoints.length - 1];
   document.getElementById('goldPrice').textContent =

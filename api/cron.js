@@ -431,6 +431,34 @@ function logCycleStatus(cycleStatus) {
   console.log(`[FINAL] TRADE: ${cycleStatus.trade}`);
 }
 
+function detectSchedulerSource(req) {
+  const userAgent = String(req.headers['user-agent'] || '').toLowerCase();
+  const vercelId = req.headers['x-vercel-id'];
+  const cronHeader = req.headers['x-vercel-cron'];
+
+  if (cronHeader || vercelId) return 'vercel';
+  if (userAgent.includes('github-actions') || userAgent.includes('github')) return 'github-actions';
+  if (userAgent.includes('cron-job')) return 'cron-job';
+  if (userAgent.includes('curl')) return 'manual-curl';
+  return 'unknown';
+}
+
+function buildDashboardChartSnapshot(candles, indicators) {
+  if (!Array.isArray(candles) || candles.length === 0) return [];
+  const ema20arr = Array.isArray(indicators?.ema20arr) ? indicators.ema20arr : [];
+  const ema50arr = Array.isArray(indicators?.ema50arr) ? indicators.ema50arr : [];
+
+  return candles.slice(-60).map((candle, index, slice) => {
+    const absoluteIndex = candles.length - slice.length + index;
+    return {
+      time: candle.time,
+      price: candle.close,
+      ema20: Number.isFinite(ema20arr[absoluteIndex]) ? ema20arr[absoluteIndex] : null,
+      ema50: Number.isFinite(ema50arr[absoluteIndex]) ? ema50arr[absoluteIndex] : null,
+    };
+  });
+}
+
 
 // ── LOCAL RULE-BASED DAILY AUDIT ─────────────────────────────────────────────
 // Replaces the disabled Claude-based daily audit.
@@ -811,6 +839,8 @@ export default async function handler(req, res) {
   // ── Authorization ─────────────────────────────────────────────────────────
   const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
   const providedAuth = req.headers['authorization'] || req.headers['Authorization'];
+  const schedulerSource = detectSchedulerSource(req);
+  console.log(`[CRON] Scheduler source: ${schedulerSource}`);
   if (process.env.CRON_SECRET && providedAuth !== expectedAuth) {
     console.warn('Unauthorized cron trigger attempt');
     return res.status(401).json({ error: 'Unauthorized' });
@@ -874,6 +904,11 @@ export default async function handler(req, res) {
   try {
     // -- Step 1: Load state + daily reset --
     botState = await loadState();
+    botState.currentCycleTime = Date.now();
+    botState.currentCycleReason = '';
+    botState.chartUpdatedThisCycle = false;
+    botState.schedulerSource = schedulerSource;
+    botState.dataFreshnessStatus = Number(botState.lastValidDataTime) > 0 ? 'STALE' : 'NO_VALID_DATA';
 
     // Performance Tracking: Local rule-based audit every 24h (before daily reset)
     // NOTE: Claude-based daily audit is DISABLED. generateLocalAudit() replaces it.
@@ -1193,6 +1228,12 @@ export default async function handler(req, res) {
     // ── Step 5 & 6: Fetch market data and Indicators ─────────────────────────
     const marketData = await getMarketData(session, botState);
     cycleStatus.data = marketData.dataStatus ?? (marketData.skip ? 'FAIL' : 'OK');
+    botState.currentCycleTime = Date.now();
+    botState.currentCycleReason = marketData.reason || '';
+    if (Array.isArray(marketData.candles5m) && marketData.candles5m.length > 0 && !marketData.skip) {
+      botState.lastValidDataTime = marketData.latestCandleTime;
+      botState.dataFreshnessStatus = 'FRESH';
+    }
 
     let indicators = null;
     if (marketData.candles5m && marketData.candles1h) {
@@ -1217,11 +1258,19 @@ export default async function handler(req, res) {
       indicators = calculateIndicators(marketData.candles5m, marketData.candles1h);
       indicators.spread = marketData.spread ?? null;
       cycleStatus.trend = formatTrendStatus(indicators);
+      if (!indicators.skip) {
+        botState.lastValidDataTime = marketData.latestCandleTime;
+        botState.dataFreshnessStatus = 'FRESH';
+        botState.dashboardChart = buildDashboardChartSnapshot(marketData.candles5m, indicators);
+        botState.chartUpdatedThisCycle = true;
+      }
     }
 
     // If market data skipped OR indicators skipped:
     if (marketData.skip || (indicators && indicators.skip)) {
       const reason = marketData.skip ? marketData.reason : indicators.reason;
+      botState.currentCycleReason = reason;
+      botState.dataFreshnessStatus = Number(botState.lastValidDataTime) > 0 ? 'STALE' : 'NO_VALID_DATA';
       cycleStatus.setup = 'NO';
       cycleStatus.trade = `SKIPPED (${reason})`;
       if (!marketData.skip && indicators) {
@@ -1282,6 +1331,7 @@ export default async function handler(req, res) {
       : checkRisk(signal, botState, indicators);
 
     if (riskResult !== 'APPROVED') {
+      botState.currentCycleReason = riskResult;
       cycleStatus.trade = `SKIPPED (${riskResult})`;
       if (riskResult.startsWith('STOP:') || riskResult.startsWith('DISABLE:')) {
         await sendAlert(`🚨 ${riskResult}`).catch(() => {});
@@ -1296,6 +1346,7 @@ export default async function handler(req, res) {
     }
 
     if (!lockHandle) {
+      botState.currentCycleReason = 'SKIP: Missing execution lock handle';
       cycleStatus.trade = 'SKIPPED (Missing execution lock handle)';
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Missing execution lock handle', signalDebug });
@@ -1305,6 +1356,7 @@ export default async function handler(req, res) {
 
     const lockOwnedBeforeExecution = await verifyCandleLockOwnership(lockHandle);
     if (!lockOwnedBeforeExecution) {
+      botState.currentCycleReason = 'SKIP: Lock ownership lost before execution';
       cycleStatus.trade = 'SKIPPED (Lock ownership lost before execution)';
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock ownership lost before execution', signalDebug });
@@ -1314,6 +1366,7 @@ export default async function handler(req, res) {
 
     const lockRenewedBeforeExecution = await renewCandleLock(lockHandle, CANDLE_LOCK_TTL_SECONDS);
     if (!lockRenewedBeforeExecution) {
+      botState.currentCycleReason = 'SKIP: Lock renewal failed before execution';
       cycleStatus.trade = 'SKIPPED (Lock renewal failed before execution)';
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock renewal failed before execution', signalDebug });
@@ -1325,6 +1378,7 @@ export default async function handler(req, res) {
     if (!certainty.ok) {
       if (certainty.reason.includes('LOCAL_NOT_ON_BROKER') || certainty.reason.includes('BROKER_NOT_LOCAL')) {
         const skipReason = `SKIP: Race condition detected during execution gate (${certainty.reason})`;
+        botState.currentCycleReason = skipReason;
         cycleStatus.trade = `SKIPPED (${skipReason})`;
         console.warn(`[CRON] ${skipReason}`);
         botState.lastHeartbeat = Date.now();
@@ -1337,6 +1391,7 @@ export default async function handler(req, res) {
       botState.stateIntegrityOk = false;
       botState.criticalFailure = true;
       botState.criticalFailureReason = certainty.reason;
+      botState.currentCycleReason = certainty.reason;
       cycleStatus.trade = `SKIPPED (${certainty.reason})`;
       await saveStateCritical(botState, `execution_barrier:${certainty.reason}`);
       return res.json({ skipped: certainty.reason });
@@ -1344,6 +1399,7 @@ export default async function handler(req, res) {
 
     const lockOwnedAtExecution = await verifyCandleLockOwnership(lockHandle);
     if (!lockOwnedAtExecution) {
+      botState.currentCycleReason = 'SKIP: Lock ownership lost at execution gate';
       cycleStatus.trade = 'SKIPPED (Lock ownership lost at execution gate)';
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock ownership lost at execution gate', signalDebug });
@@ -1353,6 +1409,7 @@ export default async function handler(req, res) {
 
     const lockRenewedAtExecution = await renewCandleLock(lockHandle, CANDLE_LOCK_TTL_SECONDS);
     if (!lockRenewedAtExecution) {
+      botState.currentCycleReason = 'SKIP: Lock renewal failed at execution gate';
       cycleStatus.trade = 'SKIPPED (Lock renewal failed at execution gate)';
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock renewal failed at execution gate', signalDebug });
@@ -1364,6 +1421,7 @@ export default async function handler(req, res) {
     const tradeResult = await placeTrade(session, signal, botState);
 
     if (!tradeResult.success) {
+      botState.currentCycleReason = tradeResult.reason;
       cycleStatus.trade = `SKIPPED (${tradeResult.reason})`;
       if (String(tradeResult.reason || '').startsWith('CRITICAL_FAILURE')) {
         botState.botEnabled = false;
@@ -1384,6 +1442,7 @@ export default async function handler(req, res) {
     if (lockHandle) {
       botState.lastProcessedCandle = marketData.latestCandleTime;
     }
+    botState.currentCycleReason = 'TRADE_EXECUTED';
     cycleStatus.trade = `EXECUTED (${signal.action} ${signal.entryType})`;
     botState.lastHeartbeat = Date.now();
     await saveLog({ signal, indicators, botState, tradeExecuted: true, result: tradeResult, reason: null, signalDebug });
@@ -1424,6 +1483,12 @@ export default async function handler(req, res) {
 
   } catch (err) {
     // Catastrophic error — log, alert, save state if possible
+    if (botState) {
+      botState.currentCycleTime = Date.now();
+      botState.currentCycleReason = err.message;
+      botState.dataFreshnessStatus = Number(botState.lastValidDataTime) > 0 ? 'STALE' : 'NO_VALID_DATA';
+      botState.schedulerSource = schedulerSource;
+    }
     cycleStatus.trade = `SKIPPED (ERROR: ${err.message})`;
     console.error('[CRON] Pipeline error:', err.message, err.stack);
     if (botState) {

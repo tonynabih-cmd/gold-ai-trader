@@ -23,6 +23,13 @@ export default async function handler(req, res) {
       logs,
       lastAudit: lastAudit || null,
       env:       process.env.CAPITAL_ENV || 'demo',
+      dashboardMeta: {
+        currentCycleTime: state.currentCycleTime ?? null,
+        lastValidDataTime: state.lastValidDataTime ?? null,
+        dataFreshnessStatus: state.dataFreshnessStatus ?? 'UNKNOWN',
+        chartUpdatedThisCycle: state.chartUpdatedThisCycle === true,
+        schedulerSource: state.schedulerSource ?? 'unknown',
+      },
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
