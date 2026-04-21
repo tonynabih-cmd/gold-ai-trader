@@ -434,10 +434,9 @@ function logCycleStatus(cycleStatus) {
 
 function detectSchedulerSource(req) {
   const userAgent = String(req.headers['user-agent'] || '').toLowerCase();
-  const vercelId = req.headers['x-vercel-id'];
   const cronHeader = req.headers['x-vercel-cron'];
 
-  if (cronHeader || vercelId) return 'vercel';
+  if (cronHeader) return 'vercel-cron';
   if (userAgent.includes('github-actions') || userAgent.includes('github')) return 'github-actions';
   if (userAgent.includes('cron-job')) return 'cron-job';
   if (userAgent.includes('curl')) return 'manual-curl';

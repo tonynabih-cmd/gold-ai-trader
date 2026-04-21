@@ -17,4 +17,4 @@
     { "src": "/api/clear-locks",  "dest": "/api/clear-locks.js" },
     { "src": "/(.*)",             "dest": "/public/index.html" }
   ]
-}
+}

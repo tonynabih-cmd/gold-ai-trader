@@ -2,7 +2,9 @@ name: 5-Minute Trigger
 
 on:
   schedule:
-    - cron: '*/5 * * * 1-5'
+    # Equivalent 5-minute weekday schedule; changing the cron syntax reactivates
+    # a GitHub scheduled workflow if it was auto-disabled after inactivity.
+    - cron: '0/5 * * * 1-5'
   workflow_dispatch:
 
 jobs:
