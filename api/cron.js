@@ -5,7 +5,7 @@ import { generateSignal, STRATEGY_VERSION } from '../lib/strategy.js';
 import { checkRisk, calculateDrawdown }              from '../lib/risk.js';
 import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty, SYNC_WINDOW_MS, fetchCurrentGoldPrice, USD_AED_PEG, modifyTradeStopLoss } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
-import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock, pingRedis } from '../lib/state.js';
+import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock, pingRedis, CANDLE_LOCK_TTL_SECONDS } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
 import { fetchWithTimeout }                from '../lib/fetch.js';
 
@@ -1204,7 +1204,8 @@ export default async function handler(req, res) {
         if (!lockHandle) {
            console.warn(`[CRON] ⚠️ Concurrency lock FAILED for candle ${marketData.latestCandleTime}`);
            console.warn(`[CRON]    → Another invocation is already processing this candle`);
-           console.warn(`[CRON]    → This prevents duplicate trades on the same signal`);
+           console.warn(`[CRON]    → Lock TTL is ${CANDLE_LOCK_TTL_SECONDS}s; if this repeats, check for overlapping cron sources`);
+           console.warn(`[CRON]    → Repo contains a scheduled GitHub workflow hitting /api/cron and deploy workflow can trigger it manually`);
            marketData.skip = true;
            marketData.reason = `SKIP: Concurrency lock blocked this invocation (candle ${marketData.latestCandleTime} already being processed by another instance)`;
         } else {
@@ -1311,7 +1312,7 @@ export default async function handler(req, res) {
       return res.json({ skipped: 'SKIP: Lock ownership lost before execution' });
     }
 
-    const lockRenewedBeforeExecution = await renewCandleLock(lockHandle, 120);
+    const lockRenewedBeforeExecution = await renewCandleLock(lockHandle, CANDLE_LOCK_TTL_SECONDS);
     if (!lockRenewedBeforeExecution) {
       cycleStatus.trade = 'SKIPPED (Lock renewal failed before execution)';
       botState.lastHeartbeat = Date.now();
@@ -1350,7 +1351,7 @@ export default async function handler(req, res) {
       return res.json({ skipped: 'SKIP: Lock ownership lost at execution gate' });
     }
 
-    const lockRenewedAtExecution = await renewCandleLock(lockHandle, 120);
+    const lockRenewedAtExecution = await renewCandleLock(lockHandle, CANDLE_LOCK_TTL_SECONDS);
     if (!lockRenewedAtExecution) {
       cycleStatus.trade = 'SKIPPED (Lock renewal failed at execution gate)';
       botState.lastHeartbeat = Date.now();
