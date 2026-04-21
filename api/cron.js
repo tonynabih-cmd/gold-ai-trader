@@ -375,6 +375,62 @@ function shouldFinalizeTradeFailure(tradeResult) {
   return true;
 }
 
+function formatTrendStatus(indicators) {
+  if (!indicators) return 'N/A (not evaluated)';
+
+  const trend = indicators.trend1h ?? 'N/A';
+  const reason = indicators.trendReason || (
+    trend === 'UP' ? 'EMA20 above EMA50'
+    : trend === 'DOWN' ? 'EMA20 below EMA50'
+    : 'missing or invalid 1h EMA data'
+  );
+
+  return `${trend} (${reason})`;
+}
+
+function logDecisionStep(step, passed, detail) {
+  console.log(`[DECISION] ${step}: ${passed ? 'PASS' : 'FAIL'}${detail ? ` | ${detail}` : ''}`);
+}
+
+function logSignalAndRiskSteps({ signal, indicators, signalDebug }) {
+  const spreadLimit = getAdaptiveSpreadLimit(process.env.MAX_SPREAD, indicators?.atr);
+  const spreadValue = indicators?.spread;
+  const spreadPass = Number.isFinite(spreadValue) && spreadValue <= spreadLimit;
+  logDecisionStep('Spread check', spreadPass, `spread=${Number.isFinite(spreadValue) ? spreadValue.toFixed(2) : 'N/A'} limit=${spreadLimit.toFixed(2)}`);
+
+  const minAtr = 0.50;
+  const atrValue = indicators?.atr;
+  const atrPass = Number.isFinite(atrValue) && atrValue >= minAtr;
+  logDecisionStep('ATR check', atrPass, `atr=${Number.isFinite(atrValue) ? atrValue.toFixed(2) : 'N/A'} minimum=${minAtr.toFixed(2)}`);
+
+  const now = new Date();
+  const timeFloat = now.getUTCHours() + (now.getUTCMinutes() / 60);
+  const reducedRisk = timeFloat < 7 || timeFloat > 18.08;
+  logDecisionStep('Session check', true, reducedRisk ? 'Asia/off-peak session -> reduced risk multiplier' : 'London/NY session -> normal risk multiplier');
+
+  const trendStatus = indicators?.trend1h;
+  const trendReason = indicators?.trendReason || 'not available';
+  const trendPass = signal ? (
+    (signal.action === 'BUY' && trendStatus === 'UP') ||
+    (signal.action === 'SELL' && trendStatus === 'DOWN')
+  ) : (trendStatus === 'UP' || trendStatus === 'DOWN');
+  logDecisionStep('1h trend filter', trendPass, `trend=${trendStatus ?? 'N/A'} reason=${trendReason}`);
+
+  const setupPass = Boolean(signal);
+  const setupReason = setupPass
+    ? `${signal.action} ${signal.entryType}`
+    : (signalDebug?.dbgRejectReason || 'strategy rejected setup');
+  logDecisionStep('EMA crossover / pullback logic', setupPass, setupReason);
+}
+
+function logCycleStatus(cycleStatus) {
+  console.log('[FINAL] Cycle Status');
+  console.log(`[FINAL] DATA: ${cycleStatus.data}`);
+  console.log(`[FINAL] 1H TREND: ${cycleStatus.trend}`);
+  console.log(`[FINAL] SETUP: ${cycleStatus.setup}`);
+  console.log(`[FINAL] TRADE: ${cycleStatus.trade}`);
+}
+
 
 // ── LOCAL RULE-BASED DAILY AUDIT ─────────────────────────────────────────────
 // Replaces the disabled Claude-based daily audit.
@@ -763,6 +819,12 @@ export default async function handler(req, res) {
   let botState;
   let lockHandle = null;
   let invocationStateVersion = 0;
+  const cycleStatus = {
+    data: 'FAIL',
+    trend: 'N/A (not evaluated)',
+    setup: 'NO',
+    trade: 'SKIPPED (not evaluated)',
+  };
 
   // ── Security: Validate CRON_SECRET strength ───────────────────────────────
   if (process.env.CRON_SECRET) {
@@ -1130,6 +1192,7 @@ export default async function handler(req, res) {
 
     // ── Step 5 & 6: Fetch market data and Indicators ─────────────────────────
     const marketData = await getMarketData(session, botState);
+    cycleStatus.data = marketData.dataStatus ?? (marketData.skip ? 'FAIL' : 'OK');
 
     let indicators = null;
     if (marketData.candles5m && marketData.candles1h) {
@@ -1152,17 +1215,24 @@ export default async function handler(req, res) {
       // Calculate indicators even on skips for dashboard live values
       indicators = calculateIndicators(marketData.candles5m, marketData.candles1h);
       indicators.spread = marketData.spread ?? null;
+      cycleStatus.trend = formatTrendStatus(indicators);
     }
 
     // If market data skipped OR indicators skipped:
     if (marketData.skip || (indicators && indicators.skip)) {
       const reason = marketData.skip ? marketData.reason : indicators.reason;
+      cycleStatus.setup = 'NO';
+      cycleStatus.trade = `SKIPPED (${reason})`;
+      if (!marketData.skip && indicators) {
+        cycleStatus.trend = formatTrendStatus(indicators);
+      }
       
       let signalDebug = undefined;
       // Evaluate strategy purely for debug telemetry even if this cycle is skipping
       if (indicators && !indicators.skip && marketData.candles1m) {
         const generated = generateSignal(indicators, marketData.candles1m);
         signalDebug = generated.debug;
+        logSignalAndRiskSteps({ signal: generated.signal, indicators, signalDebug });
       }
 
       botState.lastHeartbeat = Date.now();
@@ -1175,6 +1245,8 @@ export default async function handler(req, res) {
     indicators.lastOrderTimestamp = botState.lastOrderTimestamp;
     indicators.recentOutcomes = botState.recentOutcomes;
     let { signal, debug: signalDebug } = generateSignal(indicators, marketData.candles1m);
+    cycleStatus.setup = signal ? 'YES' : 'NO';
+    logSignalAndRiskSteps({ signal, indicators, signalDebug });
 
     // ── STEP 7.5: FORCE_TRADE MODE ───────────────────────────────────────────
     if (process.env.FORCE_TRADE === 'true') {
@@ -1198,6 +1270,7 @@ export default async function handler(req, res) {
               timestamp: Date.now()
           };
           signalDebug = { dbgRejectReason: null, dbgAction: action, dbgEntryType: 'forced_test' };
+          cycleStatus.setup = 'YES';
           console.warn(`[FORCE] Created test signal: ${action} @ ${entry}`);
       }
     }
@@ -1208,6 +1281,7 @@ export default async function handler(req, res) {
       : checkRisk(signal, botState, indicators);
 
     if (riskResult !== 'APPROVED') {
+      cycleStatus.trade = `SKIPPED (${riskResult})`;
       if (riskResult.startsWith('STOP:') || riskResult.startsWith('DISABLE:')) {
         await sendAlert(`🚨 ${riskResult}`).catch(() => {});
       }
@@ -1221,6 +1295,7 @@ export default async function handler(req, res) {
     }
 
     if (!lockHandle) {
+      cycleStatus.trade = 'SKIPPED (Missing execution lock handle)';
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Missing execution lock handle', signalDebug });
       await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
@@ -1229,6 +1304,7 @@ export default async function handler(req, res) {
 
     const lockOwnedBeforeExecution = await verifyCandleLockOwnership(lockHandle);
     if (!lockOwnedBeforeExecution) {
+      cycleStatus.trade = 'SKIPPED (Lock ownership lost before execution)';
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock ownership lost before execution', signalDebug });
       await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
@@ -1237,6 +1313,7 @@ export default async function handler(req, res) {
 
     const lockRenewedBeforeExecution = await renewCandleLock(lockHandle, 120);
     if (!lockRenewedBeforeExecution) {
+      cycleStatus.trade = 'SKIPPED (Lock renewal failed before execution)';
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock renewal failed before execution', signalDebug });
       await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
@@ -1247,6 +1324,7 @@ export default async function handler(req, res) {
     if (!certainty.ok) {
       if (certainty.reason.includes('LOCAL_NOT_ON_BROKER') || certainty.reason.includes('BROKER_NOT_LOCAL')) {
         const skipReason = `SKIP: Race condition detected during execution gate (${certainty.reason})`;
+        cycleStatus.trade = `SKIPPED (${skipReason})`;
         console.warn(`[CRON] ${skipReason}`);
         botState.lastHeartbeat = Date.now();
         await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: skipReason, signalDebug });
@@ -1258,12 +1336,14 @@ export default async function handler(req, res) {
       botState.stateIntegrityOk = false;
       botState.criticalFailure = true;
       botState.criticalFailureReason = certainty.reason;
+      cycleStatus.trade = `SKIPPED (${certainty.reason})`;
       await saveStateCritical(botState, `execution_barrier:${certainty.reason}`);
       return res.json({ skipped: certainty.reason });
     }
 
     const lockOwnedAtExecution = await verifyCandleLockOwnership(lockHandle);
     if (!lockOwnedAtExecution) {
+      cycleStatus.trade = 'SKIPPED (Lock ownership lost at execution gate)';
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock ownership lost at execution gate', signalDebug });
       await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
@@ -1272,6 +1352,7 @@ export default async function handler(req, res) {
 
     const lockRenewedAtExecution = await renewCandleLock(lockHandle, 120);
     if (!lockRenewedAtExecution) {
+      cycleStatus.trade = 'SKIPPED (Lock renewal failed at execution gate)';
       botState.lastHeartbeat = Date.now();
       await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock renewal failed at execution gate', signalDebug });
       await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
@@ -1282,6 +1363,7 @@ export default async function handler(req, res) {
     const tradeResult = await placeTrade(session, signal, botState);
 
     if (!tradeResult.success) {
+      cycleStatus.trade = `SKIPPED (${tradeResult.reason})`;
       if (String(tradeResult.reason || '').startsWith('CRITICAL_FAILURE')) {
         botState.botEnabled = false;
         botState.stateIntegrityOk = false;
@@ -1301,6 +1383,7 @@ export default async function handler(req, res) {
     if (lockHandle) {
       botState.lastProcessedCandle = marketData.latestCandleTime;
     }
+    cycleStatus.trade = `EXECUTED (${signal.action} ${signal.entryType})`;
     botState.lastHeartbeat = Date.now();
     await saveLog({ signal, indicators, botState, tradeExecuted: true, result: tradeResult, reason: null, signalDebug });
     await saveState(botState);
@@ -1340,6 +1423,7 @@ export default async function handler(req, res) {
 
   } catch (err) {
     // Catastrophic error — log, alert, save state if possible
+    cycleStatus.trade = `SKIPPED (ERROR: ${err.message})`;
     console.error('[CRON] Pipeline error:', err.message, err.stack);
     if (botState) {
       if (err?.code === 'FETCH_TIMEOUT') {
@@ -1366,5 +1450,7 @@ export default async function handler(req, res) {
     if (lockHandle) {
       await releaseCandleLock(lockHandle).catch(() => {});
     }
+
+    logCycleStatus(cycleStatus);
   }
 }
