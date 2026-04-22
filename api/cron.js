@@ -47,6 +47,7 @@ async function reconcilePositions(session, botState) {
     const localTrades = Array.isArray(botState.openTrades) ? botState.openTrades : [];
     const stillOpen = [];
     const justClosed = [];
+    let adoptedCount = 0;
 
     // --- Phase 1: Reconcile existing local trades ---
     for (const trade of localTrades) {
@@ -252,10 +253,17 @@ async function reconcilePositions(session, botState) {
       const brokerSize = Number(pos.position?.size ?? pos.position?.dealSize);
       const brokerDirection = String(pos.position?.direction || '').toUpperCase();
       const brokerEpic = pos.market?.epic || pos.position?.instrumentName || 'GOLD';
+      const brokerEntry = Number(pos.position?.openLevel ?? pos.position?.level);
 
       if (!Number.isFinite(brokerSize) || brokerSize <= 0 || (brokerDirection !== 'BUY' && brokerDirection !== 'SELL')) {
         console.error(`[SYNC] Invalid broker position data for ${dealId}`, pos);
         continue;
+      }
+      if (!Number.isFinite(brokerEntry) || brokerEntry <= 0) {
+        return {
+          botState,
+          haltReason: `INVALID_BROKER_POSITION:${dealId}:MISSING_ENTRY`,
+        };
       }
 
       // STRICT ANTI-DUPLICATION
@@ -271,19 +279,23 @@ async function reconcilePositions(session, botState) {
         dealReference:   pos.position?.dealReference || null,
         pair:            brokerEpic,
         action:          brokerDirection,
-        entry:           Number(pos.position?.openLevel ?? pos.position?.level ?? 0),
+        entry:           brokerEntry,
         size:            brokerSize,
         stopLoss:        Number(pos.position?.stopLevel ?? 0) || null,
         takeProfit:      Number(pos.position?.limitLevel ?? 0) || null,
+        atr:             null,
         notionalValue:   null,
         marginRequired:  null,
         actualRiskDollars: null,
         openedAt:        pos.position?.createdDateUTC ? new Date(pos.position.createdDateUTC).getTime() : Date.now(),
+        entryType:       'adopted',
         strategyVersion: 'adopted',
+        breakEvenMoved:  false,
         missingCount:    0,
       };
 
       stillOpen.push(adoptedTrade);
+      adoptedCount++;
       console.warn(`[SYNC] ⚠️ ADOPTED untracked broker position: ${brokerDirection} ${brokerSize}oz ${brokerEpic} | dealId=${dealId}`);
       await sendAlert(`⚠️ Bot adopted untracked broker position: ${brokerDirection} ${brokerSize}oz ${brokerEpic} | dealId=${dealId}`).catch(() => {});
     }
@@ -318,7 +330,13 @@ async function reconcilePositions(session, botState) {
         botState.recentOutcomes = botState.recentOutcomes.slice(-20);
       }
 
-      const saved = await saveStateCritical(botState, `reconcile:closed=${justClosed.length}`);
+    }
+
+    if (justClosed.length > 0 || adoptedCount > 0) {
+      const saved = await saveStateCritical(
+        botState,
+        `reconcile:closed=${justClosed.length}:adopted=${adoptedCount}`
+      );
       if (!saved) {
         return {
           botState,
@@ -904,6 +922,7 @@ export default async function handler(req, res) {
   try {
     // -- Step 1: Load state + daily reset --
     botState = await loadState();
+    let indicators = null;
     botState.currentCycleTime = Date.now();
     botState.currentCycleReason = '';
     botState.chartUpdatedThisCycle = false;
@@ -1161,7 +1180,6 @@ export default async function handler(req, res) {
       botState.dataFreshnessStatus = 'FRESH';
     }
 
-    let indicators = null;
     if (marketData.candles5m && marketData.candles1h) {
       botState.candles5m = marketData.candles5m;
       // Only advance the processed candle time if we are not skipping due to duplicate
@@ -1414,14 +1432,21 @@ export default async function handler(req, res) {
       botState.currentCycleReason = err.message;
       botState.dataFreshnessStatus = Number(botState.lastValidDataTime) > 0 ? 'STALE' : 'NO_VALID_DATA';
       botState.schedulerSource = schedulerSource;
+      botState.lastHeartbeat = Date.now();
     }
     cycleStatus.trade = `SKIPPED (ERROR: ${err.message})`;
     console.error('[CRON] Pipeline error:', err.message, err.stack);
     if (botState) {
-      if (err?.code === 'FETCH_TIMEOUT') {
-        botState.stateIntegrityOk = false;
-        console.warn('[CRON] Fetch timeout — skipping this cycle, bot remains enabled');
-      }
+      console.warn('[CRON] Non-fatal pipeline exception captured — preserving existing integrity flags and saving heartbeat only');
+      try {
+        await saveLog({
+          signal: null,
+          indicators: null,
+          botState,
+          tradeExecuted: false,
+          reason: `ERROR: ${err.message}`,
+        });
+      } catch (_) {}
       try { await saveState(botState); } catch (_) {}
     }
     await sendAlert(`🚨 Bot pipeline error: ${err.message}`).catch(() => {});
