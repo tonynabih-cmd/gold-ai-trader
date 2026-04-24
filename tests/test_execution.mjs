@@ -1,9 +1,9 @@
 // tests/test_execution.mjs — Unit tests for lib/execution.js (offline functions only)
 // Run: node tests/test_execution.mjs
 // 
-// Tests calculatePositionSize only — other functions require live network access.
+// Tests offline execution helpers only — live broker calls are not exercised here.
 
-import { calculatePositionSize } from '../lib/execution.js';
+import { calculatePositionSize, calculateProgressiveStopPlan } from '../lib/execution.js';
 
 let passed = 0;
 let failed = 0;
@@ -190,6 +190,73 @@ section('Slippage gate: maxSlippage priority (snapshot.maxSlippage → maxExecut
 
   const r8 = checkSlippage({ maxSlippage: 2.0 }, 2000, 1997.5);
   assert(r8.skip, `SELL: expectedSlippage=2.5 (abs) > maxSlippage=2.0 → skip`);
+}
+
+// ── Section 9: Progressive stop locking (R-multiple) ───────────────────────
+
+section('Progressive stop locking: BUY thresholds');
+{
+  const trade = { action: 'BUY', entry: 2000, stopLoss: 1990, initialStopLoss: 1990 };
+
+  const r1 = calculateProgressiveStopPlan(trade, { bid: 2010, offer: 2010.5 }, { minStopDistance: 0.5 });
+  assert(r1.shouldModify, 'BUY: 1.0R profit should schedule an SL update');
+  assert(r1.stopLevel === 2000, `BUY: 1.0R profit moves SL to break-even (got ${r1.stopLevel})`);
+  assert(r1.lockedR === 0 && r1.triggerR === 1, `BUY: 1.0R stage selected (got trigger=${r1.triggerR}, lock=${r1.lockedR})`);
+
+  const r15 = calculateProgressiveStopPlan(trade, { bid: 2015, offer: 2015.5 }, { minStopDistance: 0.5 });
+  assert(r15.shouldModify, 'BUY: 1.5R profit should schedule an SL update');
+  assert(r15.stopLevel === 2005, `BUY: 1.5R profit locks 0.5R (got ${r15.stopLevel})`);
+  assert(r15.lockedR === 0.5 && r15.triggerR === 1.5, `BUY: 1.5R stage selected (got trigger=${r15.triggerR}, lock=${r15.lockedR})`);
+
+  const r2 = calculateProgressiveStopPlan(trade, { bid: 2020, offer: 2020.5 }, { minStopDistance: 0.5 });
+  assert(r2.shouldModify, 'BUY: 2.0R profit should schedule an SL update');
+  assert(r2.stopLevel === 2010, `BUY: 2.0R profit locks 1.0R (got ${r2.stopLevel})`);
+  assert(r2.lockedR === 1 && r2.triggerR === 2, `BUY: highest eligible stage wins at 2.0R (got trigger=${r2.triggerR}, lock=${r2.lockedR})`);
+}
+
+section('Progressive stop locking: SELL thresholds');
+{
+  const trade = { action: 'SELL', entry: 2000, stopLoss: 2010, initialStopLoss: 2010 };
+
+  const r15 = calculateProgressiveStopPlan(trade, { bid: 1984.5, offer: 1985 }, { minStopDistance: 0.5 });
+  assert(r15.shouldModify, 'SELL: 1.5R profit should schedule an SL update');
+  assert(r15.stopLevel === 1995, `SELL: 1.5R profit locks 0.5R (got ${r15.stopLevel})`);
+
+  const r2 = calculateProgressiveStopPlan(trade, { bid: 1979.5, offer: 1980 }, { minStopDistance: 0.5 });
+  assert(r2.shouldModify, 'SELL: 2.0R profit should schedule an SL update');
+  assert(r2.stopLevel === 1990, `SELL: 2.0R profit locks 1.0R (got ${r2.stopLevel})`);
+}
+
+section('Progressive stop locking: safety guards');
+{
+  const noBackward = calculateProgressiveStopPlan(
+    { action: 'BUY', entry: 2000, stopLoss: 2012, initialStopLoss: 1990 },
+    { bid: 2020, offer: 2020.5 },
+    { minStopDistance: 0.5 }
+  );
+  assert(!noBackward.shouldModify && noBackward.reason === 'STOP_NOT_BETTER', `BUY: never move SL backwards (got ${noBackward.reason})`);
+
+  const minDistanceBlocked = calculateProgressiveStopPlan(
+    { action: 'BUY', entry: 2000, stopLoss: 1999.4, initialStopLoss: 1999.4 },
+    { bid: 2000.6, offer: 2001.1 },
+    { minStopDistance: 0.7 }
+  );
+  assert(!minDistanceBlocked.shouldModify && minDistanceBlocked.reason === 'BROKER_MIN_DISTANCE', `Broker min stop distance blocks too-close updates (got ${minDistanceBlocked.reason})`);
+
+  const inferRiskFromCurrentStop = calculateProgressiveStopPlan(
+    { action: 'BUY', entry: 2000, stopLoss: 1990 },
+    { bid: 2015, offer: 2015.5 },
+    { minStopDistance: 0.5 }
+  );
+  assert(inferRiskFromCurrentStop.shouldModify, 'Current stop can stand in for initial stop while still on the risk side');
+  assert(inferRiskFromCurrentStop.riskSource === 'currentStopLoss', `Risk source falls back to current stop (got ${inferRiskFromCurrentStop.riskSource})`);
+
+  const unknownInitialRisk = calculateProgressiveStopPlan(
+    { action: 'BUY', entry: 2000, stopLoss: 2001 },
+    { bid: 2015, offer: 2015.5 },
+    { minStopDistance: 0.5 }
+  );
+  assert(!unknownInitialRisk.shouldModify && unknownInitialRisk.reason === 'UNKNOWN_INITIAL_RISK', `Moved stop without recorded initial risk is skipped safely (got ${unknownInitialRisk.reason})`);
 }
 
 // ── Summary ─────────────────────────────────────────────────────────────────

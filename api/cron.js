@@ -3,7 +3,7 @@ import { getMarketData }                   from '../lib/market_data.js';
 import { calculateIndicators }             from '../lib/indicators.js';
 import { generateSignal, STRATEGY_VERSION } from '../lib/strategy.js';
 import { checkRisk, calculateDrawdown, getAdaptiveSpreadLimit }              from '../lib/risk.js';
-import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty, SYNC_WINDOW_MS, fetchCurrentGoldPrice, USD_AED_PEG, modifyTradeStopLoss } from '../lib/execution.js';
+import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty, SYNC_WINDOW_MS, fetchCurrentGoldPrice, USD_AED_PEG, modifyTradeStopLoss, calculateProgressiveStopPlan } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock, pingRedis, CANDLE_LOCK_TTL_SECONDS } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
@@ -287,10 +287,13 @@ async function reconcilePositions(session, botState) {
         notionalValue:   null,
         marginRequired:  null,
         actualRiskDollars: null,
+        initialStopLoss: null,
         openedAt:        pos.position?.createdDateUTC ? new Date(pos.position.createdDateUTC).getTime() : Date.now(),
         entryType:       'adopted',
         strategyVersion: 'adopted',
         breakEvenMoved:  false,
+        profitLockStage: null,
+        lastStopLockR:   null,
         missingCount:    0,
       };
 
@@ -1026,81 +1029,82 @@ export default async function handler(req, res) {
       return res.json({ skipped: reason });
     }
 
-    // ── STEP 4b: Trade Management (Break-Even Only) ───────────────────────────
+    // ── STEP 4b: Trade Management (R-Multiple Profit Locking) ────────────────
     if (Array.isArray(botState.openTrades) && botState.openTrades.length > 0) {
       const livePrice = await fetchCurrentGoldPrice(session);
       if (livePrice) {
         for (let i = 0; i < botState.openTrades.length; i++) {
           const t = botState.openTrades[i];
-          if (!t.entry || !t.stopLoss) continue;
-          
-          console.log(`[TRADE_MGMT] Break-even checked for dealId ${t.dealId}`);
+          const plan = calculateProgressiveStopPlan(t, livePrice, {
+            minStopDistance: livePrice.minStopDistance,
+          });
 
-          if (t.breakEvenMoved) {
-            console.log(`[TRADE_MGMT] Break-even already applied for dealId ${t.dealId}`);
-            continue; // Trigger only once per trade
+          if (!plan.shouldModify) {
+            if (plan.reason === 'UNKNOWN_INITIAL_RISK') {
+              console.warn(
+                `[TRADE_MGMT] Skipping profit lock for ${t.dealId}: initial risk is unknown ` +
+                `(entry=$${Number(t.entry || 0).toFixed(2)}, current SL=$${Number(t.stopLoss || 0).toFixed(2)}).`
+              );
+            } else if (plan.reason === 'BROKER_MIN_DISTANCE') {
+              console.warn(
+                `[TRADE_MGMT] ${plan.stageLabel} blocked for ${t.dealId}: target SL $${plan.stopLevel.toFixed(2)} ` +
+                `is ${plan.distanceToCurrent.toFixed(2)} away from live price, below broker minimum ${plan.brokerMinStopDistance.toFixed(2)}.`
+              );
+            }
+            continue;
           }
 
-          const entryAtr = t.atr ? parseFloat(t.atr) : (indicators?.atr ? parseFloat(indicators.atr) : 3.0);
-          if (!Number.isFinite(entryAtr) || entryAtr <= 0) continue;
+          console.log(
+            `[TRADE_MGMT] ${plan.stageLabel} for ${t.dealId}: ` +
+            `current=${plan.currentRMultiple.toFixed(2)}R, profit=$${plan.currentProfitDistance.toFixed(2)}, ` +
+            `risk=$${plan.riskDistance.toFixed(2)}, SL $${plan.currentStopLoss.toFixed(2)} -> $${plan.stopLevel.toFixed(2)}.`
+          );
 
-          const liveBid   = livePrice.bid;
-          const liveOffer = livePrice.offer;
-          
-          const currentProfit = t.action === 'BUY' ? liveBid - t.entry : t.entry - liveOffer;
+          const takeProfit = Number(t.takeProfit);
+          const mod = await modifyTradeStopLoss(session, t.dealId, {
+            stopLevel: plan.stopLevel,
+            profitLevel: Number.isFinite(takeProfit) ? parseFloat(takeProfit.toFixed(2)) : null
+          });
 
-          // Trigger when profit reaches +1 ATR from entry
-          if (currentProfit >= entryAtr) {
-            // Buffer based on a tiny fixed safe amount to cover spread/slippage
-            const safeBuffer = 0.30; 
-            const minDistance = 0.50; // Capital.com's typical minimum stop distance
-            
-            let tentativeBE = t.action === 'BUY' 
-                ? t.entry + safeBuffer 
-                : t.entry - safeBuffer;
-            
-            // Ensure we never worsen the stop loss
-            if (t.action === 'BUY') {
-              if (tentativeBE <= t.stopLoss) continue; 
-            } else {
-              if (tentativeBE >= t.stopLoss) continue;
-            }
+          if (mod.success) {
+            if (!t.initialStopLoss && Number.isFinite(plan.initialStopLoss)) t.initialStopLoss = plan.initialStopLoss;
+            t.stopLoss = plan.stopLevel;
+            t.breakEvenMoved = (
+              plan.action === 'BUY'
+                ? plan.stopLevel >= plan.entry
+                : plan.stopLevel <= plan.entry
+            ) || Boolean(t.breakEvenMoved);
+            t.profitLockStage = plan.stageKey;
+            t.lastStopLockR = plan.lockedR;
 
-            // Ensure we respect min stop distance from current price safely
-            const distToCurrent = Math.abs((t.action === 'BUY' ? liveBid : liveOffer) - tentativeBE);
-            if (distToCurrent < minDistance) {
-              console.warn(`[TRADE_MGMT] Cannot move BE for ${t.dealId}: new SL $${tentativeBE.toFixed(2)} is too close to live price.`);
-              continue;
-            }
-
-            console.log(`[TRADE_MGMT] Break-Even triggered for ${t.dealId}: +1 ATR profit reached (Profit: $${currentProfit.toFixed(2)}, ATR: $${entryAtr.toFixed(2)}). New SL: $${tentativeBE.toFixed(2)}`);
-
-            const mod = await modifyTradeStopLoss(session, t.dealId, {
-              stopLevel: parseFloat(tentativeBE.toFixed(2)),
-              profitLevel: t.takeProfit ? parseFloat(t.takeProfit.toFixed(2)) : null
+            await saveLog({
+              signal: { id: t.tradeId, action: t.action, entryType: 'trade_management', strategyVersion: t.strategyVersion || STRATEGY_VERSION },
+              indicators: null,
+              botState: { ...botState },
+              tradeExecuted: false,
+              reason: `Profit Lock Stop Loss Applied (${plan.stageLabel})`,
+              result: {
+                dbgPreviousStop: plan.currentStopLoss,
+                dbgNewStop: plan.stopLevel,
+                dbgCurrentProfit: plan.currentProfitDistance,
+                dbgCurrentR: plan.currentRMultiple,
+                dbgTriggerR: plan.triggerR,
+                dbgLockedR: plan.lockedR,
+                dbgRiskDistance: plan.riskDistance,
+                dbgInitialStopLoss: plan.initialStopLoss,
+                dbgBrokerMinStopDistance: plan.brokerMinStopDistance,
+              }
             });
 
-            if (mod.success) {
-              t.breakEvenMoved = true;
-              if (!t.initialStopLoss) t.initialStopLoss = t.stopLoss;
-              t.stopLoss = tentativeBE;
-              
-              await saveLog({
-                signal: { id: t.tradeId, action: t.action, entryType: 'trade_management', strategyVersion: t.strategyVersion || STRATEGY_VERSION },
-                indicators: null,
-                botState: { ...botState },
-                tradeExecuted: false,
-                reason: 'Break-Even Stop Loss Applied (+1 ATR)',
-                result: { dbgNewStop: tentativeBE, dbgCurrentProfit: currentProfit, dbgAtrUsed: entryAtr }
-              });
-
-              await sendAlert(`🛡️ BREAK-EVEN APPLIED: ${t.action} Gold dealId ${t.dealId}\nNew SL: $${tentativeBE.toFixed(2)} (Entry: $${t.entry.toFixed(2)})\nProfit: +$${currentProfit.toFixed(2)} (>= +1 ATR)`);
-              await saveStateCritical(botState, `be_applied:${t.dealId}`);
-            } else {
-              console.warn(`[TRADE_MGMT] Break-Even modification rejected by broker for ${t.dealId}: ${mod.reason}`);
-            }
+            await sendAlert(
+              `🛡️ PROFIT LOCK APPLIED: ${t.action} Gold dealId ${t.dealId}\n` +
+              `Stage: ${plan.stageLabel}\n` +
+              `SL: $${plan.currentStopLoss.toFixed(2)} -> $${plan.stopLevel.toFixed(2)}\n` +
+              `Open profit: +$${plan.currentProfitDistance.toFixed(2)} (${plan.currentRMultiple.toFixed(2)}R)`
+            );
+            await saveStateCritical(botState, `profit_lock_applied:${t.dealId}:${plan.stageKey}`);
           } else {
-            console.log(`[TRADE_MGMT] Break-even not triggered yet for dealId ${t.dealId} (Profit: $${currentProfit.toFixed(2)}, Reqs: $${entryAtr.toFixed(2)})`);
+            console.warn(`[TRADE_MGMT] Profit lock modification rejected by broker for ${t.dealId} (${plan.stageLabel}): ${mod.reason}`);
           }
         }
       }
