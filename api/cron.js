@@ -2,7 +2,7 @@ import { getCapitalSession }               from '../lib/session.js';
 import { getMarketData }                   from '../lib/market_data.js';
 import { calculateIndicators }             from '../lib/indicators.js';
 import { generateSignal, STRATEGY_VERSION } from '../lib/strategy.js';
-import { checkRisk, calculateDrawdown, getAdaptiveSpreadLimit }              from '../lib/risk.js';
+import { checkRisk, calculateDrawdown, getAdaptiveSpreadLimit, resetDirectionalLossCircuitOnTrendReset }              from '../lib/risk.js';
 import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty, SYNC_WINDOW_MS, fetchCurrentGoldPrice, USD_AED_PEG, modifyTradeStopLoss, calculateProgressiveStopPlan } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock, pingRedis, CANDLE_LOCK_TTL_SECONDS } from '../lib/state.js';
@@ -324,6 +324,7 @@ async function reconcilePositions(session, botState) {
           pnl:      t.realizedPnl,
           action:   t.action,
           entryType: t.entryType || 'pullback',
+          exitReason: t.realizedPnl < -0.001 ? 'STOP_LOSS' : (t.realizedPnl > 0.001 ? 'NON_LOSS' : 'FLAT'),
           closedAt: Date.now(),
           ref:      t.dealReference,
           dealId:   t.dealId,
@@ -1211,6 +1212,9 @@ export default async function handler(req, res) {
         botState.dataFreshnessStatus = 'FRESH';
         botState.dashboardChart = buildDashboardChartSnapshot(marketData.candles5m, indicators);
         botState.chartUpdatedThisCycle = true;
+        if (resetDirectionalLossCircuitOnTrendReset(botState, indicators)) {
+          console.log(`[RISK] Directional loss circuit reset on 1h trend change (${indicators.trend1h})`);
+        }
       }
     }
 
