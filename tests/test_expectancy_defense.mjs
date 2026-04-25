@@ -73,10 +73,11 @@ console.log('\nExpectancy-defense controls');
 
 {
   const closedAt = Date.now() - 60 * 1000;
+  const closedCandleTime = Math.floor(closedAt / (5 * 60 * 1000)) * (5 * 60 * 1000);
   const signal = makeSignal({ id: `${Date.now()}_SELL_v1.5` });
   const result = checkRisk(
     signal,
-    makeBotState({ recentOutcomes: [{ pnl: -2, action: 'SELL', exitReason: 'STOP_LOSS', closedAt }] }),
+    makeBotState({ recentOutcomes: [{ pnl: -2, action: 'SELL', exitReason: 'STOP_LOSS', closedAt, closedCandleTime }] }),
     makeIndicators()
   );
   assert(result.includes('cooldown after stop loss'), `same-direction 3-candle cooldown fires (got: ${result})`);
@@ -137,7 +138,9 @@ console.log('\nExpectancy-defense controls');
   });
   const result = checkRisk(makeSignal(), state, makeIndicators());
   assert(result.includes('Rolling 5-trade profit factor'), `PF5 < 0.7 disables entries (got: ${result})`);
-  assert(state.botEnabled === false, 'PF5 kill switch flips botEnabled=false');
+  assert(state.expectancyKillSwitch.active === true, 'PF5 kill switch records a pause state');
+  const changed = resetDirectionalLossCircuitOnTrendReset(state, makeIndicators({ trend1h: 'UP' }));
+  assert(changed === true && state.expectancyKillSwitch.active === false, 'PF5 kill switch resets on 1h trend reset');
 }
 
 console.log(`\nTests: ${passed + failed} total, ${passed} passed, ${failed} failed\n`);

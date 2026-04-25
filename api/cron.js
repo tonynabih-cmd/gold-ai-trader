@@ -3,7 +3,7 @@ import { getMarketData }                   from '../lib/market_data.js';
 import { calculateIndicators }             from '../lib/indicators.js';
 import { generateSignal, STRATEGY_VERSION } from '../lib/strategy.js';
 import { checkRisk, calculateDrawdown, getAdaptiveSpreadLimit, resetDirectionalLossCircuitOnTrendReset }              from '../lib/risk.js';
-import { placeTrade, syncBalance, fetchClosedTradePnl, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty, SYNC_WINDOW_MS, fetchCurrentGoldPrice, USD_AED_PEG, modifyTradeStopLoss, calculateProgressiveStopPlan } from '../lib/execution.js';
+import { placeTrade, syncBalance, fetchClosedTradePnlDetails, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty, SYNC_WINDOW_MS, fetchCurrentGoldPrice, USD_AED_PEG, modifyTradeStopLoss, calculateProgressiveStopPlan } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock, pingRedis, CANDLE_LOCK_TTL_SECONDS } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
@@ -103,7 +103,8 @@ async function reconcilePositions(session, botState) {
             firstMissingAt: trade.firstMissingAt ?? null,
           });
         }
-        let realizedPnl = await fetchClosedTradePnl(session, dealId, trade.openedAt);
+        let closedTradeDetails = await fetchClosedTradePnlDetails(session, dealId, trade.openedAt);
+        let realizedPnl = closedTradeDetails?.pnl ?? null;
         if (DEBUG_SYNC_RECON) {
           console.log('[SYNC_DEBUG] Lookup by dealId complete', {
             targetId: dealId,
@@ -123,7 +124,8 @@ async function reconcilePositions(session, botState) {
               attempted: true,
             });
           }
-          realizedPnl = await fetchClosedTradePnl(session, trade.dealReference, trade.openedAt);
+          closedTradeDetails = await fetchClosedTradePnlDetails(session, trade.dealReference, trade.openedAt);
+          realizedPnl = closedTradeDetails?.pnl ?? null;
           if (DEBUG_SYNC_RECON) {
             console.log('[SYNC_DEBUG] Lookup by dealReference complete', {
               targetId: trade.dealReference,
@@ -142,6 +144,9 @@ async function reconcilePositions(session, botState) {
 
         if (realizedPnl !== null) {
           trade.realizedPnl = realizedPnl;
+          trade.closedAt = closedTradeDetails?.closedAt ?? Date.now();
+          trade.closedCandleTime = closedTradeDetails?.closedCandleTime ?? null;
+          trade.closeDateUtc = closedTradeDetails?.closeDateUtc ?? null;
           justClosed.push(trade);
           console.log(`[SYNC] ✅ Confirmed closure for dealId ${dealId} | P&L ${realizedPnl} | elapsed ${elapsedMin}m`);
         } else if (elapsedMs < SYNC_WINDOW_MS) {
@@ -325,7 +330,8 @@ async function reconcilePositions(session, botState) {
           action:   t.action,
           entryType: t.entryType || 'pullback',
           exitReason: t.realizedPnl < -0.001 ? 'STOP_LOSS' : (t.realizedPnl > 0.001 ? 'NON_LOSS' : 'FLAT'),
-          closedAt: Date.now(),
+          closedAt: t.closedAt ?? Date.now(),
+          closedCandleTime: t.closedCandleTime ?? null,
           ref:      t.dealReference,
           dealId:   t.dealId,
         }));
