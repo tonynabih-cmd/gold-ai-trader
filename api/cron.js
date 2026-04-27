@@ -21,7 +21,7 @@ import {
   buildExitAudit
 } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
-import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock, pingRedis, CANDLE_LOCK_TTL_SECONDS } from '../lib/state.js';
+import { loadState, saveState, saveStateWithOptions, saveStateCritical, saveAudit, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock, pingRedis, CANDLE_LOCK_TTL_SECONDS } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
 import { fetchWithTimeout }                from '../lib/fetch.js';
 
@@ -257,6 +257,8 @@ async function reconcilePositions(session, botState) {
         tradeExecuted: false,
         reason: `CLOSED: ${closureTag} | Realized P&L: ${pnlStr} | entry=${closedTrade.entry} | dealId=${dealId}`,
         result: {
+          dealId,
+          dealReference: closedTrade.dealReference ?? null,
           realizedPnl,
           fallbackUsed: closedTrade.fallbackUsed || false,
           audit: closedTrade.audit ?? null,
@@ -773,6 +775,7 @@ async function generateLocalAudit(logs, botState) {
     avgATR, avgATRav, atrStatus, trendBias,
     pfStr, conclusion, date,
   };
+  const anomalies = detectAuditAnomalies(audit, dayLogs, botState);
 
   // ── Format and send daily audit message ──────────────────────────────────
   const rejLines = topRejects.length > 0
@@ -797,11 +800,28 @@ async function generateLocalAudit(logs, botState) {
     `Market:\n  ATR: ${atrStatus}\n  Trend: ${trendBias}\n\n` +
     `Conclusion:\n${conclusion}`;
 
+  await saveAudit({
+    date,
+    report: msg,
+    strategyVersion: botState?.strategyVersion || STRATEGY_VERSION,
+    schedulerSource: botState?.schedulerSource ?? 'unknown',
+    totalCycles,
+    totalDecisions: totalCycles,
+    trades,
+    tradesExecuted: trades,
+    setups,
+    totalRejects,
+    brokerErrors,
+    pfStr,
+    conclusion,
+    anomalies,
+    generatedAt: new Date().toISOString(),
+  }).catch(() => {});
+
   console.log('[AUDIT] Sending daily rule-based audit to Telegram');
   await sendAlert(msg);
 
   // ── Anomaly detection — fires one extra alert only when anomalies exist ───
-  const anomalies = detectAuditAnomalies(audit, dayLogs, botState);
   if (anomalies.length > 0) {
     const anomalyMsg =
       `🚨 AUDIT ANOMALIES (${date})\n` +
@@ -1185,6 +1205,8 @@ export default async function handler(req, res) {
               tradeExecuted: false,
               reason: `Profit Lock Stop Loss Applied (${plan.stageLabel})`,
               result: {
+                dealId: t.dealId ?? null,
+                dealReference: t.dealReference ?? null,
                 dbgPreviousStop: plan.currentStopLoss,
                 dbgNewStop: plan.stopLevel,
                 dbgCurrentProfit: plan.currentProfitDistance,
