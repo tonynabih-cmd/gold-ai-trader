@@ -137,57 +137,18 @@ jobs:
           done
           echo "⚠️  Deployment did not reach READY within 3 minutes. Proceeding anyway."
 
-      # ── 7. Verify Redis is reachable and clear stuck locks in one call ─────
-      - name: Clear stuck candle locks (verifies Redis health)
+      # ── 7. Leave runtime scheduler locks untouched ────────────────────────
+      - name: Skip runtime lock mutation
         id: clear_locks
-        env:
-          BOT_URL: ${{ secrets.BOT_URL }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          echo "Calling /api/clear-locks (pings Redis + clears lock:candle:* keys)..."
-          HTTP=$(curl -s -o /tmp/clear_resp.json -w "%{http_code}" \
-            -X POST "${BOT_URL}/api/clear-locks" \
-            -H "Authorization: Bearer ${CRON_SECRET}")
-          BODY=$(cat /tmp/clear_resp.json)
-          echo "HTTP ${HTTP} — ${BODY}"
+          echo "Runtime candle locks are owned by cron-job.org-triggered production runs."
+          echo "cleared=0" >> "$GITHUB_OUTPUT"
 
-          REDIS_OK=$(echo "$BODY" | python3 -c 'import sys,json; print(str(json.load(sys.stdin).get("redisOk","false")).lower())' 2>/dev/null || echo "false")
-          if [ "$REDIS_OK" != "true" ]; then
-            echo "❌ Redis health check failed. Full response: ${BODY}"
-            exit 1
-          fi
-          echo "✅ Redis is reachable."
-
-          CLEARED=$(echo "$BODY" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("cleared",0))' 2>/dev/null || echo "0")
-          MSG=$(echo "$BODY" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("message",""))' 2>/dev/null || echo "")
-          echo "cleared=${CLEARED}" >> "$GITHUB_OUTPUT"
-          echo "Cleared: ${CLEARED} lock(s) — ${MSG}"
-
-      # ── 8. Trigger one full cron cycle ────────────────────────────────────
-      - name: Run cron cycle
-        id: cron
-        env:
-          BOT_URL: ${{ secrets.BOT_URL }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: |
-          echo "Triggering cron cycle..."
-          HTTP=$(curl -s -o /tmp/cron_resp.json -w "%{http_code}" \
-            -X GET "${BOT_URL}/api/cron" \
-            -H "Authorization: Bearer ${CRON_SECRET}")
-          BODY=$(cat /tmp/cron_resp.json)
-          echo "HTTP ${HTTP}"
-          echo "${BODY}" | python3 -m json.tool 2>/dev/null || echo "${BODY}"
-          echo "cron_http=${HTTP}" >> "$GITHUB_OUTPUT"
-          LOCK_ERR=$(echo "$BODY" | python3 -c 'import sys,json; d=json.load(sys.stdin); print("YES" if "Concurrency lock active" in str(d) else "NO")' 2>/dev/null || echo "NO")
-          echo "lock_error=${LOCK_ERR}" >> "$GITHUB_OUTPUT"
-
-      # ── 9. Status summary ─────────────────────────────────────────────────
+      # ── 8. Status summary ─────────────────────────────────────────────────
       - name: Status summary
         env:
           BOT_URL: ${{ secrets.BOT_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          CRON_HTTP: ${{ steps.cron.outputs.cron_http }}
-          LOCK_ERROR: ${{ steps.cron.outputs.lock_error }}
           CLEARED: ${{ steps.clear_locks.outputs.cleared }}
         run: |
           echo ""
@@ -197,20 +158,11 @@ jobs:
 
           echo ""
           echo "1. Vercel env vars (KV_REST_API_URL, KV_REST_API_TOKEN): ✅ Set"
-          echo "2. Redis reachable:                                       ✅ Confirmed"
-          echo "3. Stuck locks cleared:                                   ✅ ${CLEARED} cleared"
+          echo "2. Redis reachable:                                       Not checked by deploy workflow"
+          echo "3. Stuck locks cleared:                                   Skipped (${CLEARED} cleared)"
 
-          if [ "$CRON_HTTP" = "200" ]; then
-            echo "4. Cron cycle executed:                                   ✅ HTTP 200"
-          else
-            echo "4. Cron cycle executed:                                   ⚠️  HTTP ${CRON_HTTP}"
-          fi
-
-          if [ "$LOCK_ERROR" = "NO" ]; then
-            echo "5. 'Concurrency lock active' errors:                      ✅ None detected"
-          else
-            echo "5. 'Concurrency lock active' errors:                      ❌ Still present — rerun workflow"
-          fi
+          echo "4. Cron cycle executed:                                   Skipped (cron-job.org owns production scheduling)"
+          echo "5. 'Concurrency lock active' errors:                      Not checked by deploy workflow"
 
           LOG_RESP=$(curl -s "${BOT_URL}/api/logger" \
             -H "Authorization: Bearer ${CRON_SECRET}")

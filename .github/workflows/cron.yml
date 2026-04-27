@@ -1,56 +1,11 @@
 name: Session Cron Runner
 
 on:
-  schedule:
-    # GitHub's native 5-minute schedules have proven sporadic for this repo.
-    # Start one runner for the London window and one for the NY window; each
-    # runner pings the bot every 5 minutes from inside the job.
-    - cron: '55 6 * * 1-5'
-    - cron: '55 12 * * 1-5'
   workflow_dispatch:
 
 jobs:
-  ping:
+  disabled:
     runs-on: ubuntu-latest
-    timeout-minutes: 355
-    env:
-      BOT_URL: ${{ secrets.BOT_URL }}
-      CRON_SECRET: ${{ secrets.CRON_SECRET }}
-      RUNS_PER_JOB: 71
     steps:
-      - name: Run 5-minute bot loop
-        run: |
-          set -euo pipefail
-
-          POST_CLOSE_BUFFER_SECONDS=10
-
-          for i in $(seq 1 "${RUNS_PER_JOB}"); do
-            if [ "${i}" -eq 1 ]; then
-              NOW_EPOCH=$(date -u +%s)
-              CURRENT_BOUNDARY=$(( (NOW_EPOCH / 300) * 300 ))
-              CURRENT_TARGET=$(( CURRENT_BOUNDARY + POST_CLOSE_BUFFER_SECONDS ))
-              INITIAL_WAIT=$(( CURRENT_TARGET - NOW_EPOCH ))
-
-              if [ "${INITIAL_WAIT}" -gt 0 ]; then
-                echo "Waiting ${INITIAL_WAIT}s for first boundary-aligned trigger at $(date -u -d "@${CURRENT_TARGET}" +"%Y-%m-%dT%H:%M:%SZ")"
-                sleep "${INITIAL_WAIT}"
-              fi
-            fi
-
-            echo "Iteration ${i}/${RUNS_PER_JOB} at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-            curl -fsS \
-              --max-time 90 \
-              -X GET "${BOT_URL}/api/cron" \
-              -H "Authorization: Bearer ${CRON_SECRET}" \
-              -H "User-Agent: GitHub-Actions-Cron"
-            echo
-
-            if [ "${i}" -lt "${RUNS_PER_JOB}" ]; then
-              NOW_EPOCH=$(date -u +%s)
-              NEXT_BOUNDARY=$(( ((NOW_EPOCH / 300) + 1) * 300 ))
-              NEXT_TARGET=$(( NEXT_BOUNDARY + POST_CLOSE_BUFFER_SECONDS ))
-              NEXT_WAIT=$(( NEXT_TARGET - NOW_EPOCH ))
-              echo "Sleeping ${NEXT_WAIT}s until next boundary-aligned trigger at $(date -u -d "@${NEXT_TARGET}" +"%Y-%m-%dT%H:%M:%SZ")"
-              sleep "${NEXT_WAIT}"
-            fi
-          done
+      - name: Scheduler disabled
+        run: echo "Production scheduling is owned by cron-job.org. GitHub Actions cron invocations are disabled."

@@ -13,6 +13,7 @@ import { fetchWithTimeout }                from '../lib/fetch.js';
 // Prevents flooding Telegram every 5 minutes while the bot awaits manual intervention.
 const ALERT_THROTTLE_MS = 60 * 60 * 1000; // 1 hour
 const DEBUG_SYNC_RECON = process.env.DEBUG_SYNC_RECON === 'true';
+const MARKET_CLOSED_LOG_THROTTLE_MS = 60 * 60 * 1000; // 1 hour
 
 
 /**
@@ -471,6 +472,43 @@ function detectSchedulerSource(req) {
   return 'unknown';
 }
 
+function isGoldMarketClosed(now = new Date()) {
+  const day = now.getUTCDay();
+  const hour = now.getUTCHours();
+
+  if (day === 6) {
+    return {
+      closed: true,
+      reason: 'MARKET_CLOSED: Gold weekend close (Saturday UTC)',
+    };
+  }
+
+  if (day === 0 && hour < 22) {
+    return {
+      closed: true,
+      reason: 'MARKET_CLOSED: Gold weekend close before Sunday 22:00 UTC reopen',
+    };
+  }
+
+  if (day === 5 && hour >= 21) {
+    return {
+      closed: true,
+      reason: 'MARKET_CLOSED: Gold weekend close after Friday 21:00 UTC',
+    };
+  }
+
+  return { closed: false, reason: null };
+}
+
+function shouldLogMarketClosed(botState, reason, nowMs = Date.now()) {
+  const lastLogAt = Number(botState.lastMarketClosedLogAt || 0);
+  return (
+    botState.lastMarketClosedReason !== reason ||
+    lastLogAt <= 0 ||
+    nowMs - lastLogAt >= MARKET_CLOSED_LOG_THROTTLE_MS
+  );
+}
+
 function buildDashboardChartSnapshot(candles, indicators) {
   if (!Array.isArray(candles) || candles.length === 0) return [];
   const ema20arr = Array.isArray(indicators?.ema20arr) ? indicators.ema20arr : [];
@@ -874,6 +912,12 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  if (schedulerSource === 'github-actions' || schedulerSource === 'vercel-cron') {
+    const skipped = `SKIP: ${schedulerSource} scheduler disabled; production scheduling is owned by cron-job.org`;
+    console.warn(`[CRON] ${skipped}`);
+    return res.json({ skipped });
+  }
+
   let botState;
   let lockHandle = null;
   let invocationStateVersion = 0;
@@ -957,6 +1001,28 @@ export default async function handler(req, res) {
     invocationStateVersion = Number.isFinite(Number(botState.stateVersion))
       ? Number(botState.stateVersion)
       : 0;
+
+    const marketClosed = isGoldMarketClosed();
+    if (marketClosed.closed) {
+      const reason = marketClosed.reason;
+      const nowMs = Date.now();
+      botState.currentCycleTime = nowMs;
+      botState.currentCycleReason = reason;
+      botState.dataFreshnessStatus = Number(botState.lastValidDataTime) > 0 ? 'MARKET_CLOSED' : 'NO_VALID_DATA';
+      botState.chartUpdatedThisCycle = false;
+      botState.lastHeartbeat = nowMs;
+      cycleStatus.data = 'MARKET_CLOSED';
+      cycleStatus.trade = `SKIPPED (${reason})`;
+
+      if (shouldLogMarketClosed(botState, reason, nowMs)) {
+        botState.lastMarketClosedLogAt = nowMs;
+        botState.lastMarketClosedReason = reason;
+        await saveLog({ signal: null, indicators: null, botState, tradeExecuted: false, reason }).catch(() => {});
+      }
+
+      await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
+      return res.json({ skipped: reason });
+    }
 
     // ── State integrity check ─────────────────────────────────────────────────
     if (botState.stateIntegrityOk === false) {

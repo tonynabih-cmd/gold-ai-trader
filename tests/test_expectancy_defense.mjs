@@ -143,5 +143,27 @@ console.log('\nExpectancy-defense controls');
   assert(changed === true && state.expectancyKillSwitch.active === false, 'PF5 kill switch resets on 1h trend reset');
 }
 
+{
+  const state = makeBotState({
+    expectancyKillSwitch: {
+      active: true,
+      activatedAt: Date.now() - 10 * 60 * 1000,
+      activationTrend: null,
+      windowKey: 'legacy-window',
+      suppressedWindowKey: null,
+    },
+  });
+
+  const pauseResult = checkRisk(makeSignal(), state, makeIndicators({ trend1h: 'DOWN' }));
+  assert(pauseResult.includes('kill switch active'), `PF5 kill switch with missing activation trend still pauses (got: ${pauseResult})`);
+  assert(state.expectancyKillSwitch.active === true && state.expectancyKillSwitch.activationTrend === 'DOWN', 'PF5 kill switch learns valid activation trend before reset');
+
+  const unchanged = resetDirectionalLossCircuitOnTrendReset(state, makeIndicators({ trend1h: 'DOWN' }));
+  assert(unchanged === false && state.expectancyKillSwitch.active === true, 'PF5 kill switch does not reset without a 1h trend change');
+
+  const changed = resetDirectionalLossCircuitOnTrendReset(state, makeIndicators({ trend1h: 'UP' }));
+  assert(changed === true && state.expectancyKillSwitch.active === false, 'PF5 kill switch resets after valid 1h trend change');
+}
+
 console.log(`\nTests: ${passed + failed} total, ${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);
