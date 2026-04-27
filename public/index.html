@@ -504,7 +504,7 @@ async function refreshDashboard() {
       renderLogs(data.logs, data.dashboardMeta || null, data.state);
       renderChartFromLogs(data.logs, data.state, data.dashboardMeta || null);
     }
-    if (data.lastAudit) renderAudit(data.lastAudit);
+    renderAudit(data.lastAudit, data.dailyAuditHistory || []);
   } catch(e) {
     console.error('Dashboard error:', e);
   }
@@ -962,11 +962,102 @@ function renderChartFromLogs(logs, state, meta) {
   chart.update('none');
 }
 
-function renderAudit(lastAudit) {
-  if (!lastAudit || !lastAudit.report) return;
+function auditSortTime(audit) {
+  const candidates = [audit?.generatedAt, audit?.ts, audit?.date];
+  for (const candidate of candidates) {
+    const time = candidate ? new Date(candidate).getTime() : NaN;
+    if (Number.isFinite(time)) return time;
+  }
+  return 0;
+}
+
+function getDubaiDateString(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Dubai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const part = (type) => parts.find(p => p.type === type)?.value || '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatAuditValue(value) {
+  if (value === null || value === undefined || value === '') return 'N/A';
+  if (Array.isArray(value)) return value.length ? value.join(', ') : 'None';
+  return String(value);
+}
+
+function buildAuditSummaryMarkdown(audit) {
+  const rows = [
+    ['Total Decisions', audit.totalDecisions],
+    ['Trades Executed', audit.tradesExecuted],
+    ['Setups', audit.setups],
+    ['Total Rejects', audit.totalRejects],
+    ['Broker Errors', audit.brokerErrors],
+    ['Profit Factor', audit.profitFactor],
+    ['Scheduler Source', audit.schedulerSource],
+    ['Strategy Version', audit.strategyVersion],
+  ];
+
+  const lines = [
+    `### Daily Audit Summary (${escapeHtml(audit.date || 'Unknown date')})`,
+    ...rows.map(([label, value]) => `- **${label}:** ${escapeHtml(formatAuditValue(value))}`),
+  ];
+
+  if (audit.conclusion) {
+    lines.push('', `**Conclusion:** ${escapeHtml(audit.conclusion)}`);
+  }
+
+  if (Array.isArray(audit.anomalies) && audit.anomalies.length > 0) {
+    lines.push('', '**Anomalies:**');
+    audit.anomalies.forEach((anomaly) => {
+      lines.push(`- ${escapeHtml(formatAuditValue(anomaly))}`);
+    });
+  }
+
+  return lines.join('\n');
+}
+
+function renderAudit(lastAudit, auditHistory = []) {
+  const sortedAudits = [...(Array.isArray(auditHistory) ? auditHistory : [])]
+    .filter(Boolean)
+    .sort((a, b) => auditSortTime(b) - auditSortTime(a));
+  const latestAudit = sortedAudits[0] || lastAudit;
+  const today = getDubaiDateString();
+  if (!latestAudit) {
+    document.getElementById('auditCard').style.display = 'block';
+    document.getElementById('auditReport').innerHTML = marked.parse(
+      `**No daily audit available yet for today (${escapeHtml(today)}).**\n\nLatest available audit date: **None**`
+    );
+    document.getElementById('auditDate').textContent = 'Audit date: None';
+    return;
+  }
+
+  const auditDate = latestAudit.date || 'Unknown';
+  const isToday = auditDate === today;
+  const staleNotice = isToday
+    ? ''
+    : `**No daily audit available yet for today (${escapeHtml(today)}).**\n\nLatest available audit date: **${escapeHtml(auditDate)}**\n\n`;
+  const report = latestAudit.report
+    ? latestAudit.report
+    : buildAuditSummaryMarkdown(latestAudit);
+
   document.getElementById('auditCard').style.display = 'block';
-  document.getElementById('auditReport').innerHTML = marked.parse(lastAudit.report);
-  document.getElementById('auditDate').textContent = 'Audit date: ' + lastAudit.date;
+  document.getElementById('auditReport').innerHTML = marked.parse(staleNotice + report);
+  document.getElementById('auditDate').textContent =
+    'Audit date: ' + auditDate +
+    (latestAudit.generatedAt ? ' | Generated: ' + formatDubaiTime(latestAudit.generatedAt) : '') +
+    (sortedAudits.length ? ' | Stored audits: ' + sortedAudits.length : '');
 }
 
 function updateMarketTime() {
