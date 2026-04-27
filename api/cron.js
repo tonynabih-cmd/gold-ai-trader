@@ -3,7 +3,23 @@ import { getMarketData }                   from '../lib/market_data.js';
 import { calculateIndicators }             from '../lib/indicators.js';
 import { generateSignal, STRATEGY_VERSION } from '../lib/strategy.js';
 import { checkRisk, calculateDrawdown, getAdaptiveSpreadLimit, resetDirectionalLossCircuitOnTrendReset }              from '../lib/risk.js';
-import { placeTrade, syncBalance, fetchClosedTradePnlDetails, fetchBrokerTradeStats, fetchBrokerPositions, verifyExecutionCertainty, SYNC_WINDOW_MS, fetchCurrentGoldPrice, USD_AED_PEG, modifyTradeStopLoss, calculateProgressiveStopPlan } from '../lib/execution.js';
+import {
+  placeTrade,
+  syncBalance,
+  fetchClosedTradePnlDetails,
+  fetchBrokerTradeStats,
+  fetchBrokerPositions,
+  verifyExecutionCertainty,
+  SYNC_WINDOW_MS,
+  fetchCurrentGoldPrice,
+  USD_AED_PEG,
+  modifyTradeStopLoss,
+  calculateProgressiveStopPlan,
+  createTradePathAudit,
+  updateTradePathAudit,
+  recordStopMoveAuditEvent,
+  buildExitAudit
+} from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, saveStateWithOptions, saveStateCritical, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock, pingRedis, CANDLE_LOCK_TTL_SECONDS } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
@@ -223,6 +239,8 @@ async function reconcilePositions(session, botState) {
       const realizedPnl = closedTrade.realizedPnl;
       const pnlStr      = realizedPnl != null ? `$${realizedPnl.toFixed(2)}` : 'null (unknown)';
       const closureTag  = closedTrade.fallbackUsed ? 'FALLBACK_RESOLUTION_USED' : 'CONFIRMED';
+      const exitAudit   = buildExitAudit(closedTrade, realizedPnl);
+      closedTrade.exitAudit = exitAudit;
 
       console.log(`[SYNC] ❌ TRADE CLOSED [${closureTag}]: ${closedTrade.action} ${closedTrade.size}oz GOLD | dealId=${dealId} | entry=${closedTrade.entry} | P&L=${pnlStr}`);
 
@@ -238,7 +256,12 @@ async function reconcilePositions(session, botState) {
         botState: { ...botState },
         tradeExecuted: false,
         reason: `CLOSED: ${closureTag} | Realized P&L: ${pnlStr} | entry=${closedTrade.entry} | dealId=${dealId}`,
-        result: { realizedPnl, fallbackUsed: closedTrade.fallbackUsed || false }
+        result: {
+          realizedPnl,
+          fallbackUsed: closedTrade.fallbackUsed || false,
+          audit: closedTrade.audit ?? null,
+          exitAudit
+        }
       });
 
       // Only send a closure alert for confirmed closures — fallback closures already
@@ -302,6 +325,7 @@ async function reconcilePositions(session, botState) {
         lastStopLockR:   null,
         missingCount:    0,
       };
+      adoptedTrade.audit = createTradePathAudit(adoptedTrade);
 
       stillOpen.push(adoptedTrade);
       adoptedCount++;
@@ -335,6 +359,8 @@ async function reconcilePositions(session, botState) {
           closedCandleTime: t.closedCandleTime ?? null,
           ref:      t.dealReference,
           dealId:   t.dealId,
+          audit:    t.audit ?? null,
+          exitAudit: t.exitAudit ?? null,
         }));
       if (outcomes.length > 0) {
         botState.recentOutcomes.push(...outcomes);
@@ -1108,6 +1134,7 @@ export default async function handler(req, res) {
       if (livePrice) {
         for (let i = 0; i < botState.openTrades.length; i++) {
           const t = botState.openTrades[i];
+          updateTradePathAudit(t, livePrice);
           const plan = calculateProgressiveStopPlan(t, livePrice, {
             minStopDistance: livePrice.minStopDistance,
           });
@@ -1149,6 +1176,7 @@ export default async function handler(req, res) {
             ) || Boolean(t.breakEvenMoved);
             t.profitLockStage = plan.stageKey;
             t.lastStopLockR = plan.lockedR;
+            const stopMoveEvent = recordStopMoveAuditEvent(t, plan);
 
             await saveLog({
               signal: { id: t.tradeId, action: t.action, entryType: 'trade_management', strategyVersion: t.strategyVersion || STRATEGY_VERSION },
@@ -1166,6 +1194,8 @@ export default async function handler(req, res) {
                 dbgRiskDistance: plan.riskDistance,
                 dbgInitialStopLoss: plan.initialStopLoss,
                 dbgBrokerMinStopDistance: plan.brokerMinStopDistance,
+                audit: t.audit ?? null,
+                stopMoveEvent,
               }
             });
 

@@ -3,7 +3,14 @@
 // 
 // Tests offline execution helpers only — live broker calls are not exercised here.
 
-import { calculatePositionSize, calculateProgressiveStopPlan } from '../lib/execution.js';
+import {
+  calculatePositionSize,
+  calculateProgressiveStopPlan,
+  createTradePathAudit,
+  updateTradePathAudit,
+  recordStopMoveAuditEvent,
+  buildExitAudit
+} from '../lib/execution.js';
 
 let passed = 0;
 let failed = 0;
@@ -257,6 +264,62 @@ section('Progressive stop locking: safety guards');
     { minStopDistance: 0.5 }
   );
   assert(!unknownInitialRisk.shouldModify && unknownInitialRisk.reason === 'UNKNOWN_INITIAL_RISK', `Moved stop without recorded initial risk is skipped safely (got ${unknownInitialRisk.reason})`);
+}
+
+// ── Section 10: Passive trade-path audit telemetry ───────────────────────────
+
+section('Trade-path audit telemetry: milestones and excursions');
+{
+  const trade = {
+    action: 'BUY',
+    entry: 2000,
+    stopLoss: 1990,
+    initialStopLoss: 1990,
+    takeProfit: 2016.7,
+    size: 0.1,
+  };
+  trade.audit = createTradePathAudit(trade);
+
+  assert(trade.audit.initialRiskDistance === 10, `Audit initial risk distance recorded (got ${trade.audit.initialRiskDistance})`);
+  assert(trade.audit.initialTpR === 1.67, `Audit initial TP R recorded (got ${trade.audit.initialTpR})`);
+
+  updateTradePathAudit(trade, { bid: 2012, offer: 2012.5 }, 123);
+  assert(trade.audit.mfePriceDistance === 12, `BUY audit MFE price distance updates (got ${trade.audit.mfePriceDistance})`);
+  assert(trade.audit.mfeR === 1.2, `BUY audit MFE R updates (got ${trade.audit.mfeR})`);
+  assert(trade.audit.reached1R && trade.audit.reached1_2R, 'BUY audit records 1R and 1.2R milestones');
+  assert(trade.audit.firstReached1RAt === 123 && trade.audit.firstReached1_2RAt === 123, 'BUY audit stores first milestone timestamps');
+
+  updateTradePathAudit(trade, { bid: 1994, offer: 1994.5 }, 456);
+  assert(trade.audit.maePriceDistance === 6, `BUY audit MAE price distance updates (got ${trade.audit.maePriceDistance})`);
+  assert(trade.audit.maeR === 0.6, `BUY audit MAE R updates (got ${trade.audit.maeR})`);
+}
+
+section('Trade-path audit telemetry: stop events and exit audit');
+{
+  const trade = {
+    action: 'SELL',
+    entry: 2000,
+    stopLoss: 2010,
+    initialStopLoss: 2010,
+    takeProfit: 1983.3,
+    size: 0.1,
+  };
+  trade.audit = createTradePathAudit(trade);
+  updateTradePathAudit(trade, { bid: 1984.5, offer: 1985 }, 789);
+
+  const plan = calculateProgressiveStopPlan(trade, { bid: 1984.5, offer: 1985 }, { minStopDistance: 0.5 });
+  const event = recordStopMoveAuditEvent(trade, plan, 900);
+  assert(trade.audit.stopWasMoved && trade.audit.stopMoveCount === 1, 'Stop move audit event is recorded only when called');
+  assert(event.stageKey === 'lock_0_5r_at_1_5r', `Stop move audit stores stage key (got ${event.stageKey})`);
+
+  const exitAudit = buildExitAudit(trade, 6.12);
+  assert(exitAudit.realizedR > 1.6 && exitAudit.realizedR < 1.7, `Exit audit realized R uses AED conversion (got ${exitAudit.realizedR})`);
+  assert(exitAudit.exitReasonClass === 'TAKE_PROFIT', `Exit audit classifies near-TP exits (got ${exitAudit.exitReasonClass})`);
+  assert(exitAudit.gaveBackFromMfeR >= 0, `Exit audit gave-back field is numeric (got ${exitAudit.gaveBackFromMfeR})`);
+
+  const unknownExit = buildExitAudit(trade, null);
+  assert(unknownExit.realizedPnl === null && unknownExit.realizedR === null, 'Exit audit preserves null P&L as unknown telemetry');
+  assert(unknownExit.exitReasonClass === 'UNKNOWN', `Null P&L exit remains UNKNOWN (got ${unknownExit.exitReasonClass})`);
 }
 
 // ── Summary ─────────────────────────────────────────────────────────────────
