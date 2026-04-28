@@ -176,23 +176,23 @@ section('Rules 6/7/8: Signal validation');
   assert(rSellSlBelow.includes('SKIP'), `SELL SL below entry → SKIP (got: ${rSellSlBelow})`);
 }
 
-// ── Section 6: ATR checks ─────────────────────────────────────────────────────
+// ── Section 6: ATR pullback extension guard ───────────────────────────────────
 
-section('Rules 9/10: ATR checks');
+section('Rule 5E: ATR pullback extension guard');
 {
-  const rLowATR = checkRisk(makeSignal(), makeBotState(), makeIndicators({ atr: 0.5 }));
-  assert(rLowATR.includes('SKIP'), `ATR too low → SKIP (got: ${rLowATR})`);
-  // Note: during golden hours, rLowATR would contain 'too low'; outside hours Rule 5 fires first
+  const extendedPullback = checkRisk(
+    makeSignal({ entryType: 'pullback', entryPrice: 1980, stopLoss: 1970, takeProfit: 2030 }),
+    makeBotState(),
+    makeIndicators({ currEMA20: 2000, atr: 5 })
+  );
+  assert(extendedPullback.includes('Pullback entry extended'), `extended pullback → SKIP (got: ${extendedPullback})`);
 
-  const rHighATR = checkRisk(makeSignal(), makeBotState(), makeIndicators({ atr: 60 }));
-  assert(rHighATR.includes('SKIP'), `ATR too high → SKIP (got: ${rHighATR})`);
-  // Note: during golden hours, rHighATR would contain 'too high'; outside hours Rule 5 fires first
-
-  const rSpikeATR = checkRisk(makeSignal(), makeBotState(), makeIndicators({ atr: 15, atrAverage: 4.5 }));
-  assert(rSpikeATR.includes('SKIP'), `ATR spike (3.3×avg) → SKIP (got: ${rSpikeATR})`);
-
-  const rNaNATR = checkRisk(makeSignal(), makeBotState(), makeIndicators({ atr: NaN }));
-  assert(rNaNATR.includes('SKIP'), `NaN ATR → SKIP (got: ${rNaNATR})`);
+  const extendedNonPullback = checkRisk(
+    makeSignal({ entryType: 'crossover', entryPrice: 1980, stopLoss: 1970, takeProfit: 2030 }),
+    makeBotState(),
+    makeIndicators({ currEMA20: 2000, atr: 5 })
+  );
+  assert(extendedNonPullback === 'APPROVED', `non-pullback is not blocked by extension guard (got: ${extendedNonPullback})`);
 }
 
 // ── Section 7: Spread check ───────────────────────────────────────────────────
@@ -223,20 +223,28 @@ section('Rule 12A: Anti-chop loss streak');
 {
   const inGoldenHour = isTradingHours();
 
-  // Two losses in last 3 outcomes → blocked for 30 mins
-  const recentOutcomesWithLosses = [
+  // Mixed-direction losses do not activate the same-direction circuit.
+  const mixedDirectionLosses = [
     { pnl: -5, action: 'BUY',  closedAt: Date.now() - 1000 },
     { pnl: -3, action: 'SELL', closedAt: Date.now() - 500 },
   ];
-  const rAntiChop = checkRisk(makeSignal(), makeBotState({ recentOutcomes: recentOutcomesWithLosses }), makeIndicators());
+  const rMixedLosses = checkRisk(makeSignal(), makeBotState({ recentOutcomes: mixedDirectionLosses }), makeIndicators());
   if (inGoldenHour) {
-    // Anti-chop can return PAUSE (consecutive losses) or SKIP (rapid reversal)
-    assert(
-      rAntiChop.includes('SKIP') || rAntiChop.includes('PAUSE'),
-      `2 recent losses → anti-chop block (got: ${rAntiChop})`
-    );
+    assert(rMixedLosses === 'APPROVED', `mixed-direction losses do not block same-direction circuit (got: ${rMixedLosses})`);
   } else {
-    assert(rAntiChop.includes('SKIP'), `Outside golden hours, time gate fires before anti-chop (got: ${rAntiChop})`);
+    assert(rMixedLosses.includes('SKIP'), `Outside golden hours, time gate fires before anti-chop (got: ${rMixedLosses})`);
+  }
+
+  // Two same-direction losses activate the same-direction circuit.
+  const sameDirectionLosses = [
+    { pnl: -5, action: 'BUY', closedAt: Date.now() - 1000 },
+    { pnl: -3, action: 'BUY', closedAt: Date.now() - 500 },
+  ];
+  const rSameDirectionLosses = checkRisk(makeSignal(), makeBotState({ recentOutcomes: sameDirectionLosses }), makeIndicators());
+  if (inGoldenHour) {
+    assert(rSameDirectionLosses.includes('circuit breaker active'), `2 same-direction losses → circuit block (got: ${rSameDirectionLosses})`);
+  } else {
+    assert(rSameDirectionLosses.includes('SKIP'), `Outside golden hours, time gate fires before circuit (got: ${rSameDirectionLosses})`);
   }
 
   // Two losses but LAST ONE is > 30 mins ago → NOT blocked
@@ -303,24 +311,16 @@ section('Rule 16: Insufficient balance');
   assert(rLowBalance.includes('SKIP'), `Balance < 80 AED → SKIP (got: ${rLowBalance})`);
 }
 
-// ── Section 13: Cooldown ─────────────────────────────────────────────────────
+// ── Section 13: Opening order rate cap ───────────────────────────────────────
 
-section('Rule 17: Cooldown between trades (5 min)');
+section('Rule 8A: Opening order rate cap');
 {
-  const inGoldenHour = isTradingHours();
-
-  // Last order just 2 minutes ago
-  const rCooldown = checkRisk(
+  const rOrderRateCap = checkRisk(
     makeSignal(),
-    makeBotState({ lastOrderTimestamp: Date.now() - 2 * 60 * 1000 }),
+    makeBotState({ recentOrderTimestamps: [Date.now() - 1000, Date.now() - 2000] }),
     makeIndicators()
   );
-  if (inGoldenHour) {
-    assert(rCooldown.includes('SKIP') && rCooldown.includes('Cooldown'), `Trade < 5 min ago → Cooldown SKIP (got: ${rCooldown})`);
-  } else {
-    assert(rCooldown.includes('SKIP'), `Outside golden hours, cooldown check skipped by Rule 5 (got: ${rCooldown})`);
-    console.log('    (Rule 17 Cooldown path fires during golden hours — covered during live trading)');
-  }
+  assert(rOrderRateCap.includes('Order rate cap reached'), `2 recent opening orders inside 60s → SKIP (got: ${rOrderRateCap})`);
 }
 
 // ── Section 14: Max open positions ────────────────────────────────────────────
@@ -344,15 +344,15 @@ section('Rule 19: Duplicate trade ID');
   assert(rDup.includes('SKIP'), `Duplicate signal ID → SKIP (got: ${rDup})`);
 }
 
-// ── Section 16: Minimum signal score ─────────────────────────────────────────
+// ── Section 16: Signal score is telemetry, not a risk gate ───────────────────
 
-section('Rule 20: Minimum signal score');
+section('No minimum signal score gate');
 {
   const rLowScore = checkRisk(makeSignal({ score: 1 }), makeBotState(), makeIndicators());
-  assert(rLowScore.includes('SKIP'), `Score=1 → SKIP (got: ${rLowScore})`);
+  assert(rLowScore === 'APPROVED', `Score=1 is not risk-gated (got: ${rLowScore})`);
 
   const rZeroScore = checkRisk(makeSignal({ score: 0 }), makeBotState(), makeIndicators());
-  assert(rZeroScore.includes('SKIP'), `Score=0 → SKIP (got: ${rZeroScore})`);
+  assert(rZeroScore === 'APPROVED', `Score=0 is not risk-gated (got: ${rZeroScore})`);
 }
 
 // ── Section 17: Approved path ─────────────────────────────────────────────────

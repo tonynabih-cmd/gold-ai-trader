@@ -66,6 +66,21 @@ function makeIndicators(overrides = {}) {
   };
 }
 
+function makeLowPf5Outcomes() {
+  const base = Date.now() - 3 * 24 * 60 * 60 * 1000;
+  return [
+    { pnl: 0.03, action: 'SELL', exitReason: 'NON_LOSS', closedAt: base, dealId: 'PF5_A' },
+    { pnl: -1.73, action: 'SELL', exitReason: 'STOP_LOSS', closedAt: base + 5 * 60 * 1000, dealId: 'PF5_B' },
+    { pnl: -1.72, action: 'SELL', exitReason: 'STOP_LOSS', closedAt: base + 10 * 60 * 1000, dealId: 'PF5_C' },
+    { pnl: 3.71, action: 'SELL', exitReason: 'NON_LOSS', closedAt: base + 15 * 60 * 1000, dealId: 'PF5_D' },
+    { pnl: -2.78, action: 'SELL', exitReason: 'STOP_LOSS', closedAt: base + 20 * 60 * 1000, dealId: 'PF5_E' },
+  ];
+}
+
+function makeWindowKey(outcomes) {
+  return outcomes.map(o => o.dealId || o.ref || `${o.action}:${o.closedAt}:${o.pnl}`).join('|');
+}
+
 process.env.BOT_ENABLED = 'true';
 process.env.MAX_SPREAD = '0.5';
 
@@ -163,6 +178,83 @@ console.log('\nExpectancy-defense controls');
 
   const changed = resetDirectionalLossCircuitOnTrendReset(state, makeIndicators({ trend1h: 'UP' }));
   assert(changed === true && state.expectancyKillSwitch.active === false, 'PF5 kill switch resets after valid 1h trend change');
+}
+
+{
+  const outcomes = makeLowPf5Outcomes();
+  const windowKey = makeWindowKey(outcomes);
+  const state = makeBotState({
+    recentOutcomes: outcomes,
+    expectancyKillSwitch: {
+      active: true,
+      activatedAt: Date.now() - 23 * 60 * 60 * 1000,
+      activationTrend: 'DOWN',
+      windowKey,
+      suppressedWindowKey: null,
+    },
+  });
+
+  const result = checkRisk(makeSignal(), state, makeIndicators({ trend1h: 'DOWN' }));
+  assert(result.includes('kill switch active'), `PF5 kill switch remains active before 24h if trend unchanged (got: ${result})`);
+  assert(state.expectancyKillSwitch.active === true, 'PF5 kill switch state remains active before 24h');
+}
+
+{
+  const outcomes = makeLowPf5Outcomes();
+  const windowKey = makeWindowKey(outcomes);
+  const state = makeBotState({
+    recentOutcomes: outcomes,
+    expectancyKillSwitch: {
+      active: true,
+      activatedAt: Date.now() - (24 * 60 * 60 * 1000) - 1000,
+      activationTrend: 'DOWN',
+      windowKey,
+      suppressedWindowKey: null,
+    },
+  });
+
+  const changed = resetDirectionalLossCircuitOnTrendReset(state, makeIndicators({ trend1h: 'DOWN' }));
+  assert(changed === true && state.expectancyKillSwitch.active === false, 'PF5 kill switch resets after 24h if trend unchanged');
+  assert(state.expectancyKillSwitch.suppressedWindowKey === windowKey, '24h reset suppresses the old/current PF5 window key');
+}
+
+{
+  const outcomes = makeLowPf5Outcomes();
+  const windowKey = makeWindowKey(outcomes);
+  const state = makeBotState({
+    recentOutcomes: outcomes,
+    expectancyKillSwitch: {
+      active: true,
+      activatedAt: Date.now() - (24 * 60 * 60 * 1000) - 1000,
+      activationTrend: 'DOWN',
+      windowKey,
+      suppressedWindowKey: null,
+    },
+  });
+
+  const result = checkRisk(makeSignal(), state, makeIndicators({ trend1h: 'DOWN' }));
+  assert(!result.includes('Rolling 5-trade profit factor'), `same unchanged PF5 window does not immediately reactivate after 24h reset (got: ${result})`);
+  assert(state.expectancyKillSwitch.active === false, 'PF5 kill switch remains inactive after suppressing unchanged old window');
+  assert(state.expectancyKillSwitch.suppressedWindowKey === windowKey, 'checkRisk 24h reset suppresses old/current PF5 window key');
+}
+
+{
+  const outcomes = makeLowPf5Outcomes();
+  const windowKey = makeWindowKey(outcomes);
+  const state = makeBotState({
+    recentOutcomes: outcomes,
+    expectancyKillSwitch: {
+      active: true,
+      activatedAt: Date.now() - 2 * 60 * 60 * 1000,
+      activationTrend: 'DOWN',
+      windowKey,
+      suppressedWindowKey: null,
+    },
+  });
+
+  const changed = resetDirectionalLossCircuitOnTrendReset(state, makeIndicators({ trend1h: 'UP' }));
+  assert(changed === true && state.expectancyKillSwitch.active === false, 'existing trend-change reset still works before 24h');
+  assert(state.expectancyKillSwitch.suppressedWindowKey === windowKey, 'trend-change reset still suppresses old/current PF5 window key');
 }
 
 console.log(`\nTests: ${passed + failed} total, ${passed} passed, ${failed} failed\n`);

@@ -35,7 +35,7 @@ function makeCandles5m(n = 120, startPrice = 2000, slope = 0.20) {
   return Array.from({ length: n }, (_, i) => makeCandle(startPrice + i * slope, i));
 }
 
-function makeCandles1h(n = 60, startPrice = 2000) {
+function makeCandles1h(n = 120, startPrice = 2000) {
   return Array.from({ length: n }, (_, i) => makeCandle(startPrice + i * 0.10, i));
 }
 
@@ -53,13 +53,15 @@ section('Input validation');
 
 section('Valid output structure');
 {
-  const result = calculateIndicators(makeCandles5m(120), makeCandles1h(60));
+  const result = calculateIndicators(makeCandles5m(120), makeCandles1h());
   assert(result.skip === false, 'sufficient candles → skip=false');
 
-  for (const field of ['currEMA20', 'currEMA50', 'prevEMA20', 'prevEMA50', 'slopePercent', 'atr', 'atrAverage', 'rsi', 'efficiency12']) {
+  for (const field of ['currEMA20', 'currEMA50', 'ema20_1h', 'ema50_1h', 'atr', 'atrAverage']) {
     assert(typeof result[field] === 'number' && !isNaN(result[field]), `${field} is a valid number`);
   }
 
+  assert(result.trend1h === 'UP' || result.trend1h === 'DOWN' || result.trend1h === 'N/A', 'trend1h is present');
+  assert(typeof result.trendReason === 'string', 'trendReason is present');
   assert(typeof result.lastCandle?.close === 'number', 'lastCandle exists');
   assert(typeof result.prevCandle?.close === 'number', 'prevCandle exists');
   assert(Array.isArray(result.ema20arr), 'ema20arr exists');
@@ -71,8 +73,8 @@ section('Trend window metadata');
   const candles5m = makeCandles5m(120, 2000, 0.25);
   const result = calculateIndicators(candles5m, makeCandles1h());
 
-  assert(result.currentTrendDirection === 'BUY' || result.currentTrendDirection === 'SELL' || result.currentTrendDirection === 'FLAT', 'currentTrendDirection is present');
-  assert(typeof result.trendWindowStartTime === 'number' || result.trendWindowStartTime === null, 'trendWindowStartTime is present');
+  assert(result.trend1h === 'UP' || result.trend1h === 'DOWN' || result.trend1h === 'N/A', 'trend1h is present');
+  assert(typeof result.trendReason === 'string', 'trendReason is present');
 }
 
 section('Indicator layer does not pre-skip on flat or spike regimes');
