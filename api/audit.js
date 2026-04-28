@@ -6,6 +6,7 @@ import { getLogs }          from '../lib/logger.js';
 import { loadState, saveAudit } from '../lib/state.js';
 import { sendAlert }        from '../lib/monitor.js';
 import { fetchWithTimeout } from '../lib/fetch.js';
+import { latestStrategyVersionFromLogs } from '../lib/daily_audit.js';
 
 export default async function handler(req, res) {
   const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
@@ -107,6 +108,7 @@ Flag any red flags clearly.`,
     await saveAudit({
       date:           today,
       report:         auditReport,
+      strategyVersion: latestStrategyVersionFromLogs(todayLogs),
       totalDecisions: todayLogs.length,
       tradesExecuted: executedToday.length,
       skips:          skipsToday.length,

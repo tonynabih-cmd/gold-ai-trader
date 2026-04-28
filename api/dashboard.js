@@ -4,6 +4,7 @@
 
 import { loadState } from '../lib/state.js';
 import { getLogs }   from '../lib/logger.js';
+import { latestStrategyVersionFromLogs } from '../lib/daily_audit.js';
 import { Redis }     from '@upstash/redis';
 
 const redis = new Redis({
@@ -37,6 +38,14 @@ function sortAuditsNewestFirst(audits) {
   return [...audits].sort((a, b) => auditSortTime(b) - auditSortTime(a));
 }
 
+function normalizeAuditVersions(audits, logs) {
+  const latestVersion = latestStrategyVersionFromLogs(logs);
+  return audits.map(audit => ({
+    ...audit,
+    strategyVersion: latestVersion,
+  }));
+}
+
 async function getDailyAuditHistory() {
   const rawHistory = await redis.lrange(DAILY_AUDIT_HISTORY_KEY, 0, -1).catch(() => []);
   return sortAuditsNewestFirst(
@@ -55,13 +64,17 @@ export default async function handler(req, res) {
       redis.get('last_audit').catch(() => null),
     ]);
 
-    const lastAudit = dailyAuditHistory[0] || legacyLastAudit || null;
+    const normalizedDailyAuditHistory = normalizeAuditVersions(dailyAuditHistory, logs);
+    const normalizedLegacyLastAudit = legacyLastAudit
+      ? normalizeAuditVersions([legacyLastAudit], logs)[0]
+      : null;
+    const lastAudit = normalizedDailyAuditHistory[0] || normalizedLegacyLastAudit || null;
 
     return res.json({
       state,
       logs,
       lastAudit,
-      dailyAuditHistory,
+      dailyAuditHistory: normalizedDailyAuditHistory,
       env:       process.env.CAPITAL_ENV || 'demo',
       dashboardMeta: {
         currentCycleTime: state.currentCycleTime ?? null,

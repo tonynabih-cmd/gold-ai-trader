@@ -24,6 +24,10 @@ import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, saveStateWithOptions, saveStateCritical, saveAudit, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock, pingRedis, CANDLE_LOCK_TTL_SECONDS } from '../lib/state.js';
 import { sendAlert, checkPerformance }     from '../lib/monitor.js';
 import { fetchWithTimeout }                from '../lib/fetch.js';
+import { latestStrategyVersionFromLogs }   from '../lib/daily_audit.js';
+import { buildExecutionPolicy }            from '../lib/execution_policy.js';
+import { classifyMarketRegime }            from '../lib/market_regime.js';
+import { computeTailLossStats }            from '../lib/stats.js';
 
 // How long to suppress repeated Telegram alerts for persistent disabled/critical states.
 // Prevents flooding Telegram every 5 minutes while the bot awaits manual intervention.
@@ -715,6 +719,13 @@ async function generateLocalAudit(logs, botState) {
   const avgValues = dayLogs.map(l => l.atrAverage).filter(v => typeof v === 'number' && v > 0);
   const avgATR    = atrValues.length > 0 ? atrValues.reduce((s, v) => s + v, 0) / atrValues.length : null;
   const avgATRav  = avgValues.length > 0 ? avgValues.reduce((s, v) => s + v, 0) / avgValues.length : null;
+  const regimeCounts = {};
+  for (const l of dayLogs) {
+    if (typeof l.marketRegime === 'string' && l.marketRegime) {
+      regimeCounts[l.marketRegime] = (regimeCounts[l.marketRegime] || 0) + 1;
+    }
+  }
+  const dominantRegime = Object.entries(regimeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
   let atrStatus = 'N/A';
   if (avgATR !== null && avgATRav !== null) {
     atrStatus = avgATR >= avgATRav
@@ -736,6 +747,13 @@ async function generateLocalAudit(logs, botState) {
     const grossLoss   = Math.abs(parseFloat(botState.brokerGrossLoss)) || 0;
     pfStr = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : (grossProfit > 0 ? '∞' : 'N/A');
   }
+
+  // ── Passive CVaR tail-loss telemetry from closed-trade P&L only ───────────
+  const closedPnls = dayLogs
+    .filter(l => l.entryType === 'closure' || String(l.reason || '').startsWith('CLOSED:'))
+    .map(l => l.exitAudit?.realizedPnl ?? l.pnl)
+    .filter(v => typeof v === 'number' && Number.isFinite(v));
+  const tailLossStats = computeTailLossStats(closedPnls);
 
   // ── Deterministic Conclusion ──────────────────────────────────────────────
   // Rule priority (top to bottom — first matching rule wins):
@@ -772,7 +790,8 @@ async function generateLocalAudit(logs, botState) {
     sigBuy, sigSell, sigNone,
     totalRejects, topRejects, entryCounts,
     brokerErrors, dupSkips, staleSkips,
-    avgATR, avgATRav, atrStatus, trendBias,
+    avgATR, avgATRav, atrStatus, trendBias, regimeCounts, dominantRegime,
+    ...tailLossStats,
     pfStr, conclusion, date,
   };
   const anomalies = detectAuditAnomalies(audit, dayLogs, botState);
@@ -793,17 +812,18 @@ async function generateLocalAudit(logs, botState) {
     `Trades: ${trades}\n` +
     `Setups: ${setups} (${setupPct}%)\n` +
     `Profit Factor: ${pfStr}\n\n` +
+    `Tail Loss:\n  CVaR95: ${tailLossStats.cvar95.toFixed(2)} | Worst: ${tailLossStats.worstLoss.toFixed(2)} | Avg Loss: ${tailLossStats.averageLoss.toFixed(2)} | Losses: ${tailLossStats.lossCount}\n\n` +
     `Signals:\n  BUY: ${sigBuy} | SELL: ${sigSell} | NONE: ${sigNone} (${noSignalPct}%)\n\n` +
     `Top Rejections:\n${rejLines}\n\n` +
     `Entry Types:\n${entryLines}\n\n` +
     `Infra:\n  Broker Errors: ${brokerErrors}\n  Duplicate Skips: ${dupSkips}\n  Stale Skips: ${staleSkips}\n\n` +
-    `Market:\n  ATR: ${atrStatus}\n  Trend: ${trendBias}\n\n` +
+    `Market:\n  ATR: ${atrStatus}\n  Trend: ${trendBias}\n  Regime: ${dominantRegime}\n\n` +
     `Conclusion:\n${conclusion}`;
 
   await saveAudit({
     date,
     report: msg,
-    strategyVersion: botState?.strategyVersion || STRATEGY_VERSION,
+    strategyVersion: latestStrategyVersionFromLogs(dayLogs, STRATEGY_VERSION),
     schedulerSource: botState?.schedulerSource ?? 'unknown',
     totalCycles,
     totalDecisions: totalCycles,
@@ -813,7 +833,13 @@ async function generateLocalAudit(logs, botState) {
     totalRejects,
     brokerErrors,
     pfStr,
+    cvar95: tailLossStats.cvar95,
+    worstLoss: tailLossStats.worstLoss,
+    averageLoss: tailLossStats.averageLoss,
+    lossCount: tailLossStats.lossCount,
     conclusion,
+    regimeCounts,
+    dominantRegime,
     anomalies,
     generatedAt: new Date().toISOString(),
   }).catch(() => {});
@@ -1330,6 +1356,7 @@ export default async function handler(req, res) {
       // Calculate indicators even on skips for dashboard live values
       indicators = calculateIndicators(marketData.candles5m, marketData.candles1h);
       indicators.spread = marketData.spread ?? null;
+      indicators.marketRegime = indicators.skip ? null : classifyMarketRegime(indicators);
       cycleStatus.trend = formatTrendStatus(indicators);
       if (!indicators.skip) {
         botState.lastValidDataTime = marketData.latestCandleTime;
@@ -1357,7 +1384,7 @@ export default async function handler(req, res) {
       // Evaluate strategy purely for debug telemetry even if this cycle is skipping
       if (indicators && !indicators.skip && marketData.candles1m) {
         const generated = generateSignal(indicators, marketData.candles1m);
-        signalDebug = generated.debug;
+        signalDebug = { ...generated.debug, marketRegime: indicators.marketRegime };
         logSignalAndRiskSteps({ signal: generated.signal, indicators, signalDebug });
       }
 
@@ -1371,6 +1398,7 @@ export default async function handler(req, res) {
     indicators.lastOrderTimestamp = botState.lastOrderTimestamp;
     indicators.recentOutcomes = botState.recentOutcomes;
     let { signal, debug: signalDebug } = generateSignal(indicators, marketData.candles1m);
+    signalDebug = { ...signalDebug, marketRegime: indicators.marketRegime };
     cycleStatus.setup = signal ? 'YES' : 'NO';
     logSignalAndRiskSteps({ signal, indicators, signalDebug });
 
@@ -1395,7 +1423,7 @@ export default async function handler(req, res) {
               strategyVersion: 'forced_v1.0',
               timestamp: Date.now()
           };
-          signalDebug = { dbgRejectReason: null, dbgAction: action, dbgEntryType: 'forced_test' };
+          signalDebug = { dbgRejectReason: null, dbgAction: action, dbgEntryType: 'forced_test', marketRegime: indicators.marketRegime };
           cycleStatus.setup = 'YES';
           console.warn(`[FORCE] Created test signal: ${action} @ ${entry}`);
       }
@@ -1405,6 +1433,7 @@ export default async function handler(req, res) {
     const riskResult = (process.env.FORCE_TRADE === 'true' && signal?.entryType === 'forced_test') 
       ? 'APPROVED' 
       : checkRisk(signal, botState, indicators);
+    const executionPolicy = buildExecutionPolicy(riskResult, indicators?.marketRegime);
 
     if (riskResult !== 'APPROVED') {
       botState.currentCycleReason = riskResult;
@@ -1416,16 +1445,18 @@ export default async function handler(req, res) {
         botState.lastProcessedCandle = marketData.latestCandleTime;
       }
       botState.lastHeartbeat = Date.now();
-      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: riskResult, signalDebug });
+      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: riskResult, signalDebug, executionPolicy });
       await saveState(botState);
       return res.json({ skipped: riskResult });
     }
+
+    signal.executionPolicy = executionPolicy;
 
     if (!lockHandle) {
       botState.currentCycleReason = 'SKIP: Missing execution lock handle';
       cycleStatus.trade = 'SKIPPED (Missing execution lock handle)';
       botState.lastHeartbeat = Date.now();
-      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Missing execution lock handle', signalDebug });
+      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Missing execution lock handle', signalDebug, executionPolicy });
       await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
       return res.json({ skipped: 'SKIP: Missing execution lock handle' });
     }
@@ -1435,7 +1466,7 @@ export default async function handler(req, res) {
       botState.currentCycleReason = 'SKIP: Lock ownership lost before execution';
       cycleStatus.trade = 'SKIPPED (Lock ownership lost before execution)';
       botState.lastHeartbeat = Date.now();
-      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock ownership lost before execution', signalDebug });
+      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock ownership lost before execution', signalDebug, executionPolicy });
       await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
       return res.json({ skipped: 'SKIP: Lock ownership lost before execution' });
     }
@@ -1445,7 +1476,7 @@ export default async function handler(req, res) {
       botState.currentCycleReason = 'SKIP: Lock renewal failed before execution';
       cycleStatus.trade = 'SKIPPED (Lock renewal failed before execution)';
       botState.lastHeartbeat = Date.now();
-      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock renewal failed before execution', signalDebug });
+      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock renewal failed before execution', signalDebug, executionPolicy });
       await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
       return res.json({ skipped: 'SKIP: Lock renewal failed before execution' });
     }
@@ -1458,7 +1489,7 @@ export default async function handler(req, res) {
         cycleStatus.trade = `SKIPPED (${skipReason})`;
         console.warn(`[CRON] ${skipReason}`);
         botState.lastHeartbeat = Date.now();
-        await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: skipReason, signalDebug });
+        await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: skipReason, signalDebug, executionPolicy });
         await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
         return res.json({ skipped: skipReason });
       }
@@ -1478,7 +1509,7 @@ export default async function handler(req, res) {
       botState.currentCycleReason = 'SKIP: Lock ownership lost at execution gate';
       cycleStatus.trade = 'SKIPPED (Lock ownership lost at execution gate)';
       botState.lastHeartbeat = Date.now();
-      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock ownership lost at execution gate', signalDebug });
+      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock ownership lost at execution gate', signalDebug, executionPolicy });
       await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
       return res.json({ skipped: 'SKIP: Lock ownership lost at execution gate' });
     }
@@ -1488,7 +1519,7 @@ export default async function handler(req, res) {
       botState.currentCycleReason = 'SKIP: Lock renewal failed at execution gate';
       cycleStatus.trade = 'SKIPPED (Lock renewal failed at execution gate)';
       botState.lastHeartbeat = Date.now();
-      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock renewal failed at execution gate', signalDebug });
+      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: 'SKIP: Lock renewal failed at execution gate', signalDebug, executionPolicy });
       await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
       return res.json({ skipped: 'SKIP: Lock renewal failed at execution gate' });
     }
@@ -1509,7 +1540,7 @@ export default async function handler(req, res) {
         botState.lastProcessedCandle = marketData.latestCandleTime;
       }
       botState.lastHeartbeat = Date.now();
-      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: tradeResult.reason, brokerResponse: tradeResult.brokerResponse ?? null, signalDebug });
+      await saveLog({ signal, indicators, botState, tradeExecuted: false, reason: tradeResult.reason, brokerResponse: tradeResult.brokerResponse ?? null, signalDebug, executionPolicy });
       await saveState(botState);
       return res.json({ skipped: tradeResult.reason });
     }
@@ -1521,7 +1552,7 @@ export default async function handler(req, res) {
     botState.currentCycleReason = 'TRADE_EXECUTED';
     cycleStatus.trade = `EXECUTED (${signal.action} ${signal.entryType})`;
     botState.lastHeartbeat = Date.now();
-    await saveLog({ signal, indicators, botState, tradeExecuted: true, result: tradeResult, reason: null, signalDebug });
+    await saveLog({ signal, indicators, botState, tradeExecuted: true, result: tradeResult, reason: null, signalDebug, executionPolicy });
     await saveState(botState);
 
     // ── Step 11: Performance check (fires every 50 executed trades) ───────────

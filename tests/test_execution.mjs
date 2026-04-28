@@ -9,7 +9,8 @@ import {
   createTradePathAudit,
   updateTradePathAudit,
   recordStopMoveAuditEvent,
-  buildExitAudit
+  buildExitAudit,
+  calculateFillSlippage
 } from '../lib/execution.js';
 
 let passed = 0;
@@ -197,6 +198,24 @@ section('Slippage gate: maxSlippage priority (snapshot.maxSlippage → maxExecut
 
   const r8 = checkSlippage({ maxSlippage: 2.0 }, 2000, 1997.5);
   assert(r8.skip, `SELL: expectedSlippage=2.5 (abs) > maxSlippage=2.0 → skip`);
+}
+
+section('Passive fill slippage telemetry');
+{
+  const good = calculateFillSlippage(2000, 2000.20, 5);
+  assert(good.absoluteSlippage === 0.2, `GOOD absolute slippage recorded (got ${good.absoluteSlippage})`);
+  assert(good.slippageToATR === 0.04, `GOOD slippage/ATR recorded (got ${good.slippageToATR})`);
+  assert(good.fillQuality === 'GOOD', `0.04 ATR slippage → GOOD (got ${good.fillQuality})`);
+
+  const acceptable = calculateFillSlippage(2000, 2000.50, 5);
+  assert(acceptable.fillQuality === 'ACCEPTABLE', `0.10 ATR slippage → ACCEPTABLE (got ${acceptable.fillQuality})`);
+
+  const degraded = calculateFillSlippage(2000, 2001, 5);
+  assert(degraded.fillQuality === 'DEGRADED', `0.20 ATR slippage → DEGRADED (got ${degraded.fillQuality})`);
+
+  const unknown = calculateFillSlippage(2000, NaN, 5);
+  assert(unknown.fillQuality === 'UNKNOWN', `missing fill price → UNKNOWN (got ${unknown.fillQuality})`);
+  assert(unknown.absoluteSlippage === null, 'UNKNOWN telemetry does not synthesize slippage');
 }
 
 // ── Section 9: Progressive stop locking (R-multiple) ───────────────────────
