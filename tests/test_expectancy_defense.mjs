@@ -24,8 +24,10 @@ function makeSignal(overrides = {}) {
     entryType: 'pullback',
     entryPrice: 1995,
     stopLoss: 2002.5,
-    takeProfit: 1982.5,
+    takeProfit: 1976.25,
     atr: 5,
+    score: 80,
+    setupConfidenceScore: 80,
     timestamp: candleTime,
     ...overrides,
   };
@@ -134,7 +136,7 @@ console.log('\nExpectancy-defense controls');
 
 {
   const result = checkRisk(
-    makeSignal({ entryPrice: 1980, stopLoss: 1987.5, takeProfit: 1967.5 }),
+    makeSignal({ entryPrice: 1980, stopLoss: 1987.5, takeProfit: 1961.25 }),
     makeBotState(),
     makeIndicators({ currEMA20: 2000, atr: 5 })
   );
@@ -187,7 +189,7 @@ console.log('\nExpectancy-defense controls');
     recentOutcomes: outcomes,
     expectancyKillSwitch: {
       active: true,
-      activatedAt: Date.now() - 23 * 60 * 60 * 1000,
+      activatedAt: Date.now() - 5 * 60 * 60 * 1000,
       activationTrend: 'DOWN',
       windowKey,
       suppressedWindowKey: null,
@@ -195,8 +197,8 @@ console.log('\nExpectancy-defense controls');
   });
 
   const result = checkRisk(makeSignal(), state, makeIndicators({ trend1h: 'DOWN' }));
-  assert(result.includes('kill switch active'), `PF5 kill switch remains active before 24h if trend unchanged (got: ${result})`);
-  assert(state.expectancyKillSwitch.active === true, 'PF5 kill switch state remains active before 24h');
+  assert(result.includes('kill switch active'), `PF5 kill switch remains active before quality re-entry/24h if trend unchanged (got: ${result})`);
+  assert(state.expectancyKillSwitch.active === true, 'PF5 kill switch state remains active before quality re-entry/24h');
 }
 
 {
@@ -255,6 +257,25 @@ console.log('\nExpectancy-defense controls');
   const changed = resetDirectionalLossCircuitOnTrendReset(state, makeIndicators({ trend1h: 'UP' }));
   assert(changed === true && state.expectancyKillSwitch.active === false, 'existing trend-change reset still works before 24h');
   assert(state.expectancyKillSwitch.suppressedWindowKey === windowKey, 'trend-change reset still suppresses old/current PF5 window key');
+}
+
+{
+  const outcomes = makeLowPf5Outcomes();
+  const windowKey = makeWindowKey(outcomes);
+  const state = makeBotState({
+    recentOutcomes: outcomes,
+    expectancyKillSwitch: {
+      active: true,
+      activatedAt: Date.now() - (6 * 60 * 60 * 1000) - 1000,
+      activationTrend: 'DOWN',
+      windowKey,
+      suppressedWindowKey: null,
+    },
+  });
+
+  const result = checkRisk(makeSignal(), state, makeIndicators({ trend1h: 'DOWN' }));
+  assert(result === 'APPROVED', `quality re-entry can clear PF5 pause after 6h for 2.5R/high-confidence setups (got: ${result})`);
+  assert(state.expectancyKillSwitch.active === false && state.expectancyKillSwitch.resetReason === 'QUALITY_REENTRY', 'PF5 quality re-entry records reset reason');
 }
 
 console.log(`\nTests: ${passed + failed} total, ${passed} passed, ${failed} failed\n`);

@@ -22,7 +22,8 @@ function makeSignal(overrides = {}) {
     entryPrice: 2000,
     stopLoss: 1990,
     takeProfit: 2030,
-    score: 4,
+    score: 80,
+    setupConfidenceScore: 80,
     id: `order_rate_${Date.now()}`,
     ...overrides,
   };

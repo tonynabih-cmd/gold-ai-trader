@@ -115,6 +115,7 @@ ATR is both strategy input and execution safety input.
 - Pullback entries must pass the pullback extension guard.
 - Pullback extension cap: `2.0` ATR from EMA20.
 - Execution stop loss and take profit are recalculated from actual execution price using ATR multipliers.
+- Opening trades must preserve at least `2.5R` initial reward/risk after strategy signal generation.
 - Broker minimum stop distance may adjust stop loss only within execution safety rules.
 - If broker minimum stop distance is too large relative to ATR, the trade must be skipped.
 - Invalid ATR in execution risk modeling must halt the attempted trade and trigger critical safety handling where applicable.
@@ -159,7 +160,9 @@ The bot enforces same-direction loss cooldown logic:
 - Two consecutive same-direction stop losses activate a circuit breaker for that direction.
 - The same-direction circuit breaker waits for a qualifying 1h trend reset.
 - Rolling 5-trade profit factor below the configured threshold activates the expectancy kill switch.
-- The expectancy kill switch waits for a 1h trend reset before allowing new risk in the affected context.
+- The expectancy kill switch waits for a 1h trend reset or 24h expiry before normal risk resumes.
+- A restricted quality re-entry may clear the expectancy kill switch after 6h only when the candidate setup has at least `2.5R` initial reward/risk, setup confidence `>=75`, and risk is capped at `0.5x` before execution.
+- Quality re-entry still must pass all normal risk gates and execution-quality checks.
 
 Cooldowns must not be weakened by regime logic, telemetry, or execution-policy mapping.
 
@@ -189,6 +192,7 @@ Slippage is both a pre-execution guard and post-fill telemetry.
 
 - Live slippage from intended entry to execution price is checked before order submission.
 - Slippage above the allowed threshold must reject or skip the trade.
+- Execution quality score below `70` must reject the trade before broker submission.
 - Fill slippage telemetry records intended entry, actual fill, absolute slippage, slippage-to-ATR, and fill quality.
 - Fill quality labels include `GOOD`, `ACCEPTABLE`, `DEGRADED`, and `UNKNOWN`.
 - Unknown slippage telemetry must not synthesize missing values.

@@ -10,7 +10,8 @@ import {
   updateTradePathAudit,
   recordStopMoveAuditEvent,
   buildExitAudit,
-  calculateFillSlippage
+  calculateFillSlippage,
+  assessExecutionQuality
 } from '../lib/execution.js';
 
 let passed = 0;
@@ -218,6 +219,29 @@ section('Passive fill slippage telemetry');
   assert(unknown.absoluteSlippage === null, 'UNKNOWN telemetry does not synthesize slippage');
 }
 
+section('Execution quality scoring');
+{
+  const good = assessExecutionQuality({
+    spread: 0.2,
+    maxSpread: 0.8,
+    slippage: 0.25,
+    slippageLimit: 4,
+    minStopDist: 0.5,
+    atr: 5,
+  });
+  assert(good.score >= 85 && good.grade === 'GOOD', `Clean execution conditions score GOOD (got ${good.score}/${good.grade})`);
+
+  const degraded = assessExecutionQuality({
+    spread: 0.75,
+    maxSpread: 0.8,
+    slippage: 3.5,
+    slippageLimit: 4,
+    minStopDist: 10,
+    atr: 5,
+  });
+  assert(degraded.score < 70 && degraded.grade === 'DEGRADED', `Crowded execution conditions score DEGRADED (got ${degraded.score}/${degraded.grade})`);
+}
+
 // ── Section 9: Progressive stop locking (R-multiple) ───────────────────────
 
 section('Progressive stop locking: BUY thresholds');
@@ -294,13 +318,13 @@ section('Trade-path audit telemetry: milestones and excursions');
     entry: 2000,
     stopLoss: 1990,
     initialStopLoss: 1990,
-    takeProfit: 2016.7,
+    takeProfit: 2025,
     size: 0.1,
   };
   trade.audit = createTradePathAudit(trade);
 
   assert(trade.audit.initialRiskDistance === 10, `Audit initial risk distance recorded (got ${trade.audit.initialRiskDistance})`);
-  assert(trade.audit.initialTpR === 1.67, `Audit initial TP R recorded (got ${trade.audit.initialTpR})`);
+  assert(trade.audit.initialTpR === 2.5, `Audit initial TP R recorded (got ${trade.audit.initialTpR})`);
 
   updateTradePathAudit(trade, { bid: 2012, offer: 2012.5 }, 123);
   assert(trade.audit.mfePriceDistance === 12, `BUY audit MFE price distance updates (got ${trade.audit.mfePriceDistance})`);
@@ -320,7 +344,7 @@ section('Trade-path audit telemetry: stop events and exit audit');
     entry: 2000,
     stopLoss: 2010,
     initialStopLoss: 2010,
-    takeProfit: 1983.3,
+    takeProfit: 1975,
     size: 0.1,
   };
   trade.audit = createTradePathAudit(trade);
@@ -331,9 +355,10 @@ section('Trade-path audit telemetry: stop events and exit audit');
   assert(trade.audit.stopWasMoved && trade.audit.stopMoveCount === 1, 'Stop move audit event is recorded only when called');
   assert(event.stageKey === 'lock_0_5r_at_1_5r', `Stop move audit stores stage key (got ${event.stageKey})`);
 
-  const exitAudit = buildExitAudit(trade, 6.12);
-  assert(exitAudit.realizedR > 1.6 && exitAudit.realizedR < 1.7, `Exit audit realized R uses AED conversion (got ${exitAudit.realizedR})`);
+  const exitAudit = buildExitAudit(trade, 9.18);
+  assert(exitAudit.realizedR > 2.4 && exitAudit.realizedR < 2.6, `Exit audit realized R uses AED conversion (got ${exitAudit.realizedR})`);
   assert(exitAudit.exitReasonClass === 'TAKE_PROFIT', `Exit audit classifies near-TP exits (got ${exitAudit.exitReasonClass})`);
+  assert(exitAudit.postTradeReasonTags.includes('TAKE_PROFIT'), `Exit audit tags post-trade reason (got ${exitAudit.postTradeReasonTags.join(',')})`);
   assert(exitAudit.gaveBackFromMfeR >= 0, `Exit audit gave-back field is numeric (got ${exitAudit.gaveBackFromMfeR})`);
 
   const unknownExit = buildExitAudit(trade, null);

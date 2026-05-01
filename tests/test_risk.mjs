@@ -41,7 +41,8 @@ function makeSignal(overrides = {}) {
     entryPrice: 2000,
     stopLoss:   1990,
     takeProfit: 2030,
-    score:      4,
+    score:      80,
+    setupConfidenceScore: 80,
     id:         'test_signal_123',
     ...overrides,
   };
@@ -346,13 +347,16 @@ section('Rule 19: Duplicate trade ID');
 
 // ── Section 16: Signal score is telemetry, not a risk gate ───────────────────
 
-section('No minimum signal score gate');
+section('Minimum setup confidence gate');
 {
-  const rLowScore = checkRisk(makeSignal({ score: 1 }), makeBotState(), makeIndicators());
-  assert(rLowScore === 'APPROVED', `Score=1 is not risk-gated (got: ${rLowScore})`);
+  const rLowScore = checkRisk(makeSignal({ score: 10, setupConfidenceScore: 10 }), makeBotState(), makeIndicators());
+  assert(rLowScore.includes('Setup confidence score'), `Setup confidence=10 is risk-gated (got: ${rLowScore})`);
 
-  const rZeroScore = checkRisk(makeSignal({ score: 0 }), makeBotState(), makeIndicators());
-  assert(rZeroScore === 'APPROVED', `Score=0 is not risk-gated (got: ${rZeroScore})`);
+  const rZeroScore = checkRisk(makeSignal({ score: 0, setupConfidenceScore: 0 }), makeBotState(), makeIndicators());
+  assert(rZeroScore.includes('Setup confidence score'), `Setup confidence=0 is risk-gated (got: ${rZeroScore})`);
+
+  const rLowReward = checkRisk(makeSignal({ takeProfit: 2010 }), makeBotState(), makeIndicators());
+  assert(rLowReward.includes('below minimum 2.50R'), `Initial reward/risk below 2.5R is risk-gated (got: ${rLowReward})`);
 }
 
 // ── Section 17: Approved path ─────────────────────────────────────────────────
