@@ -2,6 +2,7 @@
 // Run: node tests/test_strategy.mjs
 
 import { generateSignal } from '../lib/strategy.js';
+import { checkRisk } from '../lib/risk.js';
 
 let passed = 0;
 let failed = 0;
@@ -63,6 +64,63 @@ function makeIndicators(overrides = {}) {
   return { ...base, ...overrides };
 }
 
+function makeHighQualityIndicators(overrides = {}) {
+  const now = Date.now();
+  const base = {
+    currEMA20: 2000,
+    currEMA50: 1996,
+    ema20_1h: 1995,
+    ema50_1h: 2000,
+    trend1h: 'DOWN',
+    ema20arr: [1990, 1992, 1994, 1995.5, 1998, 2000],
+    ema50arr: [1988, 1989.5, 1991, 1992.5, 1994, 1996],
+    atr: 5.0,
+    atrAverage: 5.0,
+    prevCandle: {
+      time: now - 5 * 60 * 1000,
+      open: 2000.0,
+      high: 2000.5,
+      low: 1999.5,
+      close: 2000.0,
+    },
+    lastCandle: {
+      time: now,
+      open: 1999.0,
+      high: 2004.0,
+      low: 1999.0,
+      close: 2003.5,
+    },
+    trendWindowStartTime: now - 30 * 60 * 1000,
+    recentOutcomes: [],
+    lastOrderTimestamp: now - 6 * 60 * 60 * 1000,
+  };
+  return { ...base, ...overrides };
+}
+
+function makeBotState(overrides = {}) {
+  return {
+    botEnabled: true,
+    stateIntegrityOk: true,
+    criticalFailure: false,
+    riskDataFresh: true,
+    lastRiskSyncAt: Date.now(),
+    balance: 1000,
+    equity: 1000,
+    availableMargin: 800,
+    peakBalance: 1000,
+    dailyLoss: 0,
+    dailyTrades: 0,
+    openTrades: [],
+    recentTradeIds: [],
+    recentOrderKeys: [],
+    recentOutcomes: [],
+    ...overrides,
+  };
+}
+
+process.env.BOT_ENABLED = 'true';
+process.env.MAX_SPREAD = '0.5';
+
 section('Input guards');
 {
   const result = generateSignal(null, []);
@@ -113,6 +171,66 @@ section('Layer 2 BUY pullback with 2-step confirmation');
   if (result.signal) {
     assert(result.signal.action === 'BUY', `Signal direction is BUY (got ${result.signal.action})`);
     assert(result.signal.entryType === 'pullback', `Entry type remains pullback (got ${result.signal.entryType})`);
+  }
+}
+
+section('1h trend conflict applies confidence penalty instead of hard reject');
+{
+  const aligned = generateSignal(makeHighQualityIndicators({ trend1h: 'UP' }), make1mCandles());
+  const conflicted = generateSignal(makeHighQualityIndicators({ trend1h: 'DOWN' }), make1mCandles());
+
+  assert(aligned.signal !== null, `Aligned high-quality setup produces signal (reason: ${aligned.debug?.dbgRejectReason})`);
+  assert(conflicted.signal !== null, `1h conflict no longer causes immediate SKIP (reason: ${conflicted.debug?.dbgRejectReason})`);
+
+  if (aligned.signal && conflicted.signal) {
+    assert(
+      conflicted.signal.setupConfidenceScore === aligned.signal.setupConfidenceScore - 10,
+      `Conflicted setupConfidenceScore is reduced by 10 (${aligned.signal.setupConfidenceScore} -> ${conflicted.signal.setupConfidenceScore})`
+    );
+    assert(
+      conflicted.signal.setupConfidence?.penalties?.includes('1h trend conflict penalty applied: -10'),
+      'Penalty is logged in setupConfidence telemetry'
+    );
+    assert(conflicted.debug?.dbgTrendConflictPenalty === -10, 'Penalty is exposed in debug telemetry');
+  }
+}
+
+section('1h-conflicted setups still pass through normal risk gates');
+{
+  const lowQuality = generateSignal(makeIndicators({ trend1h: 'DOWN' }), make1mCandles());
+  assert(lowQuality.signal !== null, `Low-quality conflicted setup reaches risk gate (reason: ${lowQuality.debug?.dbgRejectReason})`);
+  if (lowQuality.signal) {
+    const lowRisk = checkRisk(
+      lowQuality.signal,
+      makeBotState(),
+      {
+        atr: lowQuality.signal.atr,
+        atrAverage: 4.5,
+        spread: 0.30,
+        currEMA20: 2000,
+        currEMA50: 1997,
+        trend1h: 'DOWN',
+      }
+    );
+    assert(lowRisk.includes('Setup confidence score'), `Low-quality conflicted setup fails later confidence gate (got: ${lowRisk})`);
+  }
+
+  const highQuality = generateSignal(makeHighQualityIndicators({ trend1h: 'DOWN' }), make1mCandles());
+  assert(highQuality.signal !== null, `High-quality conflicted setup reaches risk gate (reason: ${highQuality.debug?.dbgRejectReason})`);
+  if (highQuality.signal) {
+    const highRisk = checkRisk(
+      highQuality.signal,
+      makeBotState(),
+      {
+        atr: highQuality.signal.atr,
+        atrAverage: 5.0,
+        spread: 0.30,
+        currEMA20: 2000,
+        currEMA50: 1996,
+        trend1h: 'DOWN',
+      }
+    );
+    assert(highRisk === 'APPROVED', `High-quality conflicted setup can pass if score remains above threshold (got: ${highRisk})`);
   }
 }
 
