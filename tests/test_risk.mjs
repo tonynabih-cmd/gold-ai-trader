@@ -356,7 +356,19 @@ section('Minimum setup confidence gate');
   assert(rZeroScore.includes('Setup confidence score'), `Setup confidence=0 is risk-gated (got: ${rZeroScore})`);
 
   const rLowReward = checkRisk(makeSignal({ takeProfit: 2010 }), makeBotState(), makeIndicators());
-  assert(rLowReward.includes('below minimum 2.50R'), `Initial reward/risk below 2.5R is risk-gated (got: ${rLowReward})`);
+  assert(rLowReward.includes('1.0000 (raw 1)R below minimum 2.50R'), `Initial reward/risk below 2.5R is risk-gated with precision (got: ${rLowReward})`);
+
+  const precisionSignal = makeSignal({
+    action: 'SELL',
+    entryPrice: 4621.25,
+    stopLoss: 4628.220704714237,
+    takeProfit: 4603.823238214407,
+  });
+  const rPrecision = checkRisk(precisionSignal, makeBotState(), makeIndicators());
+  assert(
+    rPrecision.includes('2.5000 (raw 2.4999999999999347)R below minimum 2.50R') && precisionSignal.initialRewardRisk < 2.5,
+    `Rounded-looking 2.499x reward/risk remains blocked and logs four decimals (got: ${rPrecision}, raw=${precisionSignal.initialRewardRisk})`
+  );
 }
 
 // ── Section 17: Approved path ─────────────────────────────────────────────────
