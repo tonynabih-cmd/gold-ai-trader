@@ -1,6 +1,6 @@
 // tests/test_logger.mjs — Unit tests for passive v2 diagnostic log fields.
 
-import { buildV2Diagnostics, CYCLE_LOG_RETENTION_LIMIT, normalizeLogDiagnostics, updateBlockedSetupTracking, V2_DIAGNOSTIC_FIELDS } from '../lib/logger.js';
+import { buildV2Diagnostics, CYCLE_LOG_RETENTION_LIMIT, LOGGER_EXPORT_FIELDS, normalizeLogDiagnostics, updateBlockedSetupTracking, V2_DIAGNOSTIC_FIELDS } from '../lib/logger.js';
 import { generateSignal } from '../lib/strategy.js';
 
 let passed = 0;
@@ -343,10 +343,114 @@ section('Legacy log normalization');
   });
 
   assertNoUndefinedFields(normalized, V2_DIAGNOSTIC_FIELDS, 'normalized legacy log');
+  assertNoUndefinedFields(normalized, LOGGER_EXPORT_FIELDS, 'normalized legacy log export');
   assert(normalized.sessionName === 'MARKET_CLOSED', `market closed legacy log is labeled (got ${normalized.sessionName})`);
   assert(normalized.isAllowedSession === false, 'market closed legacy log is marked not allowed');
   assert(normalized.sessionRejectReason === null, 'market closed legacy log has no session rejection noise');
   assert(normalized.strategyVersion === 'v1.5', 'legacy strategyVersion is preserved');
+  assert(normalized.blockedSetupMfe1hR === null, 'legacy no-signal blockedSetupMfe1hR logs null');
+  assert(normalized.blockedSetupMae1hR === null, 'legacy no-signal blockedSetupMae1hR logs null');
+  assert(normalized.blockedSetupMfe3hR === null, 'legacy no-signal blockedSetupMfe3hR logs null');
+  assert(normalized.blockedSetupMae3hR === null, 'legacy no-signal blockedSetupMae3hR logs null');
+  assert(normalized.takenTradeMfeR === null, 'legacy no-signal takenTradeMfeR logs null');
+  assert(normalized.takenTradeMaeR === null, 'legacy no-signal takenTradeMaeR logs null');
+  assert(normalized.reached1R === null, 'legacy no-signal reached1R logs null');
+  assert(normalized.reached1_5R === null, 'legacy no-signal reached1_5R logs null');
+  assert(normalized.reached2R === null, 'legacy no-signal reached2R logs null');
+  assert(normalized.reached2_5R === null, 'legacy no-signal reached2_5R logs null');
+}
+
+section('Logger export field normalization');
+{
+  const noSignal = normalizeLogDiagnostics({
+    time: '2026-05-02T22:10:06.928Z',
+    strategyVersion: 'v1.5',
+    signalDetected: 'NONE',
+    marketRegime: null,
+    reason: 'SKIP: No signal generated this cycle',
+    sessionName: 'OUTSIDE_SESSION',
+    isAllowedSession: false,
+    sessionRejectReason: 'SKIP: Outside allowed trading session',
+    regime: null,
+    atrRatio: null,
+    emaSpreadAtr: null,
+    regimeRejectReason: null,
+    regimeBlockType: null,
+    atrRatioValue: null,
+    atrDeadDistance: null,
+    atrExtremeDistance: null,
+    emaSpreadAtrValue: null,
+    sidewaysDistance: null,
+    nearSignalDetected: false,
+    nearSignalDirection: null,
+    nearSignalRejectReason: 'SKIP: No signal generated this cycle',
+    pullbackValid: null,
+    pullbackDirection: null,
+    pullbackDistanceAtr: null,
+    pullbackDistanceFromEma20Atr: null,
+    pullbackDistanceFromEma50Atr: null,
+    pullbackNearMiss: null,
+    pullbackMissDistanceAtr: null,
+    pullbackRejectReason: null,
+    sweepValid: null,
+    sweepDirection: null,
+    sweepCandidate: null,
+    sweepLookbackUsed: null,
+    sweepBreakDistanceAtr: null,
+    sweepWickPct: null,
+    sweepBodyPct: null,
+    sweepFailedReason: null,
+    bosValid: null,
+    bosDirection: null,
+    bosCandidate: null,
+    lastSwingHigh: null,
+    lastSwingLow: null,
+    bosBreakDistanceAtr: null,
+    bosFailedReason: null,
+    bodyPct: null,
+    upperWickPct: null,
+    lowerWickPct: null,
+    swingHigh: null,
+    swingLow: null,
+    rrCandidate: null,
+    rrThresholdUsed: 2,
+    confidenceThresholdUsed: 65,
+    confidenceRaw: null,
+    confidenceBucket: null,
+    rrPass: null,
+    confidencePass: null,
+    rejectStage: null,
+  });
+
+  assertNoUndefinedFields(noSignal, LOGGER_EXPORT_FIELDS, 'normalized no-signal export');
+  assert(noSignal.blockedSetupMfe1hR === null, 'NO_SIGNAL blockedSetupMfe1hR is null, not omitted');
+  assert(noSignal.takenTradeMfeR === null, 'NO_SIGNAL takenTradeMfeR is null, not omitted');
+  assert(noSignal.reached2R === null, 'NO_SIGNAL reached2R is null, not omitted');
+  assert(noSignal.reached2_5R === null, 'NO_SIGNAL reached2_5R is null, not omitted');
+
+  const closedTrade = normalizeLogDiagnostics({
+    time: '2026-05-04T12:30:00.000Z',
+    strategyVersion: 'v1.5',
+    signalDetected: 'SELL',
+    marketRegime: 'NORMAL',
+    reason: 'CLOSED: CONFIRMED',
+    exitAudit: {
+      mfeR: 2.6,
+      maeR: 0.4,
+      reached1R: true,
+      reached1_5R: true,
+      reached2R: true,
+      reached2_5R: true,
+    },
+  });
+
+  assertNoUndefinedFields(closedTrade, LOGGER_EXPORT_FIELDS, 'normalized closed-trade export');
+  assert(closedTrade.takenTradeMfeR === 2.6, `closed trade takenTradeMfeR logs from exitAudit (got ${closedTrade.takenTradeMfeR})`);
+  assert(closedTrade.takenTradeMaeR === 0.4, `closed trade takenTradeMaeR logs from exitAudit (got ${closedTrade.takenTradeMaeR})`);
+  assert(closedTrade.reached1R === true, 'closed trade reached1R logs true');
+  assert(closedTrade.reached1_5R === true, 'closed trade reached1_5R logs true');
+  assert(closedTrade.reached2R === true, 'closed trade reached2R logs true');
+  assert(closedTrade.reached2_5R === true, 'closed trade reached2_5R logs true');
 }
 
 section('Telemetry does not alter strategy decision fields');
