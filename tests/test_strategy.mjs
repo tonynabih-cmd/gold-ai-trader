@@ -1,7 +1,7 @@
 // tests/test_strategy.mjs — Unit tests for lib/strategy.js
 // Run: node tests/test_strategy.mjs
 
-import { detectLiquiditySweep, generateSignal } from '../lib/strategy.js';
+import { detectBreakOfStructure, detectLiquiditySweep, findLastFractalSwings, generateSignal, validatePullback } from '../lib/strategy.js';
 import { checkRisk as checkRiskImpl } from '../lib/risk.js';
 
 let passed = 0;
@@ -134,6 +134,18 @@ function makePriorSweepCandles({ swingLow = 100, swingHigh = 110 } = {}) {
   }));
 }
 
+function makeBosCandles() {
+  return [
+    { time: 1, open: 100, high: 101, low: 98, close: 100 },
+    { time: 2, open: 100, high: 103, low: 97, close: 101 },
+    { time: 3, open: 101, high: 106, low: 96, close: 104 },
+    { time: 4, open: 104, high: 102, low: 95, close: 97 },
+    { time: 5, open: 97, high: 101, low: 94, close: 98 },
+    { time: 6, open: 98, high: 103, low: 97, close: 101 },
+    { time: 7, open: 101, high: 102, low: 98, close: 100 },
+  ];
+}
+
 process.env.BOT_ENABLED = 'true';
 process.env.MAX_SPREAD = '0.5';
 
@@ -188,6 +200,43 @@ section('Layer 2 BUY pullback with 2-step confirmation');
     assert(result.signal.action === 'BUY', `Signal direction is BUY (got ${result.signal.action})`);
     assert(result.signal.entryType === 'pullback', `Entry type remains pullback (got ${result.signal.entryType})`);
   }
+}
+
+section('Diagnostic pullback validation');
+{
+  const validBuy = validatePullback({ low: 1999.2, high: 2001.8, close: 2000.1 }, 2000, 1996, 5, 'BUY');
+  assert(validBuy.pullbackValid === true, 'Valid BUY pullback inside EMA zone');
+  assert(validBuy.pullbackDirection === 'BUY', `Valid BUY direction logged (got ${validBuy.pullbackDirection})`);
+  assert(validBuy.pullbackDistanceAtr === 0.16, `Valid BUY distance logged in ATR (got ${validBuy.pullbackDistanceAtr})`);
+  assert(validBuy.pullbackRejectReason === null, 'Valid BUY has null reject reason');
+
+  const shallowBuy = validatePullback({ low: 2001.4, high: 2002, close: 2001.6 }, 2000, 1996, 5, 'BUY');
+  assert(shallowBuy.pullbackValid === false, 'Invalid BUY pullback too shallow');
+  assert(shallowBuy.pullbackRejectReason.includes('low did not reach EMA20 zone'), `Shallow BUY reject reason is clear (got ${shallowBuy.pullbackRejectReason})`);
+
+  const deepBuy = validatePullback({ low: 1994.0, high: 1998, close: 1997.0 }, 2000, 1996, 5, 'BUY');
+  assert(deepBuy.pullbackValid === false, 'Invalid BUY pullback too deep below EMA50');
+  assert(deepBuy.pullbackRejectReason.includes('low extended below EMA50 zone'), `Deep BUY reject reason is clear (got ${deepBuy.pullbackRejectReason})`);
+
+  const validSell = validatePullback({ low: 1993.7, high: 1995.6, close: 1994.9 }, 1995, 1999, 5, 'SELL');
+  assert(validSell.pullbackValid === true, 'Valid SELL pullback inside EMA zone');
+  assert(validSell.pullbackDirection === 'SELL', `Valid SELL direction logged (got ${validSell.pullbackDirection})`);
+  assert(validSell.pullbackDistanceAtr === 0.12, `Valid SELL distance logged in ATR (got ${validSell.pullbackDistanceAtr})`);
+  assert(validSell.pullbackRejectReason === null, 'Valid SELL has null reject reason');
+
+  const shallowSell = validatePullback({ low: 1991, high: 1993.6, close: 1992.8 }, 1995, 1999, 5, 'SELL');
+  assert(shallowSell.pullbackValid === false, 'Invalid SELL pullback too shallow');
+  assert(shallowSell.pullbackRejectReason.includes('high did not reach EMA20 zone'), `Shallow SELL reject reason is clear (got ${shallowSell.pullbackRejectReason})`);
+
+  const deepSell = validatePullback({ low: 1998, high: 2001.0, close: 1998.8 }, 1995, 1999, 5, 'SELL');
+  assert(deepSell.pullbackValid === false, 'Invalid SELL pullback too deep above EMA50');
+  assert(deepSell.pullbackRejectReason.includes('high extended above EMA50 zone'), `Deep SELL reject reason is clear (got ${deepSell.pullbackRejectReason})`);
+
+  const missing = validatePullback({ low: 1999, high: 2001, close: 2000 }, null, 1996, 5, 'BUY');
+  assert(missing.pullbackValid === null, 'Missing ATR/EMA returns null pullbackValid');
+  assert(missing.pullbackDirection === null, 'Missing ATR/EMA returns null pullbackDirection');
+  assert(missing.pullbackDistanceAtr === null, 'Missing ATR/EMA returns null pullbackDistanceAtr');
+  assert(missing.pullbackRejectReason.includes('missing ATR, EMA, or candle values'), `Missing ATR/EMA reject reason is safe (got ${missing.pullbackRejectReason})`);
 }
 
 section('1h trend conflict applies confidence penalty instead of hard reject');
@@ -416,6 +465,78 @@ section('Liquidity sweep telemetry');
   assert(missing.swingHigh === null && missing.swingLow === null, 'Missing candle swings log null');
 }
 
+section('Break of structure telemetry');
+{
+  const candles = makeBosCandles();
+  const swings = findLastFractalSwings(candles);
+  assert(swings.lastSwingHigh === 106, `Valid swing high detected (got ${swings.lastSwingHigh})`);
+  assert(swings.lastSwingLow === 94, `Valid swing low detected (got ${swings.lastSwingLow})`);
+
+  const buyBos = detectBreakOfStructure(candles, {
+    time: 8,
+    open: 104,
+    high: 108,
+    low: 103,
+    close: 107,
+  }, 10);
+  assert(buyBos.bosValid === true, 'BUY BOS detected');
+  assert(buyBos.bosDirection === 'BUY', `BUY BOS direction logged (got ${buyBos.bosDirection})`);
+  assert(buyBos.lastSwingHigh === 106, `BUY BOS logs last swing high (got ${buyBos.lastSwingHigh})`);
+  assert(buyBos.bosBreakDistanceAtr === 0.05, `BUY BOS break distance logs in ATR (got ${buyBos.bosBreakDistanceAtr})`);
+
+  const sellBos = detectBreakOfStructure(candles, {
+    time: 8,
+    open: 96,
+    high: 97,
+    low: 92,
+    close: 93,
+  }, 10);
+  assert(sellBos.bosValid === true, 'SELL BOS detected');
+  assert(sellBos.bosDirection === 'SELL', `SELL BOS direction logged (got ${sellBos.bosDirection})`);
+  assert(sellBos.lastSwingLow === 94, `SELL BOS logs last swing low (got ${sellBos.lastSwingLow})`);
+  assert(sellBos.bosBreakDistanceAtr === 0.05, `SELL BOS break distance logs in ATR (got ${sellBos.bosBreakDistanceAtr})`);
+
+  const noBuyBreak = detectBreakOfStructure(candles, {
+    time: 8,
+    open: 104,
+    high: 107,
+    low: 103,
+    close: 106.4,
+  }, 10);
+  assert(noBuyBreak.bosValid === false, 'Reject BUY BOS if close does not break swing high');
+  assert(noBuyBreak.bosDirection === null, 'Rejected BUY BOS logs null direction');
+
+  const noSellBreak = detectBreakOfStructure(candles, {
+    time: 8,
+    open: 96,
+    high: 97,
+    low: 93,
+    close: 93.6,
+  }, 10);
+  assert(noSellBreak.bosValid === false, 'Reject SELL BOS if close does not break swing low');
+  assert(noSellBreak.bosDirection === null, 'Rejected SELL BOS logs null direction');
+
+  const weakBody = detectBreakOfStructure(candles, {
+    time: 8,
+    open: 106.8,
+    high: 110,
+    low: 100,
+    close: 107.2,
+  }, 10);
+  assert(weakBody.bosValid === false, 'Reject BOS if bodyPct < 40');
+  assert(weakBody.bosBreakDistanceAtr === null, 'Rejected weak-body BOS logs null break distance');
+
+  const missing = detectBreakOfStructure(candles.slice(0, 4), {
+    time: 8,
+    open: 104,
+    high: 108,
+    low: 103,
+    close: 107,
+  }, 10);
+  assert(missing.bosValid === null, 'Insufficient BOS candles handled safely');
+  assert(missing.lastSwingHigh === null && missing.lastSwingLow === null, 'Insufficient BOS levels log null');
+}
+
 section('Signal structure validation');
 {
   const baseline = generateSignal(makeIndicators(), make1mCandles());
@@ -437,6 +558,27 @@ section('Signal structure validation');
     assert(result.signal.stopLoss === baseline.signal.stopLoss, 'Sweep telemetry does not change stop');
     assert(result.signal.takeProfit === baseline.signal.takeProfit, 'Sweep telemetry does not change target');
   }
+
+  const noBos = generateSignal(makeIndicators({
+    recentCandles5m: [
+      { time: 1, open: 2000, high: 2001, low: 1998, close: 2000 },
+      { time: 2, open: 2000, high: 2003, low: 1997, close: 2001 },
+      { time: 3, open: 2001, high: 2006, low: 1996, close: 2004 },
+      { time: 4, open: 2004, high: 2002, low: 1995, close: 1997 },
+      { time: 5, open: 1997, high: 2001, low: 1994, close: 1998 },
+      { time: 6, open: 1998, high: 2003, low: 1997, close: 2001 },
+      { time: 7, open: 2001, high: 2002, low: 1998, close: 2000 },
+      {
+        time: Date.now(),
+        open: 2000.0,
+        high: 2002.2,
+        low: 1999.5,
+        close: 2001.2,
+      },
+    ],
+  }), make1mCandles());
+  assert(noBos.signal !== null, `bosValid=false does not block signal generation (reason: ${noBos.debug?.dbgRejectReason})`);
+  assert(noBos.debug?.bosValid === false, 'bosValid=false is logged without blocking');
 }
 
 console.log(`\n${'═'.repeat(60)}`);

@@ -1,7 +1,7 @@
 // tests/test_risk.mjs — Unit tests for lib/risk.js
 // Run: node tests/test_risk.mjs
 
-import { checkRisk as checkRiskImpl } from '../lib/risk.js';
+import { checkRisk as checkRiskImpl, MIN_RR_V2, SETUP_CONFIDENCE_MIN_V2 } from '../lib/risk.js';
 import { classifyTradingSession } from '../lib/session_filter.js';
 
 let passed = 0;
@@ -381,30 +381,42 @@ section('Rule 19: Duplicate trade ID');
   assert(rDup.includes('SKIP'), `Duplicate signal ID → SKIP (got: ${rDup})`);
 }
 
+section('PF kill switch dominance');
+{
+  const result = checkRisk(
+    makeSignal({ takeProfit: 2020, setupConfidenceScore: 65 }),
+    makeBotState({
+      expectancyKillSwitch: {
+        active: true,
+        activatedAt: Date.now() - 10 * 60 * 1000,
+        activationTrend: 'UP',
+        windowKey: 'pf-window',
+        suppressedWindowKey: null,
+      },
+    }),
+    makeIndicators({ trend1h: 'UP' })
+  );
+  assert(result.includes('kill switch active'), `PF kill switch still overrides passing RR/confidence (got: ${result})`);
+}
+
 // ── Section 16: Signal score is telemetry, not a risk gate ───────────────────
 
 section('Minimum setup confidence gate');
 {
-  const rLowScore = checkRisk(makeSignal({ score: 10, setupConfidenceScore: 10 }), makeBotState(), makeIndicators());
-  assert(rLowScore.includes('Setup confidence score'), `Setup confidence=10 is risk-gated (got: ${rLowScore})`);
+  assert(MIN_RR_V2 === 2.0, `MIN_RR_V2 is 2.0 (got: ${MIN_RR_V2})`);
+  assert(SETUP_CONFIDENCE_MIN_V2 === 65, `SETUP_CONFIDENCE_MIN_V2 is 65 (got: ${SETUP_CONFIDENCE_MIN_V2})`);
 
-  const rZeroScore = checkRisk(makeSignal({ score: 0, setupConfidenceScore: 0 }), makeBotState(), makeIndicators());
-  assert(rZeroScore.includes('Setup confidence score'), `Setup confidence=0 is risk-gated (got: ${rZeroScore})`);
+  const rConfidence64 = checkRisk(makeSignal({ setupConfidenceScore: 64 }), makeBotState(), makeIndicators());
+  assert(rConfidence64.includes('Setup confidence score 64.00 below minimum 65'), `Confidence 64 is blocked (got: ${rConfidence64})`);
 
-  const rLowReward = checkRisk(makeSignal({ takeProfit: 2010 }), makeBotState(), makeIndicators());
-  assert(rLowReward.includes('1.0000 (raw 1)R below minimum 2.50R'), `Initial reward/risk below 2.5R is risk-gated with precision (got: ${rLowReward})`);
+  const rConfidence65 = checkRisk(makeSignal({ setupConfidenceScore: 65 }), makeBotState(), makeIndicators());
+  assert(rConfidence65 === 'APPROVED', `Confidence 65 is allowed if all other conditions pass (got: ${rConfidence65})`);
 
-  const precisionSignal = makeSignal({
-    action: 'SELL',
-    entryPrice: 4621.25,
-    stopLoss: 4628.220704714237,
-    takeProfit: 4603.823238214407,
-  });
-  const rPrecision = checkRisk(precisionSignal, makeBotState(), makeIndicators());
-  assert(
-    rPrecision.includes('2.5000 (raw 2.4999999999999347)R below minimum 2.50R') && precisionSignal.initialRewardRisk < 2.5,
-    `Rounded-looking 2.499x reward/risk remains blocked and logs four decimals (got: ${rPrecision}, raw=${precisionSignal.initialRewardRisk})`
-  );
+  const rLowReward = checkRisk(makeSignal({ takeProfit: 2019.9 }), makeBotState(), makeIndicators());
+  assert(rLowReward.includes('1.9900 (raw 1.990000000000009)R below minimum 2.00R'), `RR 1.99 is blocked (got: ${rLowReward})`);
+
+  const rBoundaryReward = checkRisk(makeSignal({ takeProfit: 2020 }), makeBotState(), makeIndicators());
+  assert(rBoundaryReward === 'APPROVED', `RR 2.00 is allowed if all other conditions pass (got: ${rBoundaryReward})`);
 }
 
 // ── Section 17: Approved path ─────────────────────────────────────────────────

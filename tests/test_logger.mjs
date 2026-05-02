@@ -78,10 +78,21 @@ section('Logger v2 diagnostic field coverage');
   assert(diagnostics.regime === 'NORMAL', 'regime mirrors marketRegime telemetry');
   assert(diagnostics.regimeRejectReason === null, 'allowed regime has null reject reason');
   assert(diagnostics.pullbackValid === true, 'pullbackValid is populated from strategy debug');
+  assert(diagnostics.pullbackDirection === 'BUY', `pullbackDirection is populated from strategy debug (got ${diagnostics.pullbackDirection})`);
+  assert(diagnostics.pullbackDistanceAtr === 0.16, `pullbackDistanceAtr is populated from strategy debug (got ${diagnostics.pullbackDistanceAtr})`);
+  assert(diagnostics.pullbackRejectReason === null, 'valid pullbackRejectReason logs null');
   assert(diagnostics.sweepValid === null, 'missing sweep candles log null');
   assert(diagnostics.sweepDirection === null, 'missing sweep direction logs null');
   assert(diagnostics.bosValid === null, 'unsupported BOS telemetry is null');
+  assert(diagnostics.bosDirection === null, 'missing BOS direction logs null');
+  assert(diagnostics.lastSwingHigh === null, 'missing BOS swing high logs null');
+  assert(diagnostics.lastSwingLow === null, 'missing BOS swing low logs null');
+  assert(diagnostics.bosBreakDistanceAtr === null, 'missing BOS distance logs null');
   assert(diagnostics.rrCandidate === 2.5, `rrCandidate mirrors setup RR (got ${diagnostics.rrCandidate})`);
+  assert(diagnostics.rrThresholdUsed === 2.0, `rrThresholdUsed logs v2 threshold (got ${diagnostics.rrThresholdUsed})`);
+  assert(diagnostics.confidenceThresholdUsed === 65, `confidenceThresholdUsed logs v2 threshold (got ${diagnostics.confidenceThresholdUsed})`);
+  assert(diagnostics.rrPass === true, 'rrPass logs true when RR meets v2 threshold');
+  assert(diagnostics.confidencePass === true, 'confidencePass logs true when setup confidence meets v2 threshold');
   assert(diagnostics.rejectStage === null, 'accepted setup has null rejectStage');
 }
 
@@ -101,7 +112,73 @@ section('Null-safe diagnostics');
   assert(diagnostics.atrRatio === null, 'missing atrRatio logs null');
   assert(diagnostics.regimeRejectReason === null, 'missing regimeRejectReason logs null');
   assert(diagnostics.pullbackValid === null, 'missing pullbackValid logs null');
+  assert(diagnostics.pullbackDirection === null, 'missing pullbackDirection logs null');
+  assert(diagnostics.pullbackDistanceAtr === null, 'missing pullbackDistanceAtr logs null');
+  assert(diagnostics.pullbackRejectReason === null, 'missing pullbackRejectReason logs null');
+  assert(diagnostics.bosValid === null, 'missing bosValid logs null');
+  assert(diagnostics.bosDirection === null, 'missing bosDirection logs null');
+  assert(diagnostics.lastSwingHigh === null, 'missing lastSwingHigh logs null');
+  assert(diagnostics.lastSwingLow === null, 'missing lastSwingLow logs null');
+  assert(diagnostics.bosBreakDistanceAtr === null, 'missing bosBreakDistanceAtr logs null');
+  assert(diagnostics.rrThresholdUsed === 2.0, `missing signal still logs rrThresholdUsed (got ${diagnostics.rrThresholdUsed})`);
+  assert(diagnostics.confidenceThresholdUsed === 65, `missing signal still logs confidenceThresholdUsed (got ${diagnostics.confidenceThresholdUsed})`);
+  assert(diagnostics.rrPass === null, 'missing RR logs null rrPass');
+  assert(diagnostics.confidencePass === null, 'missing confidence logs null confidencePass');
   assert(diagnostics.strategyVersion === 'v1.5', 'missing signal falls back to active strategyVersion');
+}
+
+section('RR and confidence calibration logging');
+{
+  const diagnostics = buildV2Diagnostics(
+    {
+      signal: {
+        initialRewardRisk: 1.99,
+        setupConfidenceScore: 64,
+        setupQuality: {
+          initialRewardRisk: 1.99,
+          setupConfidenceScore: 64,
+          rewardOk: false,
+          confidenceOk: false,
+          minRewardR: 2.0,
+          minSetupConfidenceScore: 65,
+        },
+      },
+      indicators: null,
+      signalDebug: null,
+      reason: null,
+    },
+    null,
+    new Date('2026-05-04T12:30:00.000Z')
+  );
+
+  assert(diagnostics.rrThresholdUsed === 2.0, `rrThresholdUsed is null-safe and calibrated (got ${diagnostics.rrThresholdUsed})`);
+  assert(diagnostics.confidenceThresholdUsed === 65, `confidenceThresholdUsed is null-safe and calibrated (got ${diagnostics.confidenceThresholdUsed})`);
+  assert(diagnostics.rrPass === false, 'rrPass logs false below threshold');
+  assert(diagnostics.confidencePass === false, 'confidencePass logs false below threshold');
+}
+
+section('Pullback diagnostic logging');
+{
+  const diagnostics = buildV2Diagnostics(
+    {
+      signal: null,
+      indicators: null,
+      signalDebug: {
+        pullbackValid: false,
+        pullbackDirection: null,
+        pullbackDistanceAtr: 0.28,
+        pullbackRejectReason: 'BUY pullback invalid: low did not reach EMA20 zone; no valid BUY or SELL pullback',
+      },
+      reason: null,
+    },
+    null,
+    new Date('2026-05-04T12:30:00.000Z')
+  );
+
+  assert(diagnostics.pullbackValid === false, 'invalid pullbackValid logs false');
+  assert(diagnostics.pullbackDirection === null, 'invalid pullbackDirection logs null');
+  assert(diagnostics.pullbackDistanceAtr === 0.28, `pullbackDistanceAtr logs finite value (got ${diagnostics.pullbackDistanceAtr})`);
+  assert(diagnostics.pullbackRejectReason.includes('no valid BUY or SELL pullback'), `pullbackRejectReason logs clear reason (got ${diagnostics.pullbackRejectReason})`);
 }
 
 section('Sweep diagnostics');
@@ -132,6 +209,32 @@ section('Sweep diagnostics');
   assert(diagnostics.bodyPct === 30, `bodyPct logs candle stat (got ${diagnostics.bodyPct})`);
   assert(diagnostics.upperWickPct === 20, `upperWickPct logs candle stat (got ${diagnostics.upperWickPct})`);
   assert(diagnostics.lowerWickPct === 50, `lowerWickPct logs candle stat (got ${diagnostics.lowerWickPct})`);
+}
+
+section('BOS diagnostics');
+{
+  const diagnostics = buildV2Diagnostics(
+    {
+      signal: null,
+      indicators: null,
+      signalDebug: {
+        bosValid: true,
+        bosDirection: 'SELL',
+        lastSwingHigh: 106,
+        lastSwingLow: 94,
+        bosBreakDistanceAtr: 0.05,
+      },
+      reason: null,
+    },
+    null,
+    new Date('2026-05-04T12:30:00.000Z')
+  );
+
+  assert(diagnostics.bosValid === true, 'bosValid logs true when detected');
+  assert(diagnostics.bosDirection === 'SELL', `bosDirection logs direction (got ${diagnostics.bosDirection})`);
+  assert(diagnostics.lastSwingHigh === 106, `lastSwingHigh logs fractal level (got ${diagnostics.lastSwingHigh})`);
+  assert(diagnostics.lastSwingLow === 94, `lastSwingLow logs fractal level (got ${diagnostics.lastSwingLow})`);
+  assert(diagnostics.bosBreakDistanceAtr === 0.05, `bosBreakDistanceAtr logs distance (got ${diagnostics.bosBreakDistanceAtr})`);
 }
 
 section('Legacy log normalization');
