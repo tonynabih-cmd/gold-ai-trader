@@ -1,4 +1,4 @@
-import { classifyMarketRegime } from '../lib/market_regime.js';
+import { classifyMarketRegime, classifyMarketRegimeDetails, isAllowedMarketRegime } from '../lib/market_regime.js';
 
 let passed = 0;
 let failed = 0;
@@ -19,25 +19,43 @@ function base(overrides = {}) {
     atrAverage: 1.0,
     currEMA20: 2001,
     currEMA50: 2000,
-    trend1h: 'UP',
     spread: 0.10,
     ...overrides,
   };
 }
 
-console.log('\n── Passive market regime classifier ──');
+console.log('\n── Deterministic market regime classifier ──');
 
-assert(classifyMarketRegime(base({ atr: 0.40 })) === 'DEAD', 'low ATR maps to DEAD');
-assert(classifyMarketRegime(base({ currEMA20: 2000.07, currEMA50: 2000, trend1h: 'UP' })) === 'SIDEWAYS', 'tight EMA separation maps to SIDEWAYS');
-assert(classifyMarketRegime(base({ currEMA20: 2000.09, currEMA50: 2000, trend1h: 'UP' })) === 'NORMAL', 'EMA separation at 0.09 ATR stays NORMAL');
-assert(classifyMarketRegime(base()) === 'NORMAL', 'ordinary ATR/trend maps to NORMAL');
-assert(classifyMarketRegime(base({ atr: 1.70, atrAverage: 1.0 })) === 'VOLATILE', 'elevated ATR maps to VOLATILE');
-assert(classifyMarketRegime(base({ atr: 2.60, atrAverage: 1.0 })) === 'EXTREME', 'extreme ATR maps to EXTREME');
-assert(classifyMarketRegime(base({ atr: 1.0, atrAverage: 1.9 })) === 'DEAD', 'ATR ratio below 0.55 maps to DEAD');
-assert(classifyMarketRegime(base({ atr: 1.0, atrAverage: 1.7 })) === 'NORMAL', 'ATR ratio above 0.55 stays NORMAL');
-assert(classifyMarketRegime(base({ atr: 1.0, spread: 0.40 })) === 'VOLATILE', 'spread/ATR at 0.40 maps to VOLATILE');
-assert(classifyMarketRegime(base({ atr: 1.0, spread: 0.60 })) === 'EXTREME', 'spread/ATR at 0.60 maps to EXTREME');
-assert(classifyMarketRegime(base({ atr: NaN })) === null, 'invalid ATR returns null telemetry label');
+assert(classifyMarketRegime(base({ atr: 0.69, atrAverage: 1.0 })) === 'DEAD', 'DEAD from atrRatio < 0.70');
+assert(classifyMarketRegime(base({ atr: 0.59, atrAverage: 0.59 })) === 'DEAD', 'DEAD from atr14_5m < 0.60');
+assert(classifyMarketRegime(base({ atr: 2.21, atrAverage: 1.0 })) === 'EXTREME', 'EXTREME from atrRatio > 2.20');
+assert(classifyMarketRegime(base({ atr: 1.0, atrAverage: 1.0, currEMA20: 2000.17, currEMA50: 2000 })) === 'SIDEWAYS', 'SIDEWAYS from emaSpreadAtr < 0.18');
+assert(classifyMarketRegime(base({ atr: 1.2, atrAverage: 1.0 })) === 'ACTIVE', 'ACTIVE from atrRatio between 1.20 and 2.20');
+assert(classifyMarketRegime(base({ atr: 1.19, atrAverage: 1.0 })) === 'NORMAL', 'NORMAL fallback below ACTIVE threshold');
+assert(classifyMarketRegime(base({ atr: NaN })) === null, 'invalid ATR returns null regime');
+
+const active = classifyMarketRegimeDetails(base({ atr: 1.5, atrAverage: 1.0, currEMA20: 2002, currEMA50: 2000 }));
+assert(active.regime === 'ACTIVE', `details include ACTIVE regime (got ${active.regime})`);
+assert(active.atrRatio === 1.5, `details include atrRatio (got ${active.atrRatio})`);
+assert(active.emaSpreadAtr === 1.3333, `details include emaSpreadAtr (got ${active.emaSpreadAtr})`);
+assert(active.isAllowedRegime === true, 'ACTIVE is allowed');
+assert(active.regimeRejectReason === null, 'ACTIVE has no reject reason');
+
+const blocked = classifyMarketRegimeDetails(base({ atr: 0.5, atrAverage: 1.0 }));
+assert(blocked.isAllowedRegime === false, 'DEAD is blocked');
+assert(blocked.regimeRejectReason === 'SKIP: Market regime DEAD blocks new entries', `DEAD reject reason is clear (got ${blocked.regimeRejectReason})`);
+
+const closed = classifyMarketRegimeDetails(base({ atr: 2.5, atrAverage: 1.0 }), {
+  marketClosedReason: 'MARKET_CLOSED: Gold weekend close (Saturday UTC)',
+});
+assert(closed.regime === null, 'market-closed override suppresses regime label');
+assert(closed.regimeRejectReason === null, 'market-closed override creates no regime noise');
+
+assert(isAllowedMarketRegime('NORMAL') === true, 'NORMAL is allowed');
+assert(isAllowedMarketRegime('ACTIVE') === true, 'ACTIVE is allowed');
+assert(isAllowedMarketRegime('DEAD') === false, 'DEAD is blocked');
+assert(isAllowedMarketRegime('SIDEWAYS') === false, 'SIDEWAYS is blocked');
+assert(isAllowedMarketRegime('EXTREME') === false, 'EXTREME is blocked');
 
 console.log(`\nTests: ${passed + failed} total, ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

@@ -1,10 +1,15 @@
 // tests/test_order_rate_cap.mjs
 // Run: node tests/test_order_rate_cap.mjs
 
-import { checkRisk } from '../lib/risk.js';
+import { checkRisk as checkRiskImpl } from '../lib/risk.js';
 
 let passed = 0;
 let failed = 0;
+const ALLOWED_NOW = new Date('2026-05-04T12:30:00.000Z');
+
+function checkRisk(signal, botState, indicators, options = {}) {
+  return checkRiskImpl(signal, botState, indicators, { now: ALLOWED_NOW, ...options });
+}
 
 function assert(condition, message) {
   if (condition) {

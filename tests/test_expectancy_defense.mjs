@@ -1,10 +1,15 @@
 // tests/test_expectancy_defense.mjs
 // Focused coverage for expectancy-defense controls in lib/risk.js.
 
-import { checkRisk, resetDirectionalLossCircuitOnTrendReset } from '../lib/risk.js';
+import { checkRisk as checkRiskImpl, resetDirectionalLossCircuitOnTrendReset } from '../lib/risk.js';
 
 let passed = 0;
 let failed = 0;
+const ALLOWED_NOW = new Date('2026-05-04T12:30:00.000Z');
+
+function checkRisk(signal, botState, indicators, options = {}) {
+  return checkRiskImpl(signal, botState, indicators, { now: ALLOWED_NOW, ...options });
+}
 
 function assert(condition, message) {
   if (condition) {

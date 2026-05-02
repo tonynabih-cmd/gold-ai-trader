@@ -2,7 +2,7 @@
 // Run: node tests/test_strategy.mjs
 
 import { generateSignal } from '../lib/strategy.js';
-import { checkRisk } from '../lib/risk.js';
+import { checkRisk as checkRiskImpl } from '../lib/risk.js';
 
 let passed = 0;
 let failed = 0;
@@ -19,6 +19,12 @@ function assert(condition, message) {
 
 function section(name) {
   console.log(`\n── ${name} ──`);
+}
+
+const ALLOWED_NOW = new Date('2026-05-04T12:30:00.000Z');
+
+function checkRisk(signal, botState, indicators, options = {}) {
+  return checkRiskImpl(signal, botState, indicators, { now: ALLOWED_NOW, ...options });
 }
 
 function make1mCandles(n = 3, basePrice = 2000) {

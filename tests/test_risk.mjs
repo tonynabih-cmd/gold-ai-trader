@@ -1,7 +1,8 @@
 // tests/test_risk.mjs — Unit tests for lib/risk.js
 // Run: node tests/test_risk.mjs
 
-import { checkRisk } from '../lib/risk.js';
+import { checkRisk as checkRiskImpl } from '../lib/risk.js';
+import { classifyTradingSession } from '../lib/session_filter.js';
 
 let passed = 0;
 let failed = 0;
@@ -18,6 +19,12 @@ function assert(condition, message) {
 
 function section(name) {
   console.log(`\n── ${name} ──`);
+}
+
+const ALLOWED_NOW = new Date('2026-05-04T12:30:00.000Z');
+
+function checkRisk(signal, botState, indicators, options = {}) {
+  return checkRiskImpl(signal, botState, indicators, { now: ALLOWED_NOW, ...options });
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -131,24 +138,79 @@ section('Rule 2C: Risk data freshness');
 
 section('Rules 3/4/5: Weekend and trading hours');
 {
-  // We can't directly test these without mocking Date, but we can verify the
-  // function returns SKIP for weekend by checking the string patterns used.
-  // Instead, verify the approval path works within hours.
-  const withinHours = (() => {
-    const now = new Date();
-    const hour = now.getUTCHours();
-    const day  = now.getUTCDay();
-    return day >= 1 && day <= 5 && hour >= 7 && hour < 16;
-  })();
+  assert(classifyTradingSession(new Date('2026-05-04T07:00:00.000Z')).isAllowedSession === true, '07:00 UTC allowed');
+  assert(classifyTradingSession(new Date('2026-05-04T10:30:00.000Z')).isAllowedSession === true, '10:30 UTC allowed');
+  assert(classifyTradingSession(new Date('2026-05-04T10:31:00.000Z')).isAllowedSession === false, '10:31 UTC blocked');
+  assert(classifyTradingSession(new Date('2026-05-04T12:30:00.000Z')).isAllowedSession === true, '12:30 UTC allowed');
+  assert(classifyTradingSession(new Date('2026-05-04T16:00:00.000Z')).isAllowedSession === true, '16:00 UTC allowed');
+  assert(classifyTradingSession(new Date('2026-05-04T18:00:00.000Z')).isAllowedSession === true, '18:00 UTC allowed');
+  assert(classifyTradingSession(new Date('2026-05-04T18:01:00.000Z')).isAllowedSession === false, '18:01 UTC blocked');
+  assert(classifyTradingSession(new Date('2026-05-04T22:00:00.000Z')).isAllowedSession === false, '22:00 UTC blocked');
 
-  if (withinHours) {
-    const result = checkRisk(makeSignal(), makeBotState(), makeIndicators());
-    // Should not skip for hours-related reasons during golden hour
-    assert(!result.includes('Weekend') && !result.includes('Golden Hour') && !result.includes('Friday close'),
-      `No time-based skip during golden hours (got: ${result})`);
-  } else {
-    console.log('    (Skipping golden-hours test — currently outside trading hours)');
-  }
+  const allowed = checkRisk(makeSignal(), makeBotState(), makeIndicators(), { now: new Date('2026-05-04T07:00:00.000Z') });
+  assert(allowed === 'APPROVED', `allowed session can approve otherwise valid signal (got: ${allowed})`);
+
+  const blocked = checkRisk(makeSignal(), makeBotState(), makeIndicators(), { now: new Date('2026-05-04T10:31:00.000Z') });
+  assert(blocked === 'SKIP: Outside allowed trading session', `blocked session gives clear reason (got: ${blocked})`);
+
+  const rollover = checkRisk(makeSignal(), makeBotState(), makeIndicators(), { now: new Date('2026-05-04T22:00:00.000Z') });
+  assert(rollover.includes('rollover protection'), `rollover protection gives clear reason (got: ${rollover})`);
+
+  const marketClosed = classifyTradingSession(new Date('2026-05-02T22:00:00.000Z'), {
+    marketClosedReason: 'MARKET_CLOSED: Gold weekend close (Saturday UTC)',
+  });
+  assert(marketClosed.sessionName === 'MARKET_CLOSED', `market-closed classification overrides session labels (got: ${marketClosed.sessionName})`);
+  assert(marketClosed.sessionRejectReason === null, 'market-closed classification does not create session reject noise');
+
+  const closedReason = 'MARKET_CLOSED: Gold weekend close (Saturday UTC)';
+  const closedRisk = checkRisk(makeSignal(), makeBotState(), makeIndicators(), {
+    now: new Date('2026-05-02T22:00:00.000Z'),
+    marketClosedReason: closedReason,
+  });
+  assert(closedRisk === closedReason, `market-closed reason remains primary if risk is called (got: ${closedRisk})`);
+}
+
+section('Market regime entry filter');
+{
+  const deadByRatio = checkRisk(makeSignal(), makeBotState(), makeIndicators({
+    atr: 0.69,
+    atrAverage: 1.0,
+    currEMA20: 2001,
+    currEMA50: 2000,
+  }));
+  assert(deadByRatio === 'SKIP: Market regime DEAD blocks new entries', `DEAD blocks new entries (got: ${deadByRatio})`);
+
+  const sideways = checkRisk(makeSignal(), makeBotState(), makeIndicators({
+    atr: 1.0,
+    atrAverage: 1.0,
+    currEMA20: 2000.17,
+    currEMA50: 2000,
+  }));
+  assert(sideways === 'SKIP: Market regime SIDEWAYS blocks new entries', `SIDEWAYS blocks new entries (got: ${sideways})`);
+
+  const extreme = checkRisk(makeSignal(), makeBotState(), makeIndicators({
+    atr: 2.21,
+    atrAverage: 1.0,
+    currEMA20: 2003,
+    currEMA50: 2000,
+  }));
+  assert(extreme === 'SKIP: Market regime EXTREME blocks new entries', `EXTREME blocks new entries (got: ${extreme})`);
+
+  const normal = checkRisk(makeSignal(), makeBotState(), makeIndicators({
+    atr: 1.0,
+    atrAverage: 1.0,
+    currEMA20: 2001,
+    currEMA50: 2000,
+  }));
+  assert(normal === 'APPROVED', `NORMAL allows next checks (got: ${normal})`);
+
+  const active = checkRisk(makeSignal(), makeBotState(), makeIndicators({
+    atr: 1.5,
+    atrAverage: 1.0,
+    currEMA20: 2002,
+    currEMA50: 2000,
+  }));
+  assert(active === 'APPROVED', `ACTIVE allows next checks (got: ${active})`);
 }
 
 // ── Section 5: Signal validation ─────────────────────────────────────────────
@@ -222,19 +284,13 @@ section('Rule 12: Daily trade cap');
 
 section('Rule 12A: Anti-chop loss streak');
 {
-  const inGoldenHour = isTradingHours();
-
   // Mixed-direction losses do not activate the same-direction circuit.
   const mixedDirectionLosses = [
     { pnl: -5, action: 'BUY',  closedAt: Date.now() - 1000 },
     { pnl: -3, action: 'SELL', closedAt: Date.now() - 500 },
   ];
   const rMixedLosses = checkRisk(makeSignal(), makeBotState({ recentOutcomes: mixedDirectionLosses }), makeIndicators());
-  if (inGoldenHour) {
-    assert(rMixedLosses === 'APPROVED', `mixed-direction losses do not block same-direction circuit (got: ${rMixedLosses})`);
-  } else {
-    assert(rMixedLosses.includes('SKIP'), `Outside golden hours, time gate fires before anti-chop (got: ${rMixedLosses})`);
-  }
+  assert(rMixedLosses === 'APPROVED', `mixed-direction losses do not block same-direction circuit (got: ${rMixedLosses})`);
 
   // Two same-direction losses activate the same-direction circuit.
   const sameDirectionLosses = [
@@ -242,11 +298,7 @@ section('Rule 12A: Anti-chop loss streak');
     { pnl: -3, action: 'BUY', closedAt: Date.now() - 500 },
   ];
   const rSameDirectionLosses = checkRisk(makeSignal(), makeBotState({ recentOutcomes: sameDirectionLosses }), makeIndicators());
-  if (inGoldenHour) {
-    assert(rSameDirectionLosses.includes('circuit breaker active'), `2 same-direction losses → circuit block (got: ${rSameDirectionLosses})`);
-  } else {
-    assert(rSameDirectionLosses.includes('SKIP'), `Outside golden hours, time gate fires before circuit (got: ${rSameDirectionLosses})`);
-  }
+  assert(rSameDirectionLosses.includes('circuit breaker active'), `2 same-direction losses → circuit block (got: ${rSameDirectionLosses})`);
 
   // Two losses but LAST ONE is > 30 mins ago → NOT blocked
   const oldLosses = [
@@ -271,34 +323,18 @@ section('Rule 12A: Anti-chop loss streak');
 
 section('Rule 13: Daily loss limit (5% of balance)');
 {
-  const inGoldenHour = isTradingHours();
-
   // 5% of 1000 = 50 AED; use 51 to exceed the limit
   const rDailyLoss = checkRisk(makeSignal(), makeBotState({ dailyLoss: 51, balance: 1000 }), makeIndicators());
-  if (inGoldenHour) {
-    assert(rDailyLoss.includes('STOP'), `Daily loss at 5% limit → STOP (got: ${rDailyLoss})`);
-  } else {
-    // Outside golden hours, Rule 5 fires before Rule 13 — result is still a SKIP
-    assert(rDailyLoss.includes('SKIP'), `Outside golden hours, daily loss limit skipped by Rule 5 first (got: ${rDailyLoss})`);
-    console.log('    (Rule 13 STOP path can only fire during golden hours — covered during live trading)');
-  }
+  assert(rDailyLoss.includes('STOP'), `Daily loss at 5% limit → STOP (got: ${rDailyLoss})`);
 }
 
 // ── Section 11: Equity drawdown hard stop ─────────────────────────────────────
 
 section('Rule 14: Equity drawdown hard stop (20%)');
 {
-  const inGoldenHour = isTradingHours();
-
   // Peak=1000, equity=799 → drawdown=20.1% → should disable
   const rDrawdown = checkRisk(makeSignal(), makeBotState({ peakBalance: 1000, equity: 799 }), makeIndicators());
-  if (inGoldenHour) {
-    assert(rDrawdown.includes('DISABLE'), `20%+ drawdown → DISABLE (got: ${rDrawdown})`);
-  } else {
-    // Rule 5 fires before Rule 14 outside golden hours
-    assert(rDrawdown.includes('SKIP'), `Outside golden hours, drawdown check skipped by Rule 5 (got: ${rDrawdown})`);
-    console.log('    (Rule 14 DISABLE path fires during golden hours — covered during live trading)');
-  }
+  assert(rDrawdown.includes('DISABLE'), `20%+ drawdown → DISABLE (got: ${rDrawdown})`);
 }
 
 // ── Section 12: Insufficient balance ─────────────────────────────────────────
@@ -375,15 +411,8 @@ section('Minimum setup confidence gate');
 
 section('Full approval path during golden hours');
 {
-  const inGoldenHour = isTradingHours();
-
-  if (inGoldenHour) {
-    const result = checkRisk(makeSignal({ score: 3 }), makeBotState(), makeIndicators());
-    assert(result === 'APPROVED', `All rules pass during golden hour → APPROVED (got: ${result})`);
-  } else {
-    console.log('    (Not in golden hour — skipping full approval path test)');
-    passed++;  // Don't penalize time-dependent test
-  }
+  const result = checkRisk(makeSignal({ score: 3 }), makeBotState(), makeIndicators());
+  assert(result === 'APPROVED', `All rules pass during allowed session → APPROVED (got: ${result})`);
 }
 
 // ── Section 18: Exception safety ─────────────────────────────────────────────
