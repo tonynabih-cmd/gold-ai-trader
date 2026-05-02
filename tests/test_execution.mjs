@@ -332,6 +332,10 @@ section('Trade-path audit telemetry: milestones and excursions');
   assert(trade.audit.reached1R && trade.audit.reached1_2R, 'BUY audit records 1R and 1.2R milestones');
   assert(trade.audit.firstReached1RAt === 123 && trade.audit.firstReached1_2RAt === 123, 'BUY audit stores first milestone timestamps');
 
+  updateTradePathAudit(trade, { bid: 2025, offer: 2025.5 }, 345);
+  assert(trade.audit.reached2R && trade.audit.reached2_5R, 'BUY audit records 2R and 2.5R milestones');
+  assert(trade.audit.firstReached2RAt === 345 && trade.audit.firstReached2_5RAt === 345, 'BUY audit stores first 2R/2.5R timestamps');
+
   updateTradePathAudit(trade, { bid: 1994, offer: 1994.5 }, 456);
   assert(trade.audit.maePriceDistance === 6, `BUY audit MAE price distance updates (got ${trade.audit.maePriceDistance})`);
   assert(trade.audit.maeR === 0.6, `BUY audit MAE R updates (got ${trade.audit.maeR})`);

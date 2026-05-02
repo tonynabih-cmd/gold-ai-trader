@@ -210,9 +210,14 @@ section('Diagnostic pullback validation');
   assert(validBuy.pullbackDistanceAtr === 0.16, `Valid BUY distance logged in ATR (got ${validBuy.pullbackDistanceAtr})`);
   assert(validBuy.pullbackRejectReason === null, 'Valid BUY has null reject reason');
 
-  const shallowBuy = validatePullback({ low: 2001.4, high: 2002, close: 2001.6 }, 2000, 1996, 5, 'BUY');
+  const shallowBuy = validatePullback({ low: 2002.3, high: 2003, close: 2002.6 }, 2000, 1996, 5, 'BUY');
   assert(shallowBuy.pullbackValid === false, 'Invalid BUY pullback too shallow');
   assert(shallowBuy.pullbackRejectReason.includes('low did not reach EMA20 zone'), `Shallow BUY reject reason is clear (got ${shallowBuy.pullbackRejectReason})`);
+  assert(shallowBuy.pullbackNearMiss === false, 'Clearly shallow BUY pullback is not a near miss');
+
+  const nearMissBuy = validatePullback({ low: 2001.3, high: 2002, close: 2001.6 }, 2000, 1996, 5, 'BUY');
+  assert(nearMissBuy.pullbackNearMiss === true, 'BUY pullback near miss is detected near EMA20 zone');
+  assert(nearMissBuy.pullbackMissDistanceAtr === 0.01, `BUY near-miss distance logs in ATR (got ${nearMissBuy.pullbackMissDistanceAtr})`);
 
   const deepBuy = validatePullback({ low: 1994.0, high: 1998, close: 1997.0 }, 2000, 1996, 5, 'BUY');
   assert(deepBuy.pullbackValid === false, 'Invalid BUY pullback too deep below EMA50');
@@ -396,6 +401,9 @@ section('Liquidity sweep telemetry');
     close: 99.5,
   }, 10);
   assert(noReclaimBuy.sweepValid === false, 'Invalid BUY sweep when close does not reclaim swingLow');
+  assert(noReclaimBuy.sweepCandidate === true, 'Failed BUY sweep still logs as candidate');
+  assert(noReclaimBuy.sweepBreakDistanceAtr === 0.2, `Failed BUY sweep break distance logs in ATR (got ${noReclaimBuy.sweepBreakDistanceAtr})`);
+  assert(noReclaimBuy.sweepFailedReason.includes('reclaim'), `Failed BUY sweep reason is logged (got ${noReclaimBuy.sweepFailedReason})`);
 
   const smallLowerWick = detectLiquiditySweep(prior, {
     time: Date.now(),
@@ -524,7 +532,9 @@ section('Break of structure telemetry');
     close: 107.2,
   }, 10);
   assert(weakBody.bosValid === false, 'Reject BOS if bodyPct < 40');
-  assert(weakBody.bosBreakDistanceAtr === null, 'Rejected weak-body BOS logs null break distance');
+  assert(weakBody.bosCandidate === true, 'Weak-body BOS still logs as candidate');
+  assert(weakBody.bosBreakDistanceAtr === 0.07, `Weak-body BOS candidate logs break distance (got ${weakBody.bosBreakDistanceAtr})`);
+  assert(weakBody.bosFailedReason.includes('body'), `Weak-body BOS failure reason is logged (got ${weakBody.bosFailedReason})`);
 
   const missing = detectBreakOfStructure(candles.slice(0, 4), {
     time: 8,

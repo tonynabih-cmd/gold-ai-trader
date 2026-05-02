@@ -1,6 +1,6 @@
 // tests/test_logger.mjs — Unit tests for passive v2 diagnostic log fields.
 
-import { buildV2Diagnostics, CYCLE_LOG_RETENTION_LIMIT, normalizeLogDiagnostics, V2_DIAGNOSTIC_FIELDS } from '../lib/logger.js';
+import { buildV2Diagnostics, CYCLE_LOG_RETENTION_LIMIT, normalizeLogDiagnostics, updateBlockedSetupTracking, V2_DIAGNOSTIC_FIELDS } from '../lib/logger.js';
 import { generateSignal } from '../lib/strategy.js';
 
 let passed = 0;
@@ -158,6 +158,49 @@ section('RR and confidence calibration logging');
   assert(diagnostics.confidencePass === false, 'confidencePass logs false below threshold');
 }
 
+section('Regime threshold telemetry and confidence buckets');
+{
+  const dead = buildV2Diagnostics(
+    { signal: null, indicators: makeIndicators({ atr: 2.0, atrAverage: 4.0 }), signalDebug: null, reason: 'SKIP: Market regime DEAD blocks new entries' },
+    null,
+    new Date('2026-05-04T12:30:00.000Z')
+  );
+  assert(dead.regimeBlockType === 'DEAD', `DEAD regime block type logs (got ${dead.regimeBlockType})`);
+  assert(dead.atrRatioValue === 0.5, `atrRatioValue logs raw ratio (got ${dead.atrRatioValue})`);
+  assert(dead.atrDeadDistance === -0.2, `atrDeadDistance logs threshold distance (got ${dead.atrDeadDistance})`);
+
+  const sideways = buildV2Diagnostics(
+    { signal: null, indicators: makeIndicators({ currEMA20: 2000, currEMA50: 1999.5, atr: 5, atrAverage: 5 }), signalDebug: null, reason: 'SKIP: Market regime SIDEWAYS blocks new entries' },
+    null,
+    new Date('2026-05-04T12:30:00.000Z')
+  );
+  assert(sideways.regimeBlockType === 'SIDEWAYS', `SIDEWAYS regime block type logs (got ${sideways.regimeBlockType})`);
+  assert(sideways.sidewaysDistance === -0.08, `sidewaysDistance logs threshold distance (got ${sideways.sidewaysDistance})`);
+
+  const extreme = buildV2Diagnostics(
+    { signal: null, indicators: makeIndicators({ atr: 12, atrAverage: 4 }), signalDebug: null, reason: 'SKIP: Market regime EXTREME blocks new entries' },
+    null,
+    new Date('2026-05-04T12:30:00.000Z')
+  );
+  assert(extreme.regimeBlockType === 'EXTREME', `EXTREME regime block type logs (got ${extreme.regimeBlockType})`);
+  assert(extreme.atrExtremeDistance === -0.8, `atrExtremeDistance logs threshold distance (got ${extreme.atrExtremeDistance})`);
+
+  const lowConfidence = buildV2Diagnostics(
+    { signal: { setupConfidenceScore: 64 }, indicators: null, signalDebug: null, reason: 'SKIP' },
+    null,
+    new Date('2026-05-04T12:30:00.000Z')
+  );
+  assert(lowConfidence.confidenceBucket === '50-64', `confidence bucket below gate logs (got ${lowConfidence.confidenceBucket})`);
+
+  const highConfidence = buildV2Diagnostics(
+    { signal: { setupConfidenceScore: 87 }, indicators: null, signalDebug: { dbgRawSetupConfidenceScore: 97 }, reason: null },
+    null,
+    new Date('2026-05-04T12:30:00.000Z')
+  );
+  assert(highConfidence.confidenceRaw === 97, `confidenceRaw logs pre-penalty score (got ${highConfidence.confidenceRaw})`);
+  assert(highConfidence.confidenceBucket === '85-100', `confidence bucket high score logs (got ${highConfidence.confidenceBucket})`);
+}
+
 section('Pullback diagnostic logging');
 {
   const diagnostics = buildV2Diagnostics(
@@ -236,6 +279,57 @@ section('BOS diagnostics');
   assert(diagnostics.lastSwingHigh === 106, `lastSwingHigh logs fractal level (got ${diagnostics.lastSwingHigh})`);
   assert(diagnostics.lastSwingLow === 94, `lastSwingLow logs fractal level (got ${diagnostics.lastSwingLow})`);
   assert(diagnostics.bosBreakDistanceAtr === 0.05, `bosBreakDistanceAtr logs distance (got ${diagnostics.bosBreakDistanceAtr})`);
+}
+
+section('Blocked setup tracking');
+{
+  const botState = {};
+  const signal = {
+    id: 'blocked_setup_1',
+    action: 'BUY',
+    entryPrice: 2000,
+    stopLoss: 1990,
+  };
+  const first = updateBlockedSetupTracking(
+    botState,
+    {
+      signal,
+      tradeExecuted: false,
+      reason: 'SKIP: Setup confidence score 64.00 below minimum 65',
+      indicators: { lastCandle: { close: 2000 } },
+    },
+    new Date('2026-05-04T12:00:00.000Z')
+  );
+  assert(first.blockedSetupId === 'blocked_setup_1', `blocked setup id stored (got ${first.blockedSetupId})`);
+  assert(first.blockedSetupDirection === 'BUY', `blocked setup direction stored (got ${first.blockedSetupDirection})`);
+  assert(first.blockedSetupReason.includes('Setup confidence'), `blocked setup reason stored (got ${first.blockedSetupReason})`);
+  assert(botState.blockedSetupTracking.length === 1, 'blocked setup tracking stores without trade execution');
+
+  const updated = updateBlockedSetupTracking(
+    botState,
+    {
+      signal: null,
+      tradeExecuted: false,
+      reason: 'SKIP: No signal generated this cycle',
+      indicators: { lastCandle: { close: 2015 } },
+    },
+    new Date('2026-05-04T12:30:00.000Z')
+  );
+  assert(updated.blockedSetupMfe1hR === 1.5, `blocked setup 1h MFE updates in R (got ${updated.blockedSetupMfe1hR})`);
+  assert(updated.blockedSetupMfe3hR === 1.5, `blocked setup 3h MFE updates in R (got ${updated.blockedSetupMfe3hR})`);
+
+  const adverse = updateBlockedSetupTracking(
+    botState,
+    {
+      signal: null,
+      tradeExecuted: false,
+      reason: 'SKIP: No signal generated this cycle',
+      indicators: { lastCandle: { close: 1985 } },
+    },
+    new Date('2026-05-04T14:30:00.000Z')
+  );
+  assert(adverse.blockedSetupMfe1hR === 1.5, 'blocked setup 1h MFE is retained after 1h horizon');
+  assert(adverse.blockedSetupMae3hR === 1.5, `blocked setup 3h MAE updates in R (got ${adverse.blockedSetupMae3hR})`);
 }
 
 section('Legacy log normalization');
