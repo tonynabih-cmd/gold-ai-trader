@@ -78,7 +78,8 @@ section('Logger v2 diagnostic field coverage');
   assert(diagnostics.regime === 'NORMAL', 'regime mirrors marketRegime telemetry');
   assert(diagnostics.regimeRejectReason === null, 'allowed regime has null reject reason');
   assert(diagnostics.pullbackValid === true, 'pullbackValid is populated from strategy debug');
-  assert(diagnostics.sweepValid === true, 'sweepValid is populated from existing touch/sweep check');
+  assert(diagnostics.sweepValid === null, 'missing sweep candles log null');
+  assert(diagnostics.sweepDirection === null, 'missing sweep direction logs null');
   assert(diagnostics.bosValid === null, 'unsupported BOS telemetry is null');
   assert(diagnostics.rrCandidate === 2.5, `rrCandidate mirrors setup RR (got ${diagnostics.rrCandidate})`);
   assert(diagnostics.rejectStage === null, 'accepted setup has null rejectStage');
@@ -101,6 +102,36 @@ section('Null-safe diagnostics');
   assert(diagnostics.regimeRejectReason === null, 'missing regimeRejectReason logs null');
   assert(diagnostics.pullbackValid === null, 'missing pullbackValid logs null');
   assert(diagnostics.strategyVersion === 'v1.5', 'missing signal falls back to active strategyVersion');
+}
+
+section('Sweep diagnostics');
+{
+  const diagnostics = buildV2Diagnostics(
+    {
+      signal: null,
+      indicators: null,
+      signalDebug: {
+        sweepValid: true,
+        sweepDirection: 'BUY',
+        swingHigh: 110,
+        swingLow: 100,
+        bodyPct: 30,
+        upperWickPct: 20,
+        lowerWickPct: 50,
+      },
+      reason: null,
+    },
+    null,
+    new Date('2026-05-04T12:30:00.000Z')
+  );
+
+  assert(diagnostics.sweepValid === true, 'sweepValid logs true when detected');
+  assert(diagnostics.sweepDirection === 'BUY', `sweepDirection logs direction (got ${diagnostics.sweepDirection})`);
+  assert(diagnostics.swingHigh === 110, `swingHigh logs sweep level (got ${diagnostics.swingHigh})`);
+  assert(diagnostics.swingLow === 100, `swingLow logs sweep level (got ${diagnostics.swingLow})`);
+  assert(diagnostics.bodyPct === 30, `bodyPct logs candle stat (got ${diagnostics.bodyPct})`);
+  assert(diagnostics.upperWickPct === 20, `upperWickPct logs candle stat (got ${diagnostics.upperWickPct})`);
+  assert(diagnostics.lowerWickPct === 50, `lowerWickPct logs candle stat (got ${diagnostics.lowerWickPct})`);
 }
 
 section('Legacy log normalization');

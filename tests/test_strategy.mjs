@@ -1,7 +1,7 @@
 // tests/test_strategy.mjs — Unit tests for lib/strategy.js
 // Run: node tests/test_strategy.mjs
 
-import { generateSignal } from '../lib/strategy.js';
+import { detectLiquiditySweep, generateSignal } from '../lib/strategy.js';
 import { checkRisk as checkRiskImpl } from '../lib/risk.js';
 
 let passed = 0;
@@ -122,6 +122,16 @@ function makeBotState(overrides = {}) {
     recentOutcomes: [],
     ...overrides,
   };
+}
+
+function makePriorSweepCandles({ swingLow = 100, swingHigh = 110 } = {}) {
+  return Array.from({ length: 12 }, (_, i) => ({
+    time: Date.now() - (13 - i) * 5 * 60 * 1000,
+    open: 105,
+    high: i === 3 ? swingHigh : 108,
+    low: i === 4 ? swingLow : 102,
+    close: 105,
+  }));
 }
 
 process.env.BOT_ENABLED = 'true';
@@ -312,8 +322,103 @@ section('Layer 2 rejects when confirmation candle fails close-vs-EMA20 rule');
   assert(result.debug?.dbgRejectReason?.includes('weak confirmation'), 'current confirmation rule is enforced explicitly');
 }
 
+section('Liquidity sweep telemetry');
+{
+  const prior = makePriorSweepCandles();
+
+  const validBuy = detectLiquiditySweep(prior, {
+    time: Date.now(),
+    open: 103,
+    high: 108,
+    low: 98,
+    close: 106,
+  }, 10);
+  assert(validBuy.sweepValid === true, 'Valid BUY sweep detected');
+  assert(validBuy.sweepDirection === 'BUY', `BUY sweep direction logged (got ${validBuy.sweepDirection})`);
+  assert(validBuy.swingLow === 100, `BUY sweep swingLow logged (got ${validBuy.swingLow})`);
+  assert(validBuy.bodyPct === 30, `BUY sweep bodyPct logged (got ${validBuy.bodyPct})`);
+  assert(validBuy.lowerWickPct === 50, `BUY sweep lowerWickPct logged (got ${validBuy.lowerWickPct})`);
+
+  const noReclaimBuy = detectLiquiditySweep(prior, {
+    time: Date.now(),
+    open: 103,
+    high: 108,
+    low: 98,
+    close: 99.5,
+  }, 10);
+  assert(noReclaimBuy.sweepValid === false, 'Invalid BUY sweep when close does not reclaim swingLow');
+
+  const smallLowerWick = detectLiquiditySweep(prior, {
+    time: Date.now(),
+    open: 99,
+    high: 108,
+    low: 98,
+    close: 104,
+  }, 10);
+  assert(smallLowerWick.sweepValid === false, 'Invalid BUY sweep when lower wick is too small');
+
+  const validSell = detectLiquiditySweep(prior, {
+    time: Date.now(),
+    open: 107,
+    high: 112,
+    low: 102,
+    close: 104,
+  }, 10);
+  assert(validSell.sweepValid === true, 'Valid SELL sweep detected');
+  assert(validSell.sweepDirection === 'SELL', `SELL sweep direction logged (got ${validSell.sweepDirection})`);
+  assert(validSell.swingHigh === 110, `SELL sweep swingHigh logged (got ${validSell.swingHigh})`);
+  assert(validSell.upperWickPct === 50, `SELL sweep upperWickPct logged (got ${validSell.upperWickPct})`);
+
+  const noReclaimSell = detectLiquiditySweep(prior, {
+    time: Date.now(),
+    open: 107,
+    high: 112,
+    low: 102,
+    close: 110.5,
+  }, 10);
+  assert(noReclaimSell.sweepValid === false, 'Invalid SELL sweep when close does not reclaim below swingHigh');
+
+  const smallUpperWick = detectLiquiditySweep(prior, {
+    time: Date.now(),
+    open: 111,
+    high: 112,
+    low: 102,
+    close: 106,
+  }, 10);
+  assert(smallUpperWick.sweepValid === false, 'Invalid SELL sweep when upper wick is too small');
+
+  const tooSmallRange = detectLiquiditySweep(prior, {
+    time: Date.now(),
+    open: 100.3,
+    high: 102.5,
+    low: 98.5,
+    close: 101.5,
+  }, 10);
+  assert(tooSmallRange.sweepValid === false, 'Reject sweep when range is too small');
+
+  const tooLargeRange = detectLiquiditySweep(prior, {
+    time: Date.now(),
+    open: 106.5,
+    high: 118,
+    low: 97,
+    close: 112.8,
+  }, 10);
+  assert(tooLargeRange.sweepValid === false, 'Reject sweep when range is too large');
+
+  const missing = detectLiquiditySweep(prior.slice(0, 3), {
+    time: Date.now(),
+    open: 103,
+    high: 108,
+    low: 98,
+    close: 106,
+  }, 10);
+  assert(missing.sweepValid === null, 'Missing candles handled safely');
+  assert(missing.swingHigh === null && missing.swingLow === null, 'Missing candle swings log null');
+}
+
 section('Signal structure validation');
 {
+  const baseline = generateSignal(makeIndicators(), make1mCandles());
   const result = generateSignal(makeIndicators(), make1mCandles());
   assert(result.signal !== null, 'baseline setup produces a signal');
 
@@ -325,6 +430,12 @@ section('Signal structure validation');
     assert(typeof s.takeProfit === 'number', 'Signal has takeProfit');
     assert(s.takeProfit > s.entryPrice, 'BUY take profit is above entry');
     assert(s.stopLoss < s.entryPrice, 'BUY stop loss is below entry');
+  }
+  if (baseline.signal && result.signal) {
+    assert(result.signal.action === baseline.signal.action, 'Sweep telemetry does not change action');
+    assert(result.signal.entryPrice === baseline.signal.entryPrice, 'Sweep telemetry does not change entry');
+    assert(result.signal.stopLoss === baseline.signal.stopLoss, 'Sweep telemetry does not change stop');
+    assert(result.signal.takeProfit === baseline.signal.takeProfit, 'Sweep telemetry does not change target');
   }
 }
 
