@@ -1,6 +1,6 @@
 // tests/test_logger.mjs — Unit tests for passive v2 diagnostic log fields.
 
-import { buildV2Diagnostics, normalizeLogDiagnostics, V2_DIAGNOSTIC_FIELDS } from '../lib/logger.js';
+import { buildV2Diagnostics, CYCLE_LOG_RETENTION_LIMIT, normalizeLogDiagnostics, V2_DIAGNOSTIC_FIELDS } from '../lib/logger.js';
 import { generateSignal } from '../lib/strategy.js';
 
 let passed = 0;
@@ -62,6 +62,7 @@ function assertNoUndefinedFields(record, fields, label) {
 }
 
 section('Logger v2 diagnostic field coverage');
+assert(CYCLE_LOG_RETENTION_LIMIT >= 5000, `cycle log retention keeps at least 5000 logs (got ${CYCLE_LOG_RETENTION_LIMIT})`);
 {
   const indicators = makeIndicators();
   const generated = generateSignal(indicators, []);
