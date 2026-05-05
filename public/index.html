@@ -17,6 +17,8 @@
       --green: #3d9e5f; --green-bg: rgba(61,158,95,0.1); --green-border: rgba(61,158,95,0.3);
       --red: #c0392b; --red-bg: rgba(192,57,43,0.1); --red-border: rgba(192,57,43,0.3);
       --blue: #4a9ebb; --blue-bg: rgba(74,158,187,0.1); --blue-border: rgba(74,158,187,0.3);
+      --amber: #f59e0b; --amber-bg: rgba(245,158,11,0.1); --amber-border: rgba(245,158,11,0.35);
+      --radius: 8px; --badge-radius: 5px; --card-pad: 14px; --card-value-size: 14px;
       --font: 'Space Grotesk', sans-serif; --mono: 'JetBrains Mono', monospace;
     }
     body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
@@ -38,11 +40,11 @@
     .right > .card { min-width:0; }
     .sidebar-full { grid-column:1 / -1; }
 
-    .card { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:14px; }
-    .compact-card { padding:12px; }
+    .card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:var(--card-pad); }
+    .compact-card { padding:var(--card-pad); }
     .card-title { font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:var(--text2); margin-bottom:12px; font-family:var(--mono); display:flex; justify-content:space-between; align-items:center; gap:10px; }
 
-    .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+    .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
     .metric { background:var(--bg2); padding:14px 16px; }
     .metric-label { font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); margin-bottom:6px; font-family:var(--mono); }
     .metric-value { font-size:22px; font-weight:500; color:var(--text); font-family:var(--mono); }
@@ -51,34 +53,47 @@
     .metric-value.neg { color:var(--red); }
     .metric-sub { font-size:10px; color:var(--text2); margin-top:4px; font-family:var(--mono); }
 
-    .banner { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:11px; color:var(--text3); display:flex; align-items:center; gap:8px; font-family:var(--mono); }
-    .banner-dot { width:6px; height:6px; border-radius:50%; background:var(--green); flex-shrink:0; animation:blink 2s infinite; }
+    .banner { min-height:26px; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:5px 10px; font-size:10px; color:var(--text3); display:flex; align-items:center; gap:7px; flex-wrap:wrap; font-family:var(--mono); line-height:1.25; }
+    .banner.is-ok { border-color:var(--green-border); background:rgba(61,158,95,0.07); }
+    .banner.is-warn { border-color:var(--amber-border); background:rgba(245,158,11,0.07); }
+    .banner.is-danger { border-color:var(--red-border); background:rgba(192,57,43,0.08); }
+    .banner.is-muted { border-color:var(--border); background:var(--bg3); }
+    .banner-dot { width:6px; height:6px; border-radius:50%; background:currentColor; color:var(--green); flex-shrink:0; animation:blink 2s infinite; }
+    .banner.is-danger .banner-dot { color:var(--red); }
+    .banner.is-warn .banner-dot { color:var(--amber); }
+    .banner.is-muted .banner-dot { color:var(--text2); animation:none; }
+    .status-strip-main { color:var(--green); font-weight:600; text-transform:uppercase; letter-spacing:0.08em; }
+    .banner.is-danger .status-strip-main { color:var(--red); }
+    .banner.is-warn .status-strip-main { color:var(--amber); }
+    .banner.is-muted .status-strip-main { color:var(--text3); }
+    .status-strip-reason { color:var(--text3); }
+    .status-strip-reset { color:var(--text2); }
+    .status-strip-sep { color:var(--text2); opacity:0.75; }
 
     .chart-container { position:relative; width:100%; height:200px; }
 
     .indicator-bar { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; transition:opacity 0.2s; }
     .indicator-bar.stale { opacity:0.5; }
-    .ind-item { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+    .ind-item { background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; }
     .ind-label { font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); margin-bottom:4px; font-family:var(--mono); }
     .ind-value { font-size:14px; font-weight:500; font-family:var(--mono); color:var(--text); }
     .ind-sub { font-size:9px; color:var(--text2); margin-top:2px; font-family:var(--mono); }
     .up { color:var(--green); }
     .down { color:var(--red); }
     
-    .ind-stale-badge { font-size:9px; color:var(--gold-dim); border:1px solid var(--border2); padding:3px 6px; border-radius:4px; background:rgba(139,105,20,0.1); text-transform:none; letter-spacing:0; }
+    .ind-stale-badge { font-size:9px; color:var(--text3); border:1px solid var(--border); padding:3px 6px; border-radius:var(--badge-radius); background:var(--bg3); text-transform:none; letter-spacing:0; }
 
     .risk-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-    .risk-item { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+    .risk-item { background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; }
     .risk-label { font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); margin-bottom:6px; font-family:var(--mono); }
-    .risk-value { font-size:15px; font-weight:500; font-family:var(--mono); }
+    .risk-value { font-size:var(--card-value-size); font-weight:500; font-family:var(--mono); }
     .progress-bar { height:3px; background:var(--bg4); border-radius:2px; margin-top:6px; overflow:hidden; }
     .progress-fill { height:100%; border-radius:2px; background:var(--gold); transition:width 0.3s; }
     .progress-fill.danger { background:var(--red); }
-    .progress-fill.warning { background:var(--yellow, #f59e0b); }
+    .progress-fill.warning { background:var(--amber); }
     .progress-fill.safe { background:var(--green); }
 
     /* ── Setup-ready amber banner ─────────────────────────────────────────── */
-    :root { --amber: #f59e0b; --amber-bg: rgba(245,158,11,0.1); --amber-border: rgba(245,158,11,0.35); }
     .setup-banner {
       display: none;
       align-items: center;
@@ -86,7 +101,7 @@
       padding: 11px 16px;
       background: var(--amber-bg);
       border: 1px solid var(--amber-border);
-      border-radius: 8px;
+      border-radius: var(--radius);
       font-size: 12px;
       font-family: var(--mono);
       color: var(--amber);
@@ -102,32 +117,36 @@
     .setup-banner-text { line-height: 1.4; }
     .setup-banner-sub { font-size: 10px; color: rgba(245,158,11,0.7); margin-top: 1px; }
 
-    .trade-header { display:grid; grid-template-columns:72px 72px 56px 72px 1fr; gap:8px; padding:0 0 8px; border-bottom:1px solid var(--border); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); font-family:var(--mono); }
-    .trade-row-container { padding:8px 0; border-bottom:1px solid rgba(201,168,76,0.12); }
+    .trade-header { display:grid; grid-template-columns:72px 72px 56px 72px 1fr; gap:8px; padding:0 0 9px; border-bottom:1px solid var(--border); font-size:9px; line-height:1.3; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); font-family:var(--mono); }
+    .trade-row-container { padding:10px 0; border-bottom:1px solid rgba(201,168,76,0.12); }
     .trade-row-container:last-child { border-bottom:none; }
-    .trade-row { display:grid; grid-template-columns:72px 72px 56px 72px 1fr; gap:8px; font-size:10.5px; align-items:center; font-family:var(--mono); }
-    .trade-reason { white-space:normal; word-break:break-word; line-height:1.35; display:block; padding-right:4px; }
+    .trade-row { display:grid; grid-template-columns:72px 72px 56px 72px 1fr; gap:8px; font-size:10.5px; line-height:1.35; align-items:center; font-family:var(--mono); }
+    .trade-reason { white-space:normal; word-break:break-word; line-height:1.45; display:block; padding-right:4px; }
     #tradeLog { max-height:520px; overflow-y:auto; padding-right:8px; }
-    .trade-row-container.row-executed { border-left:2px solid var(--green); padding-left:8px; margin-left:-8px; background:linear-gradient(90deg, rgba(61,158,95,0.08), transparent 70%); border-radius:6px; }
-    .trade-row-container.row-valid-block { border-left:2px solid var(--amber); padding-left:8px; margin-left:-8px; background:linear-gradient(90deg, rgba(245,158,11,0.07), transparent 70%); border-radius:6px; }
-    .trade-row-container.row-kill { border-left:2px solid var(--red); padding-left:8px; margin-left:-8px; background:linear-gradient(90deg, rgba(192,57,43,0.08), transparent 70%); border-radius:6px; }
-    .trade-row-container.row-candle { border-left:2px solid var(--gold); padding-left:8px; margin-left:-8px; background:linear-gradient(90deg, rgba(201,168,76,0.07), transparent 70%); border-radius:6px; }
+    .trade-row-container.row-executed { border-left:2px solid var(--green); padding-left:8px; margin-left:-8px; background:linear-gradient(90deg, rgba(61,158,95,0.08), transparent 70%); border-radius:var(--radius); }
+    .trade-row-container.row-valid-block { border-left:2px solid var(--amber); padding-left:8px; margin-left:-8px; background:linear-gradient(90deg, rgba(245,158,11,0.07), transparent 70%); border-radius:var(--radius); }
+    .trade-row-container.row-kill { border-left:2px solid var(--red); padding-left:8px; margin-left:-8px; background:linear-gradient(90deg, rgba(192,57,43,0.08), transparent 70%); border-radius:var(--radius); }
+    .trade-row-container.row-candle { border-left:2px solid var(--text2); padding-left:8px; margin-left:-8px; background:linear-gradient(90deg, rgba(107,99,88,0.08), transparent 70%); border-radius:var(--radius); }
     
     .t-buy { color:var(--green); font-weight:500; }
     .t-sell { color:var(--red); font-weight:500; }
     .t-skip { color:var(--text2); }
     .t-pos { color:var(--green); }
-    .t-warn { color:var(--gold-light); }
+    .t-warn { color:var(--amber); }
     .t-neg { color:var(--red); }
     .t-muted { color:var(--text2); }
     .empty-log { text-align:center; padding:2rem 0; font-size:12px; color:var(--text2); font-family:var(--mono); }
-    .log-action-chip { display:inline-flex; align-items:center; justify-content:center; padding:2px 6px; border-radius:4px; border:1px solid var(--border); background:var(--bg3); font-size:9px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; line-height:1.1; }
+    .log-action-chip { display:inline-flex; align-items:center; justify-content:center; padding:2px 6px; border-radius:var(--badge-radius); border:1px solid var(--border); background:var(--bg3); color:var(--text3); font-size:9px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; line-height:1.1; }
     .log-action-chip.buy { color:var(--green); background:var(--green-bg); border-color:var(--green-border); }
     .log-action-chip.sell { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
     .log-action-chip.error { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
+    .log-action-chip.success { color:var(--green); background:var(--green-bg); border-color:var(--green-border); }
+    .log-action-chip.danger { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
+    .log-action-chip.warning { color:var(--amber); background:var(--amber-bg); border-color:var(--amber-border); }
+    .log-action-chip.neutral { color:var(--text3); background:var(--bg3); border-color:var(--border); }
     .log-entry-type { display:block; font-size:8px; color:var(--text2); margin-top:2px; line-height:1.1; }
 
-    .decision-badge { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:500; padding:5px 12px; border-radius:5px; margin-bottom:0; letter-spacing:0.08em; text-transform:uppercase; font-family:var(--mono); }
+    .decision-badge { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:500; padding:5px 12px; border-radius:var(--badge-radius); margin-bottom:0; letter-spacing:0.08em; text-transform:uppercase; font-family:var(--mono); }
     .dec-buy { background:var(--green-bg); color:var(--green); border:1px solid var(--green-border); }
     .dec-sell { background:var(--red-bg); color:var(--red); border:1px solid var(--red-border); }
     .dec-skip { background:var(--bg3); color:var(--text2); border:1px solid var(--border); }
@@ -137,40 +156,47 @@
     .health-label { color:var(--text2); font-family:var(--mono); }
     .health-val { font-family:var(--mono); font-size:11px; text-align:right; line-height:1.35; }
     .health-ok { color:var(--green); }
-    .health-warn { color:var(--gold); }
+    .health-warn { color:var(--amber); }
     .health-err { color:var(--red); }
 
     .status-card .status-chip, .monitor-card .status-chip { font-size:10px; padding:5px 9px; }
-    .status-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:5px; font-size:9px; font-family:var(--mono); letter-spacing:0.08em; border:1px solid var(--border); background:var(--bg3); color:var(--text3); text-transform:uppercase; white-space:nowrap; }
+    .status-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:var(--badge-radius); font-size:9px; font-family:var(--mono); letter-spacing:0.08em; border:1px solid var(--border); background:var(--bg3); color:var(--text3); text-transform:uppercase; white-space:nowrap; }
     .status-chip.ok { color:var(--green); background:var(--green-bg); border-color:var(--green-border); }
     .status-chip.warn { color:var(--amber); background:var(--amber-bg); border-color:var(--amber-border); }
     .status-chip.err { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
     .monitor-note { font-size:10px; line-height:1.45; color:var(--text2); margin-top:9px; font-family:var(--mono); }
     .reason-badges { display:inline-flex; gap:4px; flex-wrap:wrap; margin:0 6px 0 0; vertical-align:middle; }
-    .reason-badge { display:inline-flex; align-items:center; padding:1px 5px; border-radius:4px; font-size:8px; font-family:var(--mono); font-weight:600; letter-spacing:0.06em; text-transform:uppercase; background:var(--bg4); color:var(--text3); border:1px solid var(--border); }
+    .reason-badge { display:inline-flex; align-items:center; padding:1px 5px; border-radius:var(--badge-radius); font-size:8px; font-family:var(--mono); font-weight:600; letter-spacing:0.06em; text-transform:uppercase; background:var(--bg4); color:var(--text3); border:1px solid var(--border); }
     .reason-badge.badge-red { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
     .reason-badge.badge-amber { color:var(--amber); background:var(--amber-bg); border-color:var(--amber-border); }
-    .reason-badge.badge-blue { color:var(--blue); background:var(--blue-bg); border-color:var(--blue-border); }
+    .reason-badge.badge-blue, .reason-badge.badge-gray { color:var(--text3); background:var(--bg3); border-color:var(--border); }
     .reason-badge.badge-green { color:var(--green); background:var(--green-bg); border-color:var(--green-border); }
 
     .empty-state { display:none; padding:8px 0 2px; font-size:11px; line-height:1.45; color:var(--text3); font-family:var(--mono); }
     .empty-state.show { display:block; }
     .mini-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
-    .mini-stat { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:8px 9px; min-width:0; }
+    .mini-stat { background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:8px 9px; min-width:0; }
     .mini-stat-label { font-size:8.5px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); margin-bottom:5px; font-family:var(--mono); }
-    .mini-stat-value { font-size:13px; font-weight:500; color:var(--text); font-family:var(--mono); line-height:1.2; overflow-wrap:anywhere; }
-    .monitor-empty-title { font-size:16px; color:var(--text); font-weight:600; margin-bottom:10px; }
+    .mini-stat-value { font-size:var(--card-value-size); font-weight:500; color:var(--text); font-family:var(--mono); line-height:1.2; overflow-wrap:anywhere; }
+    .compact-summary { display:flex; flex-direction:column; gap:7px; padding:2px 0; }
+    .empty-state.compact-summary { display:none; }
+    .empty-state.compact-summary.show { display:flex; }
+    .summary-title { font-size:15px; color:var(--text); font-weight:600; line-height:1.25; }
+    .summary-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 0; border-top:1px solid rgba(201,168,76,0.1); }
+    .summary-row:first-of-type { border-top:0; }
+    .summary-label { color:var(--text2); font-size:10px; letter-spacing:0.08em; text-transform:uppercase; }
+    .summary-value { color:var(--text); font-size:var(--card-value-size); font-weight:500; text-align:right; line-height:1.2; overflow-wrap:anywhere; }
     .monitor-grid.hidden, .hidden { display:none !important; }
     .diagnostics-details { margin-top:10px; border-top:1px solid var(--border); padding-top:8px; }
     .diagnostics-details summary { cursor:pointer; color:var(--text2); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; font-family:var(--mono); list-style:none; }
     .diagnostics-details summary::-webkit-details-marker { display:none; }
-    .diagnostics-details[open] summary { color:var(--gold); margin-bottom:8px; }
-    .detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:9px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; font-family:var(--mono); }
+    .diagnostics-details[open] summary { color:var(--text3); margin-bottom:8px; }
+    .detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:9px; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); font-family:var(--mono); }
     .detail-grid div { font-size:10px; color:var(--text2); }
     .detail-grid span { color:var(--text); }
 
     .btn-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
-    button { font-family:var(--mono); font-size:11px; padding:8px 16px; border-radius:6px; border:1px solid var(--border2); background:transparent; color:var(--text); cursor:pointer; transition:all 0.15s; }
+    button { font-family:var(--mono); font-size:11px; padding:8px 16px; border-radius:var(--radius); border:1px solid var(--border2); background:transparent; color:var(--text); cursor:pointer; transition:all 0.15s; }
     button:hover { background:var(--bg3); border-color:var(--gold); }
     button.primary { background:var(--gold-dim); border-color:var(--gold); color:var(--gold-light); }
     button.primary:hover { background:var(--gold); color:#000; }
@@ -188,7 +214,7 @@
     .audit-content ul, .audit-content ol { margin-left:16px; margin-bottom:12px; }
     .audit-content p { margin-bottom:8px; }
 
-    .audit-toggle { padding:4px 8px; font-size:9px; border-radius:5px; }
+    .audit-toggle { padding:4px 8px; font-size:9px; border-radius:var(--badge-radius); }
     .audit-meta { font-size:10px; color:var(--text2); margin-top:8px; font-family:var(--mono); line-height:1.4; }
 
     @media(max-width:1100px) {
@@ -203,8 +229,8 @@
       .right { grid-template-columns:1fr; }
       .trade-header, .trade-row { grid-template-columns:62px 68px 48px 64px 1fr; gap:6px; }
     }
-    .badge-relaxed { display:inline-flex; align-items:center; gap:4px; font-size:9px; font-weight:600; padding:2px 6px; border-radius:4px; background:var(--amber-bg); color:var(--amber); border:1px solid var(--amber-border); text-transform:uppercase; font-family:var(--mono); letter-spacing:0.04em;}
-    .badge-fallback { display:inline-flex; align-items:center; gap:4px; font-size:9px; font-weight:600; padding:2px 6px; border-radius:4px; background:var(--blue-bg); color:var(--blue); border:1px solid var(--blue-border); text-transform:uppercase; font-family:var(--mono); letter-spacing:0.04em;}
+    .badge-relaxed { display:inline-flex; align-items:center; gap:4px; font-size:9px; font-weight:600; padding:2px 6px; border-radius:var(--badge-radius); background:var(--amber-bg); color:var(--amber); border:1px solid var(--amber-border); text-transform:uppercase; font-family:var(--mono); letter-spacing:0.04em;}
+    .badge-fallback { display:inline-flex; align-items:center; gap:4px; font-size:9px; font-weight:600; padding:2px 6px; border-radius:var(--badge-radius); background:var(--bg3); color:var(--text3); border:1px solid var(--border); text-transform:uppercase; font-family:var(--mono); letter-spacing:0.04em;}
   </style>
 </head>
 <body>
@@ -229,9 +255,12 @@
 <div class="main">
   <div class="left">
 
-    <div class="banner">
+    <div class="banner status-strip is-muted" id="statusStrip">
       <div class="banner-dot"></div>
-      <span id="bannerText">EMA 20/50 strategy · Capital.com demo · Triggers every 1 min via cron-job.org + GitHub Actions backup</span>
+      <span class="status-strip-main" id="statusStripMain">Loading</span>
+      <span class="status-strip-sep" id="statusStripSep">|</span>
+      <span class="status-strip-reason" id="statusStripReason">Fetching dashboard</span>
+      <span class="status-strip-reset" id="statusStripReset"></span>
     </div>
 
     <div class="setup-banner" id="setupReadyBanner">
@@ -339,7 +368,7 @@
 
     <div class="card compact-card status-card">
       <div class="card-title">
-        <span>Kill Switch Status</span>
+        <span>Kill Switch</span>
         <span id="killSwitchBadge" class="status-chip">No data</span>
       </div>
       <div class="health-grid">
@@ -364,25 +393,19 @@
         <span>Live Trade Monitor</span>
         <span id="tradeMonitorStatus" class="status-chip">No active trade</span>
       </div>
-      <div class="empty-state show" id="tradeMonitorEmpty">
-        <div class="monitor-empty-title">No active trade</div>
-        <div class="mini-grid">
-          <div class="mini-stat hide-when-empty" id="lastTradeRItem">
-            <div class="mini-stat-label">Last Trade R</div>
-            <div class="mini-stat-value" id="lastTradeR">—</div>
-          </div>
-          <div class="mini-stat hide-when-empty" id="lastTradeOutcomeItem">
-            <div class="mini-stat-label">Outcome</div>
-            <div class="mini-stat-value" id="lastTradeOutcome">—</div>
-          </div>
-          <div class="mini-stat hide-when-empty" id="lastTradeMfeItem">
-            <div class="mini-stat-label">Last MFE</div>
-            <div class="mini-stat-value" id="lastTradeMfe">—</div>
-          </div>
-          <div class="mini-stat hide-when-empty" id="lastTradeMaeItem">
-            <div class="mini-stat-label">Last MAE</div>
-            <div class="mini-stat-value" id="lastTradeMae">—</div>
-          </div>
+      <div class="empty-state show compact-summary" id="tradeMonitorEmpty">
+        <div class="summary-title">No active trade</div>
+        <div class="summary-row hide-when-empty" id="lastTradeRItem">
+          <span class="summary-label">Last trade R</span>
+          <span class="summary-value" id="lastTradeR">—</span>
+        </div>
+        <div class="summary-row hide-when-empty" id="lastTradeOutcomeItem">
+          <span class="summary-label">Last trade result</span>
+          <span class="summary-value" id="lastTradeOutcome">—</span>
+        </div>
+        <div class="summary-row hide-when-empty" id="lastTradeMfeMaeItem">
+          <span class="summary-label">Last trade MFE/MAE</span>
+          <span class="summary-value" id="lastTradeMfeMae">—</span>
         </div>
       </div>
       <div class="risk-grid monitor-grid hidden" id="tradeMonitorGrid">
@@ -503,7 +526,7 @@
       <div class="empty-state" id="missedEmpty">No missed setup data</div>
       <div class="mini-grid" id="missedGrid">
         <div class="mini-stat hide-when-empty" id="missedSetupsTodayItem">
-          <div class="mini-stat-label">Setups</div>
+          <div class="mini-stat-label">Missed</div>
           <div class="mini-stat-value" id="missedSetupsToday">—</div>
         </div>
         <div class="mini-stat hide-when-empty" id="bestMissedScoreItem">
@@ -514,21 +537,9 @@
           <div class="mini-stat-label">Avg Score</div>
           <div class="mini-stat-value" id="avgMissedScore">—</div>
         </div>
-        <div class="mini-stat hide-when-empty" id="missedByKillSwitchItem">
-          <div class="mini-stat-label">Kill</div>
-          <div class="mini-stat-value" id="missedByKillSwitch">—</div>
-        </div>
-        <div class="mini-stat hide-when-empty" id="missedByCandleTimingItem">
-          <div class="mini-stat-label">Candle</div>
-          <div class="mini-stat-value" id="missedByCandleTiming">—</div>
-        </div>
-        <div class="mini-stat hide-when-empty" id="missedByConfidenceItem">
-          <div class="mini-stat-label">Confidence</div>
-          <div class="mini-stat-value" id="missedByConfidence">—</div>
-        </div>
-        <div class="mini-stat hide-when-empty" id="missedByOutsideSessionItem">
-          <div class="mini-stat-label">Session</div>
-          <div class="mini-stat-value" id="missedByOutsideSession">—</div>
+        <div class="mini-stat hide-when-empty" id="missedMainBlockerItem">
+          <div class="mini-stat-label">Main Blocker</div>
+          <div class="mini-stat-value" id="missedMainBlocker">—</div>
         </div>
       </div>
     </div>
@@ -610,6 +621,7 @@ let chart;
 let lastLogs = [];
 let lastDashboardMeta = null;
 let auditDetailsOpen = false;
+const PF5_KILL_THRESHOLD = 0.70;
 
 function formatDubaiTime(ts) {
   if (!ts) return '—';
@@ -681,6 +693,15 @@ function setMiniValue(id, value, tone = '') {
   const missing = isDisplayMissing(value);
   el.textContent = missing ? '—' : String(value);
   el.className = 'mini-stat-value' + (tone ? ' ' + tone : '');
+  syncEmptyWrapper(el, missing);
+}
+
+function setSummaryValue(id, value, tone = '') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const missing = isDisplayMissing(value);
+  el.textContent = missing ? '—' : String(value);
+  el.className = 'summary-value' + (tone ? ' ' + tone : '');
   syncEmptyWrapper(el, missing);
 }
 
@@ -884,17 +905,21 @@ function classifyBlockReasons(reason, log = {}) {
 }
 
 function reasonBadgeClass(label) {
-  if (label === 'Executed') return 'badge-green';
+  if (label === 'Executed' || label === 'Success') return 'badge-green';
+  if (label === 'Loss') return 'badge-red';
   if (label === 'Valid Setup') return 'badge-amber';
-  if (['Kill Switch', 'Outside Session', 'Spread Block', 'Daily Cap', 'State Integrity'].includes(label)) return 'badge-red';
-  if (['Candle Timing', 'Entry Strict', 'Confidence Low'].includes(label)) return 'badge-amber';
-  if (['Sideways Regime', 'Dead Market'].includes(label)) return 'badge-blue';
-  if (label === 'No Signal') return '';
-  return 'badge-green';
+  if (['Kill Switch', 'Spread Block', 'Daily Cap', 'State Integrity'].includes(label)) return 'badge-red';
+  if (['Entry Strict', 'Confidence Low'].includes(label)) return 'badge-amber';
+  if (['Candle Timing', 'Outside Session', 'Sideways Regime', 'Dead Market', 'No Signal'].includes(label)) return 'badge-gray';
+  return 'badge-gray';
 }
 
 function renderReasonBadges(reason, log = {}) {
   const tags = classifyBlockReasons(reason, log);
+  const realizedR = firstFinite(log?.exitAudit?.realizedR, log?.realizedR);
+  const pnl = firstFinite(log?.exitAudit?.realizedPnl, log?.pnl);
+  if ((realizedR !== null && realizedR < 0) || (realizedR === null && pnl !== null && pnl < 0)) tags.unshift('Loss');
+  if ((realizedR !== null && realizedR > 0) || (realizedR === null && pnl !== null && pnl > 0)) tags.unshift('Success');
   if (log?.tradeExecuted === true && !tags.includes('Executed')) tags.unshift('Executed');
   if (log?.tradeExecuted !== true && isMissedValidSetup(log) && !tags.includes('Valid Setup')) tags.unshift('Valid Setup');
   if (!tags.length) return '';
@@ -902,6 +927,218 @@ function renderReasonBadges(reason, log = {}) {
     .map(label => `<span class="reason-badge ${reasonBadgeClass(label)}">${escapeHtml(label)}</span>`)
     .join('');
   return `<span class="reason-badges">${badges}</span>`;
+}
+
+function cleanReasonText(reason) {
+  return String(reason || '')
+    .replace(/^(SKIP|PAUSE|BLOCK|ERROR|MARKET_CLOSED):\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function truncateLabel(value, max = 64) {
+  const text = String(value || '').trim();
+  return text.length > max ? text.slice(0, max - 1).trimEnd() + '…' : text;
+}
+
+function shortBlockerName(label) {
+  const names = {
+    'Kill Switch': 'Kill switch',
+    'Candle Timing': 'Candle timing',
+    'Entry Strict': 'Entry strict',
+    'Confidence Low': 'Confidence low',
+    'Outside Session': 'Outside session',
+    'Sideways Regime': 'Sideways',
+    'Dead Market': 'Dead market',
+    'Spread Block': 'Spread',
+    'Daily Cap': 'Daily cap',
+    'State Integrity': 'State integrity',
+    'No Signal': 'No signal',
+  };
+  return names[label] || label || null;
+}
+
+function shortReasonLabel(reason, log = {}) {
+  const clean = cleanReasonText(reason);
+  const lower = clean.toLowerCase();
+  if (lower.includes('pf 5') || lower.includes('profit factor') || lower.includes('expectancy')) return 'PF5 below threshold';
+  if (lower.includes('directional loss circuit')) return 'Directional circuit';
+
+  const tags = classifyBlockReasons(clean, log);
+  const priority = [
+    'Kill Switch',
+    'Spread Block',
+    'Daily Cap',
+    'State Integrity',
+    'Confidence Low',
+    'Entry Strict',
+    'Candle Timing',
+    'Outside Session',
+    'Sideways Regime',
+    'Dead Market',
+    'No Signal',
+  ];
+  const tag = priority.find(label => tags.includes(label));
+  if (tag) return shortBlockerName(tag);
+  if (log?.tradeExecuted === true) return 'Executed';
+  return clean ? truncateLabel(clean) : null;
+}
+
+function resetLabelFromReason(reason) {
+  if (reason === 'TREND_CHANGE') return '1h trend';
+  if (reason === 'COOLDOWN_EXPIRED') return '24h';
+  if (reason === 'QUALITY_REENTRY') return '6h quality re-entry';
+  return null;
+}
+
+function getKillSwitchSummary(state, logs) {
+  const latest = getLatestLog(logs);
+  const expectancyKill = state?.expectancyKillSwitch && typeof state.expectancyKillSwitch === 'object'
+    ? state.expectancyKillSwitch
+    : {};
+  const directionalCircuit = state?.directionalLossCircuit && typeof state.directionalLossCircuit === 'object'
+    ? state.directionalLossCircuit
+    : {};
+  const activeDirections = Object.entries(directionalCircuit)
+    .filter(([, circuit]) => circuit?.active === true)
+    .map(([direction]) => direction);
+  const latestTags = classifyBlockReasons(latest?.reason, latest || {});
+  const hardStopActive = state?.botEnabled === false || state?.criticalFailure === true || state?.stateIntegrityOk === false;
+  const active = hardStopActive || expectancyKill.active === true || activeDirections.length > 0 || latestTags.includes('Kill Switch');
+  const pf5 = firstFinite(state?.rollingProfitFactor5, latest?.rollingProfitFactor5);
+
+  let reason = null;
+  if (state?.criticalFailure === true) reason = 'Critical failure';
+  else if (state?.stateIntegrityOk === false) reason = 'State integrity';
+  else if (state?.botEnabled === false) reason = 'Bot disabled';
+  else if (activeDirections.length > 0) reason = 'Directional ' + activeDirections.join('/');
+  else if (expectancyKill.active === true) reason = 'PF5 below threshold';
+  else if (latestTags.includes('Kill Switch')) reason = shortReasonLabel(latest?.reason, latest || {});
+  else if (active && pf5 !== null && pf5 < PF5_KILL_THRESHOLD) reason = 'PF5 below threshold';
+
+  let resetCondition = null;
+  if (expectancyKill.active === true || (latestTags.includes('Kill Switch') && activeDirections.length === 0)) {
+    resetCondition = '1h trend / 24h / 6h quality re-entry';
+  } else if (activeDirections.length > 0) {
+    resetCondition = '1h trend';
+  } else if (!active) {
+    const unlockLabel = resetLabelFromReason(expectancyKill.resetReason);
+    if (unlockLabel) resetCondition = 'Unlocked: ' + unlockLabel;
+  }
+
+  return { active, pf5, reason, resetCondition };
+}
+
+function getMainBlockerLabel(missed) {
+  const priority = [
+    'Kill Switch',
+    'Spread Block',
+    'Daily Cap',
+    'State Integrity',
+    'Confidence Low',
+    'Entry Strict',
+    'Outside Session',
+    'Candle Timing',
+    'Sideways Regime',
+    'Dead Market',
+    'No Signal',
+  ];
+  const counts = new Map();
+  missed.forEach(log => {
+    const tags = classifyBlockReasons(log?.reason, log);
+    const tag = priority.find(label => tags.includes(label));
+    const label = shortBlockerName(tag) || shortReasonLabel(log?.reason, log);
+    if (!label) return;
+    counts.set(label, (counts.get(label) || 0) + 1);
+  });
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return top ? `${top[0]} (${top[1]})` : null;
+}
+
+function renderStatusStrip(state, logs, meta) {
+  const strip = document.getElementById('statusStrip');
+  const mainEl = document.getElementById('statusStripMain');
+  const reasonEl = document.getElementById('statusStripReason');
+  const resetEl = document.getElementById('statusStripReset');
+  const sepEl = document.getElementById('statusStripSep');
+  if (!strip || !mainEl || !reasonEl || !resetEl) return;
+
+  const latest = getLatestLog(logs);
+  const latestTags = classifyBlockReasons(latest?.reason, latest || {});
+  const kill = getKillSwitchSummary(state, logs);
+  const openTrade = getPrimaryOpenTrade(state);
+  const freshness = meta?.dataFreshnessStatus || state?.dataFreshnessStatus || 'UNKNOWN';
+  let tone = 'is-ok';
+  let main = 'Running';
+  let reason = shortReasonLabel(latest?.reason, latest || {}) || 'Awaiting next cycle';
+
+  if (state?.botEnabled === false || state?.criticalFailure === true || state?.stateIntegrityOk === false) {
+    main = 'Bot stopped';
+    tone = 'is-danger';
+    reason = kill.reason || shortReasonLabel(state?.criticalFailureReason) || 'Manual/critical stop';
+  } else if (kill.active) {
+    main = 'Kill switch active';
+    tone = 'is-danger';
+    reason = kill.reason || 'Risk lock';
+  } else if (openTrade) {
+    const currentR = getCurrentRForTrade(openTrade, state, logs);
+    main = 'Open trade';
+    tone = 'is-ok';
+    reason = formatR(currentR) || (normalizeAction(openTrade?.action ?? openTrade?.direction) || 'Monitoring');
+  } else if (latest?.tradeExecuted === true) {
+    main = 'Trade executed';
+    tone = 'is-ok';
+    reason = 'Success';
+  } else if (latest?.dbgSetupReady === true) {
+    main = 'Setup ready';
+    tone = 'is-warn';
+    reason = 'Waiting for confirmation';
+  } else if (freshness !== 'FRESH' && freshness !== 'UNKNOWN') {
+    main = 'Data ' + String(freshness).toLowerCase();
+    tone = 'is-warn';
+  } else if (latestTags.includes('Candle Timing') || latestTags.includes('Outside Session') || latestTags.includes('No Signal')) {
+    tone = 'is-muted';
+  }
+
+  const reset = kill.active && kill.resetCondition ? 'Reset: ' + kill.resetCondition : '';
+  strip.className = `banner status-strip ${tone}`;
+  mainEl.textContent = main;
+  reasonEl.textContent = reason || '';
+  resetEl.textContent = reset;
+  reasonEl.classList.toggle('hidden', !reason);
+  resetEl.classList.toggle('hidden', !reset);
+  if (sepEl) sepEl.classList.toggle('hidden', !reason && !reset);
+}
+
+function formatMfeMae(mfeR, maeR) {
+  const mfe = finiteNumber(mfeR);
+  const mae = finiteNumber(maeR);
+  const parts = [];
+  if (mfe !== null) parts.push('MFE ' + formatR(mfe, false));
+  if (mae !== null) parts.push('MAE ' + (mae > 0 ? '-' : '') + Math.abs(mae).toFixed(2) + 'R');
+  return parts.length ? parts.join(' / ') : null;
+}
+
+function getTradeChartLevels(state, logs) {
+  const trade = getPrimaryOpenTrade(state);
+  if (!trade) return null;
+  const audit = getTradeAudit(trade);
+  const beInfo = getBreakEvenInfo(state, logs);
+  return {
+    entry: firstFinite(trade?.entry, trade?.entryPrice, trade?.actualFillPrice),
+    stopLoss: firstFinite(trade?.stopLoss, trade?.initialStopLoss, audit.initialStopLoss),
+    takeProfit: firstFinite(trade?.takeProfit, audit.takeProfit),
+    breakEven: beInfo.trigger,
+  };
+}
+
+function setChartLevelDataset(index, value, labels) {
+  const dataset = chart?.data?.datasets?.[index];
+  if (!dataset) return [];
+  const data = value !== null && value !== undefined ? labels.map(() => value) : [];
+  dataset.data = data;
+  dataset.hidden = data.length === 0;
+  return data;
 }
 
 function getSetupScore(log) {
@@ -933,16 +1170,16 @@ function renderTradeMonitor(state, logs) {
 
     const snapshot = getLastTradeSnapshot(state, logs);
     const lastR = snapshot?.r ?? null;
-    setMiniValue('lastTradeR', formatR(lastR), lastR === null ? '' : lastR >= 0 ? 't-pos' : 't-neg');
-    setMiniValue('lastTradeOutcome', snapshot?.outcome || null, lastR === null ? '' : lastR >= 0 ? 't-pos' : 't-neg');
-    setMiniValue('lastTradeMfe', formatR(snapshot?.mfeR, false), snapshot?.mfeR === null || snapshot?.mfeR === undefined ? '' : 't-pos');
-    setMiniValue('lastTradeMae', formatR(snapshot?.maeR, false), snapshot?.maeR === null || snapshot?.maeR === undefined ? '' : 't-neg');
-    setText('tradeMonitorDetail', 'No active trade');
+    setSummaryValue('lastTradeR', formatR(lastR), lastR === null ? '' : lastR >= 0 ? 't-pos' : 't-neg');
+    setSummaryValue('lastTradeOutcome', snapshot?.outcome || null, lastR === null ? '' : lastR >= 0 ? 't-pos' : 't-neg');
+    setSummaryValue('lastTradeMfeMae', formatMfeMae(snapshot?.mfeR, snapshot?.maeR), snapshot?.mfeR !== null && snapshot?.mfeR !== undefined ? 't-pos' : '');
+    setHidden('tradeMonitorDetail', true);
     return;
   }
 
   setHidden('tradeMonitorGrid', false);
   setEmptyState('tradeMonitorEmpty', false);
+  setHidden('tradeMonitorDetail', false);
   const audit = getTradeAudit(trade);
   const action = normalizeAction(trade?.action ?? trade?.direction) || 'TRADE';
   const currentR = firstFinite(beInfo.currentR, trade?.currentR, audit.currentR, audit.stopMoveEvents?.at?.(-1)?.currentR);
@@ -972,7 +1209,7 @@ function renderTradeMonitor(state, logs) {
 
 function renderMissedTrades(logs) {
   const hasLogs = Array.isArray(logs) && logs.length > 0;
-  const ids = ['missedSetupsToday', 'bestMissedScore', 'avgMissedScore', 'missedByKillSwitch', 'missedByCandleTiming', 'missedByConfidence', 'missedByOutsideSession'];
+  const ids = ['missedSetupsToday', 'bestMissedScore', 'avgMissedScore', 'missedMainBlocker'];
   if (!hasLogs) {
     ids.forEach(id => setMiniValue(id, null));
     setHidden('missedGrid', true);
@@ -991,60 +1228,25 @@ function renderMissedTrades(logs) {
   setHidden('missedGrid', false);
   setEmptyState('missedEmpty', false);
   const scores = missed.map(getSetupScore).filter(score => score !== null);
-  const countBy = (label) => missed.filter(log => classifyBlockReasons(log?.reason, log).includes(label)).length;
   const best = scores.length ? Math.max(...scores) : null;
   const avg = scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
 
   setMiniValue('missedSetupsToday', missed.length);
   setMiniValue('bestMissedScore', formatScore(best));
   setMiniValue('avgMissedScore', formatScore(avg));
-  setMiniValue('missedByKillSwitch', countBy('Kill Switch') || null, 't-neg');
-  setMiniValue('missedByCandleTiming', countBy('Candle Timing') || null, 't-warn');
-  setMiniValue('missedByConfidence', countBy('Confidence Low') || null, 't-warn');
-  setMiniValue('missedByOutsideSession', countBy('Outside Session') || null, 't-neg');
+  setMiniValue('missedMainBlocker', getMainBlockerLabel(missed));
 }
 
 function renderKillSwitchStatus(state, logs) {
-  const latest = getLatestLog(logs);
-  const expectancyKill = state?.expectancyKillSwitch && typeof state.expectancyKillSwitch === 'object'
-    ? state.expectancyKillSwitch
-    : {};
-  const directionalCircuit = state?.directionalLossCircuit && typeof state.directionalLossCircuit === 'object'
-    ? state.directionalLossCircuit
-    : {};
-  const activeDirections = Object.entries(directionalCircuit)
-    .filter(([, circuit]) => circuit?.active === true)
-    .map(([direction]) => direction);
-  const latestTags = classifyBlockReasons(latest?.reason, latest || {});
-  const hardStopActive = state?.botEnabled === false || state?.criticalFailure === true || state?.stateIntegrityOk === false;
-  const active = hardStopActive || expectancyKill.active === true || activeDirections.length > 0 || latestTags.includes('Kill Switch');
-  const pf5 = firstFinite(state?.rollingProfitFactor5, latest?.rollingProfitFactor5);
+  const summary = getKillSwitchSummary(state, logs);
+  const pf5Text = summary.pf5 === null ? null : `${summary.pf5.toFixed(2)} vs ${PF5_KILL_THRESHOLD.toFixed(2)}`;
+  const pfTone = summary.pf5 !== null && summary.pf5 < PF5_KILL_THRESHOLD ? 'health-err' : 'health-ok';
 
-  let reason = null;
-  if (state?.criticalFailureReason) reason = state.criticalFailureReason;
-  else if (expectancyKill.active === true) reason = state?.performanceReviewReason || latest?.reason || 'PF5 expectancy kill switch active';
-  else if (activeDirections.length > 0) reason = 'Directional loss circuit active: ' + activeDirections.join(', ');
-  else if (hardStopActive) reason = state?.performanceReviewReason || latest?.reason || 'Bot disabled or state blocked';
-  else if (latestTags.includes('Kill Switch')) reason = latest?.reason;
-
-  let resetCondition = null;
-  if (expectancyKill.active === true) {
-    resetCondition = '1h trend reset / 24h expiry / 6h quality re-entry';
-  } else if (activeDirections.length > 0) {
-    resetCondition = '1h trend reset';
-  } else if (expectancyKill.resetReason === 'TREND_CHANGE') {
-    resetCondition = '1h trend reset';
-  } else if (expectancyKill.resetReason === 'COOLDOWN_EXPIRED') {
-    resetCondition = '24h expiry';
-  } else if (expectancyKill.resetReason === 'QUALITY_REENTRY') {
-    resetCondition = '6h quality re-entry';
-  }
-
-  setStatusChip('killSwitchBadge', active ? 'ACTIVE' : 'INACTIVE', active ? 'err' : 'ok');
-  setHealthValue('killSwitchReason', reason, active ? 'health-err' : '');
-  setHealthValue('killSwitchPf5', pf5 === null ? null : pf5.toFixed(2), pf5 !== null && pf5 < 0.7 ? 'health-err' : '');
-  setHealthValue('killSwitchReset', resetCondition, resetCondition ? 'health-warn' : '');
-  setEmptyState('killSwitchEmpty', !reason && pf5 === null && !resetCondition);
+  setStatusChip('killSwitchBadge', summary.active ? 'ACTIVE' : 'INACTIVE', summary.active ? 'err' : '');
+  setHealthValue('killSwitchReason', summary.reason, summary.active ? 'health-err' : '');
+  setHealthValue('killSwitchPf5', pf5Text, summary.pf5 === null ? '' : pfTone);
+  setHealthValue('killSwitchReset', summary.resetCondition, summary.resetCondition ? (summary.active ? 'health-warn' : 't-muted') : '');
+  setEmptyState('killSwitchEmpty', !summary.reason && summary.pf5 === null && !summary.resetCondition);
 }
 
 function renderSessionStatus(logs) {
@@ -1108,14 +1310,48 @@ function initChart() {
           fill: false
         },
         {
-          label: 'BE Trigger',
+          label: 'Entry',
           data: [],
-          borderColor: '#f59e0b',
+          borderColor: '#4a9ebb',
           borderWidth: 1,
           pointRadius: 0,
-          borderDash: [5, 5],
+          borderDash: [4, 4],
           tension: 0,
-          fill: false
+          fill: false,
+          hidden: true
+        },
+        {
+          label: 'Stop loss',
+          data: [],
+          borderColor: '#c0392b',
+          borderWidth: 1,
+          pointRadius: 0,
+          borderDash: [4, 4],
+          tension: 0,
+          fill: false,
+          hidden: true
+        },
+        {
+          label: 'Take profit',
+          data: [],
+          borderColor: '#3d9e5f',
+          borderWidth: 1,
+          pointRadius: 0,
+          borderDash: [4, 4],
+          tension: 0,
+          fill: false,
+          hidden: true
+        },
+        {
+          label: 'BE trigger',
+          data: [],
+          borderColor: '#9a9080',
+          borderWidth: 1,
+          pointRadius: 0,
+          borderDash: [3, 3],
+          tension: 0,
+          fill: false,
+          hidden: true
         }
       ]
     },
@@ -1130,7 +1366,15 @@ function initChart() {
         legend: { 
           display: true, 
           position: 'top', 
-          labels: { color: '#e8e0cc', font: { family: 'JetBrains Mono', size: 10 }, boxWidth: 12 } 
+          labels: {
+            color: '#e8e0cc',
+            font: { family: 'JetBrains Mono', size: 10 },
+            boxWidth: 12,
+            filter: (item, data) => {
+              const dataset = data.datasets[item.datasetIndex];
+              return Array.isArray(dataset?.data) && dataset.data.some(value => value !== null && value !== undefined);
+            }
+          }
         },
         tooltip: {
           enabled: true,
@@ -1182,6 +1426,7 @@ async function refreshDashboard() {
     const logs = Array.isArray(data.logs) ? data.logs : [];
     lastLogs = logs;
     renderLogs(logs, data.dashboardMeta || null, data.state);
+    renderStatusStrip(data.state, logs, data.dashboardMeta || null);
     renderMonitoringPanels(data.state, logs, data.dashboardMeta || null);
     renderChartFromLogs(logs, data.state, data.dashboardMeta || null);
     renderAudit(data.lastAudit, data.dailyAuditHistory || []);
@@ -1200,9 +1445,6 @@ function renderEnv(env) {
   logoIcon.style.borderColor = isLive ? 'var(--gold-light)' : 'var(--gold)';
   logoIcon.style.color = isLive ? 'var(--gold-light)' : 'var(--gold)';
   logoIcon.style.boxShadow = isLive ? '0 0 15px rgba(201,168,76,0.3)' : 'none';
-
-  const bannerText = document.getElementById('bannerText');
-  bannerText.textContent = isLive ? 'EMA 20/50 strategy · Capital.com LIVE · Scheduled via GitHub Actions / manual cron runs' : 'EMA 20/50 strategy · Capital.com demo · Scheduled via GitHub Actions / manual cron runs';
 
   const balanceSub = document.getElementById('balanceSub');
   balanceSub.textContent = isLive ? 'Real money account' : 'Demo account';
@@ -1492,54 +1734,71 @@ function renderLogs(logs, meta, state) {
     let action = t.signalDetected || 'NO SIGNAL';
     if(action === 'NONE' || action === 'SKIP') action = 'NO SIGNAL';
     if(action === 'ERROR') action = 'ERROR';
+    const cleanReason = t.reason ? String(t.reason) : (t.tradeExecuted ? 'TRADED' : 'No target setup');
+    const reasonTags = classifyBlockReasons(cleanReason, t);
+    const realizedR = firstFinite(t?.exitAudit?.realizedR, t?.realizedR);
+    const pnl = firstFinite(t?.exitAudit?.realizedPnl, t?.pnl);
+    const hasLoss = (realizedR !== null && realizedR < 0) || (realizedR === null && pnl !== null && pnl < 0);
+    const hasDanger = hasLoss || reasonTags.some(label => ['Kill Switch', 'Spread Block', 'Daily Cap', 'State Integrity'].includes(label));
+    const hasWarning = isMissedValidSetup(t) || reasonTags.some(label => ['Entry Strict', 'Confidence Low'].includes(label));
+    const hasNeutralTiming = reasonTags.some(label => ['Candle Timing', 'No Signal', 'Outside Session'].includes(label));
 
     let actionChipClass = 'log-action-chip';
-    if (action.includes('BUY')) actionChipClass += ' buy';
-    else if (action.includes('SELL')) actionChipClass += ' sell';
-    else if (action.includes('ERROR') || action.includes('FAIL')) actionChipClass += ' error';
+    if (t.tradeExecuted === true) actionChipClass += ' success';
+    else if (action.includes('ERROR') || action.includes('FAIL') || hasDanger) actionChipClass += ' danger';
+    else if (hasWarning) actionChipClass += ' warning';
+    else actionChipClass += ' neutral';
     let actionHtml = `<span class="${actionChipClass}">${escapeHtml(action)}</span>`;
     if (t.entryType) {
         actionHtml += `<span class="log-entry-type">${escapeHtml(t.entryType)}</span>`;
     }
 
     let typeClass = 't-muted';
-    if (action.includes('BUY')) typeClass = 't-buy';
-    else if (action.includes('SELL')) typeClass = 't-sell';
-    else if (action.includes('ERROR') || action.includes('FAIL')) typeClass = 't-neg';
+    if (t.tradeExecuted === true) typeClass = 't-pos';
+    else if (action.includes('ERROR') || action.includes('FAIL') || hasDanger) typeClass = 't-neg';
 
     const timeStr = new Date(t.time).toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour:'2-digit', minute:'2-digit' });
-    
-    let cleanReason = t.reason ? String(t.reason) : (t.tradeExecuted ? 'TRADED' : 'No target setup');
-    
+
     let rLower = cleanReason.toLowerCase();
     let reasonColorClass = 't-muted';
     if (t.tradeExecuted) {
         reasonColorClass = 't-pos';
-    } else if (rLower.includes('stale') || rLower.includes('market') || rLower.includes('weekend') || rLower.includes('session') || rLower.includes('sleeping') || rLower.includes('risk') || rLower.includes('spread') || rLower.includes('blocked') || rLower.includes('limit') || rLower.includes('error')) {
+    } else if (hasDanger || rLower.includes('stale') || rLower.includes('risk') || rLower.includes('spread') || rLower.includes('drawdown') || rLower.includes('limit') || rLower.includes('error')) {
         reasonColorClass = 't-neg';
-    } else if (rLower.includes('momentum') || rLower.includes('confirm') || rLower.includes('doji') || rLower.includes('score') || rLower.includes('weak') || rLower.includes('reject') || rLower.includes('pullback') || rLower.includes('candle') || rLower.includes('zone')) {
+    } else if (!hasNeutralTiming && (hasWarning || rLower.includes('momentum') || rLower.includes('confirm') || rLower.includes('doji') || rLower.includes('score') || rLower.includes('weak') || rLower.includes('reject') || rLower.includes('pullback') || rLower.includes('zone'))) {
         reasonColorClass = 't-warn';
     }
 
     let renderReason = escapeHtml(cleanReason);
     
-    const keyPhrases = ['Stale market data', 'Market closed', 'Spread too high', 'Risk limit', 'Drawdown limit', 'Missing data', 'Outside trading hours', 'Outside allowed trading session', 'Spread threshold exceeded', 'Kill switch', 'Waiting for candle settlement'];
-    keyPhrases.forEach(kp => {
-        const regex = new RegExp(`(${kp})`, 'gi');
-        renderReason = renderReason.replace(regex, '<strong style="color:var(--gold-light); font-weight:600;">$1</strong>');
+    const keyPhrases = [
+      ['Stale market data', 'var(--red)'],
+      ['Spread too high', 'var(--red)'],
+      ['Risk limit', 'var(--red)'],
+      ['Drawdown limit', 'var(--red)'],
+      ['Missing data', 'var(--red)'],
+      ['Spread threshold exceeded', 'var(--red)'],
+      ['Kill switch', 'var(--red)'],
+      ['Market closed', 'var(--text3)'],
+      ['Outside trading hours', 'var(--text3)'],
+      ['Outside allowed trading session', 'var(--text3)'],
+      ['Waiting for candle settlement', 'var(--text3)'],
+    ];
+    keyPhrases.forEach(([phrase, color]) => {
+        const regex = new RegExp(`(${phrase})`, 'gi');
+        renderReason = renderReason.replace(regex, `<strong style="color:${color}; font-weight:600;">$1</strong>`);
     });
 
     renderReason = renderReason.replace(/\\n/g, ' • ');
 
     if (t._compressedCount) {
-        renderReason += ` <span style="color:var(--gold-light);font-weight:600;font-size:10px;margin-left:4px;">(x${t._compressedCount})</span>`;
+        renderReason += ` <span style="color:var(--text3);font-weight:600;font-size:10px;margin-left:4px;">(x${t._compressedCount})</span>`;
     }
 
     const reasonBadges = renderReasonBadges(cleanReason, t);
-    const reasonTags = classifyBlockReasons(cleanReason, t);
     const rowClasses = ['trade-row-container'];
     if (t.tradeExecuted === true) rowClasses.push('row-executed');
-    else if (reasonTags.includes('Kill Switch')) rowClasses.push('row-kill');
+    else if (hasDanger) rowClasses.push('row-kill');
     else if (reasonTags.includes('Candle Timing')) rowClasses.push('row-candle');
     else if (isMissedValidSetup(t)) rowClasses.push('row-valid-block');
     
@@ -1642,13 +1901,21 @@ function renderChartFromLogs(logs, state, meta) {
   // EMA 50 Dataset (Red)
   chart.data.datasets[2].data = ema50s;
 
-  const beInfo = getBreakEvenInfo(state, logs);
-  const beLine = beInfo.trigger !== null ? labels.map(() => beInfo.trigger) : [];
-  if (chart.data.datasets[3]) {
-    chart.data.datasets[3].data = beLine;
-  }
+  const levels = getTradeChartLevels(state, logs);
+  const entryLine = setChartLevelDataset(3, levels?.entry ?? null, labels);
+  const stopLine = setChartLevelDataset(4, levels?.stopLoss ?? null, labels);
+  const takeProfitLine = setChartLevelDataset(5, levels?.takeProfit ?? null, labels);
+  const beLine = setChartLevelDataset(6, levels?.breakEven ?? null, labels);
 
-  const validPrices = [...prices, ...ema20s.filter(v=>v), ...ema50s.filter(v=>v), ...beLine.filter(v=>v)];
+  const validPrices = [
+    ...prices,
+    ...ema20s.filter(v=>v),
+    ...ema50s.filter(v=>v),
+    ...entryLine.filter(v=>v),
+    ...stopLine.filter(v=>v),
+    ...takeProfitLine.filter(v=>v),
+    ...beLine.filter(v=>v)
+  ];
   const min = Math.min(...validPrices);
   const max = Math.max(...validPrices);
   const pad = (max - min) * 0.1 || 5;
