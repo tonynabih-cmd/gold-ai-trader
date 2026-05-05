@@ -1391,7 +1391,17 @@ export default async function handler(req, res) {
       }
 
       botState.lastHeartbeat = Date.now();
-      await saveLog({ signal: generatedSignal, indicators, botState, tradeExecuted: false, reason, signalDebug });
+      await saveLog({
+        signal: generatedSignal,
+        indicators,
+        botState,
+        tradeExecuted: false,
+        reason,
+        signalDebug,
+        settlementWaitMs: marketData.settlementWaitMs ?? null,
+        requiredSettlementMs: marketData.requiredSettlementMs ?? null,
+        settlementPassed: marketData.settlementPassed ?? null,
+      });
       await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
       return res.json({ skipped: reason });
     }

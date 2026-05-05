@@ -1,7 +1,14 @@
 // tests/test_strategy.mjs — Unit tests for lib/strategy.js
 // Run: node tests/test_strategy.mjs
 
-import { detectBreakOfStructure, detectLiquiditySweep, findLastFractalSwings, generateSignal, validatePullback } from '../lib/strategy.js';
+import {
+  detectBreakOfStructure,
+  detectLiquiditySweep,
+  EMA_TOUCH_TOLERANCE_ATR,
+  findLastFractalSwings,
+  generateSignal,
+  validatePullback,
+} from '../lib/strategy.js';
 import { checkRisk as checkRiskImpl } from '../lib/risk.js';
 
 let passed = 0;
@@ -378,6 +385,44 @@ section('Layer 2 SELL pullback with 2-step confirmation');
     assert(result.signal.action === 'SELL', `Signal direction is SELL (got ${result.signal.action})`);
     assert(result.signal.entryType === 'pullback', `Entry type remains pullback (got ${result.signal.entryType})`);
   }
+}
+
+section('EMA20 touch tolerance');
+{
+  assert(EMA_TOUCH_TOLERANCE_ATR === 0.15, `EMA touch tolerance is 0.15 ATR (got ${EMA_TOUCH_TOLERANCE_ATR})`);
+
+  const boundary = generateSignal(
+    makeIndicators({
+      prevCandle: {
+        time: Date.now() - 5 * 60 * 1000,
+        open: 2001.4,
+        high: 2001.8,
+        low: 2000.75,
+        close: 2001.0,
+      },
+    }),
+    make1mCandles()
+  );
+  assert(boundary.signal !== null, `EMA touch tolerance passes at <= 0.15 ATR (reason: ${boundary.debug?.dbgRejectReason})`);
+  assert(boundary.debug?.emaTouchToleranceAtr === 0.15, `emaTouchToleranceAtr logs 0.15 (got ${boundary.debug?.emaTouchToleranceAtr})`);
+  assert(boundary.debug?.emaTouchDistanceAtr === 0.15, `emaTouchDistanceAtr logs boundary distance (got ${boundary.debug?.emaTouchDistanceAtr})`);
+  assert(boundary.debug?.emaTouchPassedByTolerance === true, 'emaTouchPassedByTolerance logs true at boundary');
+
+  const aboveTolerance = generateSignal(
+    makeIndicators({
+      prevCandle: {
+        time: Date.now() - 5 * 60 * 1000,
+        open: 2001.4,
+        high: 2001.8,
+        low: 2000.8,
+        close: 2001.0,
+      },
+    }),
+    make1mCandles()
+  );
+  assert(aboveTolerance.signal === null, `EMA touch tolerance fails above 0.15 ATR (reason: ${aboveTolerance.debug?.dbgRejectReason})`);
+  assert(aboveTolerance.debug?.emaTouchDistanceAtr === 0.16, `emaTouchDistanceAtr logs above-tolerance distance (got ${aboveTolerance.debug?.emaTouchDistanceAtr})`);
+  assert(aboveTolerance.debug?.emaTouchPassedByTolerance === false, 'emaTouchPassedByTolerance logs false above tolerance');
 }
 
 section('Layer 2 rejects when prior candle does not touch EMA20 zone');

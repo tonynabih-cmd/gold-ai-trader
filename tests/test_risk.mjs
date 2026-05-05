@@ -1,7 +1,13 @@
 // tests/test_risk.mjs — Unit tests for lib/risk.js
 // Run: node tests/test_risk.mjs
 
-import { checkRisk as checkRiskImpl, MIN_RR_V2, SETUP_CONFIDENCE_MIN_V2 } from '../lib/risk.js';
+import {
+  checkRisk as checkRiskImpl,
+  HIGH_QUALITY_OVERRIDE_RR_THRESHOLD,
+  HIGH_QUALITY_OVERRIDE_SCORE_THRESHOLD,
+  MIN_RR_V2,
+  SETUP_CONFIDENCE_MIN_V2,
+} from '../lib/risk.js';
 import { buildExecutionPolicy } from '../lib/execution_policy.js';
 import { classifyTradingSession } from '../lib/session_filter.js';
 
@@ -93,6 +99,19 @@ function makeIndicators(overrides = {}) {
     slopePercent: 0.20,
     ...overrides,
   };
+}
+
+function makeActiveExpectancyKillState(overrides = {}) {
+  return makeBotState({
+    expectancyKillSwitch: {
+      active: true,
+      activatedAt: Date.now() - (6 * 60 * 60 * 1000) - 1000,
+      activationTrend: 'UP',
+      windowKey: 'pf-window',
+      suppressedWindowKey: null,
+    },
+    ...overrides,
+  });
 }
 
 // ── Pre-setup: ensure required env vars are set ───────────────────────────────
@@ -398,6 +417,98 @@ section('PF kill switch dominance');
     makeIndicators({ trend1h: 'UP' })
   );
   assert(result.includes('kill switch active'), `PF kill switch still overrides passing RR/confidence (got: ${result})`);
+}
+
+section('High-quality override gate');
+{
+  assert(HIGH_QUALITY_OVERRIDE_SCORE_THRESHOLD === 70, `override score threshold is 70 (got: ${HIGH_QUALITY_OVERRIDE_SCORE_THRESHOLD})`);
+  assert(HIGH_QUALITY_OVERRIDE_RR_THRESHOLD === 2.5, `override RR threshold is 2.5 (got: ${HIGH_QUALITY_OVERRIDE_RR_THRESHOLD})`);
+
+  const highQualitySignal = makeSignal({ setupConfidenceScore: 70, score: 70, takeProfit: 2025 });
+  const highQualityResult = checkRisk(highQualitySignal, makeActiveExpectancyKillState(), makeIndicators());
+  assert(highQualityResult === 'APPROVED', `high-quality override clears PF pause only when safety gates pass (got: ${highQualityResult})`);
+  assert(highQualitySignal.highQualityOverride === true, 'highQualityOverride logs true for score 70 and 2.5R with safety gates passing');
+  assert(highQualitySignal.highQualityOverrideReason === 'ALL_HIGH_QUALITY_SAFETY_GATES_PASSED', `highQualityOverrideReason logs pass reason (got: ${highQualitySignal.highQualityOverrideReason})`);
+
+  const lowScoreSignal = makeSignal({ setupConfidenceScore: 69, score: 69, takeProfit: 2025 });
+  const lowScoreResult = checkRisk(lowScoreSignal, makeActiveExpectancyKillState(), makeIndicators());
+  assert(lowScoreResult.includes('kill switch active'), `score below 70 does not clear PF pause (got: ${lowScoreResult})`);
+  assert(lowScoreSignal.highQualityOverride === false && lowScoreSignal.highQualityOverrideReason.includes('SCORE_BELOW_70'), `score block is logged (got: ${lowScoreSignal.highQualityOverrideReason})`);
+
+  const lowRrSignal = makeSignal({ setupConfidenceScore: 80, takeProfit: 2024 });
+  const lowRrResult = checkRisk(lowRrSignal, makeActiveExpectancyKillState(), makeIndicators());
+  assert(lowRrResult.includes('kill switch active'), `RR below 2.5 does not clear PF pause (got: ${lowRrResult})`);
+  assert(lowRrSignal.highQualityOverride === false && lowRrSignal.highQualityOverrideReason.includes('RR_BELOW_2_5'), `RR block is logged (got: ${lowRrSignal.highQualityOverrideReason})`);
+
+  const hardStopSignal = makeSignal({ setupConfidenceScore: 80, takeProfit: 2025 });
+  const hardStopResult = checkRisk(hardStopSignal, makeBotState({ criticalFailure: true }), makeIndicators());
+  assert(hardStopResult.includes('Critical failure active'), `override does not bypass hard kill stop (got: ${hardStopResult})`);
+  assert(hardStopSignal.highQualityOverride === false && hardStopSignal.highQualityOverrideReason === 'KILL_SWITCH_HARD_STOP_ACTIVE', `hard stop override reason logs (got: ${hardStopSignal.highQualityOverrideReason})`);
+
+  const dailyLossSignal = makeSignal({ setupConfidenceScore: 80, takeProfit: 2025 });
+  const dailyLossResult = checkRisk(dailyLossSignal, makeBotState({ dailyLoss: 51, balance: 1000 }), makeIndicators());
+  assert(dailyLossResult.includes('daily loss limit'), `override does not bypass daily loss stop (got: ${dailyLossResult})`);
+  assert(dailyLossSignal.highQualityOverride === false && dailyLossSignal.highQualityOverrideReason.includes('DAILY_LOSS_STOP_ACTIVE'), `daily loss override reason logs (got: ${dailyLossSignal.highQualityOverrideReason})`);
+
+  const staleDataSignal = makeSignal({ setupConfidenceScore: 80, takeProfit: 2025 });
+  const staleDataResult = checkRisk(staleDataSignal, makeBotState({ riskDataFresh: false }), makeIndicators());
+  assert(staleDataResult.includes('Risk data stale'), `override does not bypass stale data (got: ${staleDataResult})`);
+  assert(staleDataSignal.highQualityOverride === false && staleDataSignal.highQualityOverrideReason === 'DATA_FRESHNESS_BLOCKED', `stale data override reason logs (got: ${staleDataSignal.highQualityOverrideReason})`);
+
+  const spreadSignal = makeSignal({ setupConfidenceScore: 80, takeProfit: 2025 });
+  const spreadResult = checkRisk(spreadSignal, makeBotState(), makeIndicators({ spread: 1.50 }));
+  assert(spreadResult.includes('high spread'), `override does not bypass spread block (got: ${spreadResult})`);
+  assert(spreadSignal.highQualityOverride === false && spreadSignal.highQualityOverrideReason.includes('SPREAD_FILTER_BLOCKED'), `spread override reason logs (got: ${spreadSignal.highQualityOverrideReason})`);
+
+  const integritySignal = makeSignal({ setupConfidenceScore: 80, takeProfit: 2025 });
+  const integrityResult = checkRisk(integritySignal, makeBotState({ stateIntegrityOk: false }), makeIndicators());
+  assert(integrityResult.includes('State integrity compromised'), `override does not bypass state integrity failure (got: ${integrityResult})`);
+  assert(integritySignal.highQualityOverride === false && integritySignal.highQualityOverrideReason === 'STATE_INTEGRITY_ISSUE', `state integrity override reason logs (got: ${integritySignal.highQualityOverrideReason})`);
+}
+
+section('Same-direction pullback clustering');
+{
+  const blockedSignal = makeSignal({ entryType: 'pullback' });
+  const blocked = checkRisk(
+    blockedSignal,
+    makeBotState({ openTrades: [{ action: 'BUY', entryType: 'pullback', entry: 2000, audit: { reached1R: false } }] }),
+    makeIndicators()
+  );
+  assert(blocked.includes('pullback clustering blocked'), `same-direction pullback without 1R proof blocks (got: ${blocked})`);
+  assert(blockedSignal.sameDirectionOpenTrade === true, 'sameDirectionOpenTrade logs true when same-direction pullback is open');
+  assert(blockedSignal.existingTradeReached1R === false, 'existingTradeReached1R logs false without proof');
+  assert(blockedSignal.clusteringDecision === 'BLOCK', `clusteringDecision logs BLOCK (got: ${blockedSignal.clusteringDecision})`);
+
+  const missingProofSignal = makeSignal({ entryType: 'pullback' });
+  const missingProof = checkRisk(
+    missingProofSignal,
+    makeBotState({ openTrades: [{ action: 'BUY', entryType: 'pullback', entry: 2000 }] }),
+    makeIndicators()
+  );
+  assert(missingProof.includes('pullback clustering blocked'), `missing reached1R proof blocks (got: ${missingProof})`);
+
+  const allowedSignal = makeSignal({ entryType: 'pullback' });
+  const allowed = checkRisk(
+    allowedSignal,
+    makeBotState({ openTrades: [{ action: 'BUY', entryType: 'pullback', entry: 2000, audit: { reached1R: true } }] }),
+    makeIndicators()
+  );
+  assert(allowed === 'APPROVED', `same-direction pullback is allowed only after existing trade reached 1R (got: ${allowed})`);
+  assert(allowedSignal.existingTradeReached1R === true, 'existingTradeReached1R logs true when proof exists');
+  assert(allowedSignal.clusteringDecision === 'ALLOW', `clusteringDecision logs ALLOW (got: ${allowedSignal.clusteringDecision})`);
+
+  const cappedSignal = makeSignal({ entryType: 'pullback' });
+  const capped = checkRisk(
+    cappedSignal,
+    makeBotState({
+      openTrades: [
+        { action: 'BUY', entryType: 'pullback', entry: 2000, audit: { reached1R: true } },
+        { action: 'SELL', entryType: 'pullback', entry: 1990, audit: { reached1R: true } },
+      ],
+    }),
+    makeIndicators()
+  );
+  assert(capped.includes('Max 2 positions open'), `1R clustering allowance does not bypass max open positions (got: ${capped})`);
 }
 
 // ── Section 16: Signal score is telemetry, not a risk gate ───────────────────
