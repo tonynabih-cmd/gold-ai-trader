@@ -1381,15 +1381,17 @@ export default async function handler(req, res) {
       }
       
       let signalDebug = undefined;
+      let generatedSignal = null;
       // Evaluate strategy purely for debug telemetry even if this cycle is skipping
       if (indicators && !indicators.skip && marketData.candles1m) {
         const generated = generateSignal(indicators, marketData.candles1m);
         signalDebug = { ...generated.debug, marketRegime: indicators.marketRegime };
+        generatedSignal = generated.debug?.dbgSetupReady === true ? generated.signal : null;
         logSignalAndRiskSteps({ signal: generated.signal, indicators, signalDebug });
       }
 
       botState.lastHeartbeat = Date.now();
-      await saveLog({ signal: null, indicators, botState, tradeExecuted: false, reason, signalDebug });
+      await saveLog({ signal: generatedSignal, indicators, botState, tradeExecuted: false, reason, signalDebug });
       await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
       return res.json({ skipped: reason });
     }
