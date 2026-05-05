@@ -254,27 +254,27 @@ section('1h trend conflict applies confidence penalty instead of hard reject');
 
   if (aligned.signal && conflicted.signal) {
     assert(
-      conflicted.signal.setupConfidenceScore === aligned.signal.setupConfidenceScore - 10,
-      `Conflicted setupConfidenceScore is reduced by 10 (${aligned.signal.setupConfidenceScore} -> ${conflicted.signal.setupConfidenceScore})`
+      conflicted.signal.setupConfidenceScore === aligned.signal.setupConfidenceScore - 5,
+      `Conflicted setupConfidenceScore is reduced by 5 (${aligned.signal.setupConfidenceScore} -> ${conflicted.signal.setupConfidenceScore})`
     );
     assert(
-      conflicted.signal.setupConfidence?.penalties?.includes('1h trend conflict penalty applied: -10'),
+      conflicted.signal.setupConfidence?.penalties?.includes('1h trend conflict penalty applied: -5'),
       'Penalty is logged in setupConfidence telemetry'
     );
-    assert(conflicted.debug?.dbgTrendConflictPenalty === -10, 'Penalty is exposed in debug telemetry');
+    assert(conflicted.debug?.dbgTrendConflictPenalty === -5, 'Penalty is exposed in debug telemetry');
   }
 }
 
 section('1h-conflicted setups still pass through normal risk gates');
 {
-  const lowQuality = generateSignal(makeIndicators({ trend1h: 'DOWN' }), make1mCandles());
-  assert(lowQuality.signal !== null, `Low-quality conflicted setup reaches risk gate (reason: ${lowQuality.debug?.dbgRejectReason})`);
-  if (lowQuality.signal) {
-    const lowRisk = checkRisk(
-      lowQuality.signal,
+  const standardQuality = generateSignal(makeIndicators({ trend1h: 'DOWN' }), make1mCandles());
+  assert(standardQuality.signal !== null, `Conflicted setup reaches risk gate (reason: ${standardQuality.debug?.dbgRejectReason})`);
+  if (standardQuality.signal) {
+    const standardRisk = checkRisk(
+      standardQuality.signal,
       makeBotState(),
       {
-        atr: lowQuality.signal.atr,
+        atr: standardQuality.signal.atr,
         atrAverage: 4.5,
         spread: 0.30,
         currEMA20: 2000,
@@ -282,7 +282,8 @@ section('1h-conflicted setups still pass through normal risk gates');
         trend1h: 'DOWN',
       }
     );
-    assert(lowRisk.includes('Setup confidence score'), `Low-quality conflicted setup fails later confidence gate (got: ${lowRisk})`);
+    assert(standardQuality.signal.setupConfidenceScore >= 55, `Conflicted setup remains above the 55 confidence gate (got: ${standardQuality.signal.setupConfidenceScore})`);
+    assert(standardRisk === 'APPROVED', `Conflicted setup passes when final confidence and RR pass (got: ${standardRisk})`);
   }
 
   const highQuality = generateSignal(makeHighQualityIndicators({ trend1h: 'DOWN' }), make1mCandles());
@@ -301,6 +302,47 @@ section('1h-conflicted setups still pass through normal risk gates');
       }
     );
     assert(highRisk === 'APPROVED', `High-quality conflicted setup can pass if score remains above threshold (got: ${highRisk})`);
+  }
+}
+
+section('Missing prior EMA expansion is confidence penalty, not hard reject');
+{
+  const result = generateSignal(
+    makeHighQualityIndicators({
+      trend1h: 'UP',
+      ema20arr: [2000, 2000, 2000, 2000, 2000, 2000],
+      ema50arr: [1996, 1996, 1996, 1996, 1996, 1996],
+    }),
+    make1mCandles()
+  );
+
+  assert(result.signal !== null, `Missing prior EMA expansion still returns a setup (reason: ${result.debug?.dbgRejectReason})`);
+  assert(result.debug?.dbgRejectReason === null, 'Missing prior EMA expansion is not logged as a hard rejection');
+  assert(result.debug?.rejectStage === null, 'Missing prior EMA expansion does not set rejectStage=regime');
+
+  if (result.signal) {
+    assert(result.signal.emaExpansionMissing === true, 'emaExpansionMissing is logged on signal');
+    assert(result.signal.emaExpansionPenalty === -10, `emaExpansionPenalty is -10 (got ${result.signal.emaExpansionPenalty})`);
+    assert(result.signal.emaExpansionHandledAs === 'CONFIDENCE_PENALTY', `emaExpansionHandledAs is CONFIDENCE_PENALTY (got ${result.signal.emaExpansionHandledAs})`);
+    assert(result.signal.setupConfidence?.penalties?.some(reason => reason.includes('No prior EMA expansion')), 'EMA expansion penalty reason is retained');
+    assert(
+      Number((result.signal.setupConfidence.rawScore - result.signal.setupConfidenceScore).toFixed(2)) === 10,
+      `Final confidence reflects only the -10 EMA expansion penalty (${result.signal.setupConfidence.rawScore} -> ${result.signal.setupConfidenceScore})`
+    );
+
+    const risk = checkRisk(
+      result.signal,
+      makeBotState(),
+      {
+        atr: result.signal.atr,
+        atrAverage: 5.0,
+        spread: 0.30,
+        currEMA20: 2000,
+        currEMA50: 1996,
+        trend1h: 'UP',
+      }
+    );
+    assert(risk === 'APPROVED', `Missing EMA expansion setup can pass if final confidence and RR pass (got: ${risk})`);
   }
 }
 

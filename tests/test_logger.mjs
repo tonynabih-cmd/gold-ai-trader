@@ -91,9 +91,14 @@ assert(CYCLE_LOG_RETENTION_LIMIT >= 5000, `cycle log retention keeps at least 50
   assert(diagnostics.bosBreakDistanceAtr === null, 'missing BOS distance logs null');
   assert(diagnostics.rrCandidate === 2.5, `rrCandidate mirrors setup RR (got ${diagnostics.rrCandidate})`);
   assert(diagnostics.rrThresholdUsed === 2.0, `rrThresholdUsed logs v2 threshold (got ${diagnostics.rrThresholdUsed})`);
-  assert(diagnostics.confidenceThresholdUsed === 65, `confidenceThresholdUsed logs v2 threshold (got ${diagnostics.confidenceThresholdUsed})`);
+  assert(diagnostics.confidenceThresholdUsed === 55, `confidenceThresholdUsed logs v2 threshold (got ${diagnostics.confidenceThresholdUsed})`);
   assert(diagnostics.rrPass === true, 'rrPass logs true when RR meets v2 threshold');
   assert(diagnostics.confidencePass === true, 'confidencePass logs true when setup confidence meets v2 threshold');
+  assert(diagnostics.trendConflict === false, 'trendConflict logs false for aligned setup');
+  assert(diagnostics.trendConflictPenalty === 0, `trendConflictPenalty logs zero when absent (got ${diagnostics.trendConflictPenalty})`);
+  assert(diagnostics.emaExpansionMissing === false, 'emaExpansionMissing logs false when prior expansion exists');
+  assert(diagnostics.emaExpansionPenalty === 0, `emaExpansionPenalty logs zero when prior expansion exists (got ${diagnostics.emaExpansionPenalty})`);
+  assert(diagnostics.penaltyReason === null, 'penaltyReason logs null when no confidence penalty applies');
   assert(diagnostics.rejectStage === null, 'accepted setup has null rejectStage');
 }
 
@@ -122,7 +127,7 @@ section('Null-safe diagnostics');
   assert(diagnostics.lastSwingLow === null, 'missing lastSwingLow logs null');
   assert(diagnostics.bosBreakDistanceAtr === null, 'missing bosBreakDistanceAtr logs null');
   assert(diagnostics.rrThresholdUsed === 2.0, `missing signal still logs rrThresholdUsed (got ${diagnostics.rrThresholdUsed})`);
-  assert(diagnostics.confidenceThresholdUsed === 65, `missing signal still logs confidenceThresholdUsed (got ${diagnostics.confidenceThresholdUsed})`);
+  assert(diagnostics.confidenceThresholdUsed === 55, `missing signal still logs confidenceThresholdUsed (got ${diagnostics.confidenceThresholdUsed})`);
   assert(diagnostics.rrPass === null, 'missing RR logs null rrPass');
   assert(diagnostics.confidencePass === null, 'missing confidence logs null confidencePass');
   assert(diagnostics.strategyVersion === 'v1.5', 'missing signal falls back to active strategyVersion');
@@ -134,14 +139,14 @@ section('RR and confidence calibration logging');
     {
       signal: {
         initialRewardRisk: 1.99,
-        setupConfidenceScore: 64,
+        setupConfidenceScore: 54,
         setupQuality: {
           initialRewardRisk: 1.99,
-          setupConfidenceScore: 64,
+          setupConfidenceScore: 54,
           rewardOk: false,
           confidenceOk: false,
           minRewardR: 2.0,
-          minSetupConfidenceScore: 65,
+          minSetupConfidenceScore: 55,
         },
       },
       indicators: null,
@@ -153,9 +158,47 @@ section('RR and confidence calibration logging');
   );
 
   assert(diagnostics.rrThresholdUsed === 2.0, `rrThresholdUsed is null-safe and calibrated (got ${diagnostics.rrThresholdUsed})`);
-  assert(diagnostics.confidenceThresholdUsed === 65, `confidenceThresholdUsed is null-safe and calibrated (got ${diagnostics.confidenceThresholdUsed})`);
+  assert(diagnostics.confidenceThresholdUsed === 55, `confidenceThresholdUsed is null-safe and calibrated (got ${diagnostics.confidenceThresholdUsed})`);
   assert(diagnostics.rrPass === false, 'rrPass logs false below threshold');
   assert(diagnostics.confidencePass === false, 'confidencePass logs false below threshold');
+
+  const boundary = buildV2Diagnostics(
+    {
+      signal: {
+        initialRewardRisk: 2.0,
+        setupConfidenceScore: 55,
+      },
+      indicators: null,
+      signalDebug: null,
+      reason: null,
+    },
+    null,
+    new Date('2026-05-04T12:30:00.000Z')
+  );
+  assert(boundary.confidenceThresholdUsed === 55, `boundary confidence uses threshold 55 (got ${boundary.confidenceThresholdUsed})`);
+  assert(boundary.confidencePass === true, 'confidencePass logs true at score 55');
+  assert(boundary.rrPass === true, 'rrPass remains true at the unchanged 2.00R threshold');
+}
+
+section('EMA expansion penalty telemetry');
+{
+  const indicators = makeIndicators({
+    ema20arr: [2000, 2000, 2000, 2000, 2000, 2000],
+    ema50arr: [1996, 1996, 1996, 1996, 1996, 1996],
+  });
+  const generated = generateSignal(indicators, []);
+  const diagnostics = buildV2Diagnostics(
+    { signal: generated.signal, indicators, signalDebug: generated.debug, reason: null },
+    indicators.marketRegime,
+    new Date('2026-05-04T12:30:00.000Z')
+  );
+
+  assert(generated.signal !== null, 'missing EMA expansion still produces signal telemetry');
+  assert(diagnostics.emaExpansionMissing === true, 'emaExpansionMissing logs true');
+  assert(diagnostics.emaExpansionPenalty === -10, `emaExpansionPenalty logs -10 (got ${diagnostics.emaExpansionPenalty})`);
+  assert(diagnostics.emaExpansionHandledAs === 'CONFIDENCE_PENALTY', `emaExpansionHandledAs logs CONFIDENCE_PENALTY (got ${diagnostics.emaExpansionHandledAs})`);
+  assert(diagnostics.penaltyReason.includes('No prior EMA expansion'), `penaltyReason includes EMA expansion reason (got ${diagnostics.penaltyReason})`);
+  assert(diagnostics.rejectStage === null, 'EMA expansion penalty does not become a regime hard rejection');
 }
 
 section('Regime threshold telemetry and confidence buckets');
@@ -295,7 +338,7 @@ section('Blocked setup tracking');
     {
       signal,
       tradeExecuted: false,
-      reason: 'SKIP: Setup confidence score 64.00 below minimum 65',
+      reason: 'SKIP: Setup confidence score 54.00 below minimum 55',
       indicators: { lastCandle: { close: 2000 } },
     },
     new Date('2026-05-04T12:00:00.000Z')
@@ -414,7 +457,7 @@ section('Logger export field normalization');
     swingLow: null,
     rrCandidate: null,
     rrThresholdUsed: 2,
-    confidenceThresholdUsed: 65,
+    confidenceThresholdUsed: 55,
     confidenceRaw: null,
     confidenceBucket: null,
     rrPass: null,

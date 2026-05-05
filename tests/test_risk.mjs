@@ -2,6 +2,7 @@
 // Run: node tests/test_risk.mjs
 
 import { checkRisk as checkRiskImpl, MIN_RR_V2, SETUP_CONFIDENCE_MIN_V2 } from '../lib/risk.js';
+import { buildExecutionPolicy } from '../lib/execution_policy.js';
 import { classifyTradingSession } from '../lib/session_filter.js';
 
 let passed = 0;
@@ -404,19 +405,28 @@ section('PF kill switch dominance');
 section('Minimum setup confidence gate');
 {
   assert(MIN_RR_V2 === 2.0, `MIN_RR_V2 is 2.0 (got: ${MIN_RR_V2})`);
-  assert(SETUP_CONFIDENCE_MIN_V2 === 65, `SETUP_CONFIDENCE_MIN_V2 is 65 (got: ${SETUP_CONFIDENCE_MIN_V2})`);
+  assert(SETUP_CONFIDENCE_MIN_V2 === 55, `SETUP_CONFIDENCE_MIN_V2 is 55 (got: ${SETUP_CONFIDENCE_MIN_V2})`);
 
-  const rConfidence64 = checkRisk(makeSignal({ setupConfidenceScore: 64 }), makeBotState(), makeIndicators());
-  assert(rConfidence64.includes('Setup confidence score 64.00 below minimum 65'), `Confidence 64 is blocked (got: ${rConfidence64})`);
+  const rConfidence54 = checkRisk(makeSignal({ setupConfidenceScore: 54 }), makeBotState(), makeIndicators());
+  assert(rConfidence54.includes('Setup confidence score 54.00 below minimum 55'), `Confidence 54 is blocked (got: ${rConfidence54})`);
 
-  const rConfidence65 = checkRisk(makeSignal({ setupConfidenceScore: 65 }), makeBotState(), makeIndicators());
-  assert(rConfidence65 === 'APPROVED', `Confidence 65 is allowed if all other conditions pass (got: ${rConfidence65})`);
+  const rConfidence55 = checkRisk(makeSignal({ setupConfidenceScore: 55 }), makeBotState(), makeIndicators());
+  assert(rConfidence55 === 'APPROVED', `Confidence 55 is allowed if all other conditions pass (got: ${rConfidence55})`);
 
   const rLowReward = checkRisk(makeSignal({ takeProfit: 2019.9 }), makeBotState(), makeIndicators());
   assert(rLowReward.includes('1.9900 (raw 1.990000000000009)R below minimum 2.00R'), `RR 1.99 is blocked (got: ${rLowReward})`);
 
   const rBoundaryReward = checkRisk(makeSignal({ takeProfit: 2020 }), makeBotState(), makeIndicators());
   assert(rBoundaryReward === 'APPROVED', `RR 2.00 is allowed if all other conditions pass (got: ${rBoundaryReward})`);
+
+  const allowedPolicy = buildExecutionPolicy(rConfidence55, 'NORMAL', 12345);
+  assert(allowedPolicy.decision === 'ALLOW', `Execution policy reaches ALLOW only after all risk gates pass (got: ${allowedPolicy.decision})`);
+
+  const lowConfidencePolicy = buildExecutionPolicy(rConfidence54, 'NORMAL', 12345);
+  assert(lowConfidencePolicy.decision === 'BLOCK', `Execution policy blocks below-threshold confidence (got: ${lowConfidencePolicy.decision})`);
+
+  const lowRewardPolicy = buildExecutionPolicy(rLowReward, 'NORMAL', 12345);
+  assert(lowRewardPolicy.decision === 'BLOCK', `Execution policy blocks below-threshold RR (got: ${lowRewardPolicy.decision})`);
 }
 
 // ── Section 17: Approved path ─────────────────────────────────────────────────
