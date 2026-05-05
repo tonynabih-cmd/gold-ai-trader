@@ -1,21 +1,80 @@
 cd C:\Users\Antho\Downloads\gold-trader
 git add .
-git commit -m "fix SL"
+git commit -m "fix UI"
 git pull --rebase origin main
 git push
 npx vercel --prod
 
+Prompt:
 
+You are a trading system log collector.
 
-cd C:\Users\Antho\Downloads\gold-trader
-node scripts/pre_market_readiness_audit.mjs
+Your task is to collect the most recent 10 FULL bot cycles after the latest deployment, focusing on cycles where trading SHOULD occur.
 
+Rules:
+- Do NOT analyze
+- Do NOT summarize
+- Do NOT modify data
+- Return raw structured logs only
 
-cd C:\Users\Antho\Downloads\gold-trader
-node check_today_logs.mjs
+Selection criteria:
+- Include cycles where ALL of the following are true:
+  - isAllowedSession: true
+  - dataFreshnessStatus: FRESH
+  - chartUpdatedThisCycle: true
+- Prefer cycles where ANY of these are present:
+  - signalDetected != NONE
+  - dbgSetupReady: true
+  - setupConfidenceScore is not null
 
+Steps:
 
-cd C:\Users\Antho\Downloads\gold-trader
-npx @openai/codex
+1. Fetch latest logs from /api/logger
+2. Filter using the criteria above
+3. Return the most recent 10 matching cycles
+4. Include ALL fields for each cycle
 
+Ensure these fields are present:
+- time
+- timeUAE
+- sessionName
+- isAllowedSession
+- signalDetected
+- dbgSetupReady
+- rejectStage
+- dbgRejectReason
+- confidenceThresholdUsed
+- setupConfidenceScore
+- confidenceRaw
+- confidencePass
+- rrCandidate
+- rrPass
+- emaExpansionMissing
+- emaExpansionPenalty
+- emaExpansionHandledAs
+- penaltyReason
+- executionPolicy
+- tradeExecuted
+- brokerResponse
+- currentCycleReason
+- regime
+- regimeRejectReason
+- dataFreshnessStatus
+- chartUpdatedThisCycle
+- schedulerSource
+
+Also fetch:
+
+SECTION 2: CURRENT STATE (RAW)
+- Full /api/state JSON
+
+Output format:
+
+SECTION 1: RECENT EXECUTABLE CYCLES (RAW)
+- Array of full cycle objects
+
+SECTION 2: CURRENT STATE (RAW)
+- Full JSON
+
+Do not add any explanation or extra text.
 

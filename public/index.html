@@ -128,6 +128,18 @@
     .health-warn { color:var(--gold); }
     .health-err { color:var(--red); }
 
+    .status-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:5px; font-size:9px; font-family:var(--mono); letter-spacing:0.08em; border:1px solid var(--border); background:var(--bg3); color:var(--text3); }
+    .status-chip.ok { color:var(--green); background:var(--green-bg); border-color:var(--green-border); }
+    .status-chip.warn { color:var(--amber); background:var(--amber-bg); border-color:var(--amber-border); }
+    .status-chip.err { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
+    .monitor-note { font-size:10px; line-height:1.5; color:var(--text2); margin-top:10px; font-family:var(--mono); }
+    .reason-badges { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:5px; }
+    .reason-badge { display:inline-flex; align-items:center; padding:2px 6px; border-radius:4px; font-size:8px; font-family:var(--mono); font-weight:600; letter-spacing:0.06em; text-transform:uppercase; background:var(--bg4); color:var(--text3); border:1px solid var(--border); }
+    .reason-badge.badge-red { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
+    .reason-badge.badge-amber { color:var(--amber); background:var(--amber-bg); border-color:var(--amber-border); }
+    .reason-badge.badge-blue { color:var(--blue); background:var(--blue-bg); border-color:var(--blue-border); }
+    .reason-badge.badge-green { color:var(--green); background:var(--green-bg); border-color:var(--green-border); }
+
     .btn-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
     button { font-family:var(--mono); font-size:11px; padding:8px 16px; border-radius:6px; border:1px solid var(--border2); background:transparent; color:var(--text); cursor:pointer; transition:all 0.15s; }
     button:hover { background:var(--bg3); border-color:var(--gold); }
@@ -283,6 +295,124 @@
     </div>
 
     <div class="card">
+      <div class="card-title">
+        <span>Live Trade Monitor</span>
+        <span id="tradeMonitorStatus" class="status-chip">No open trade</span>
+      </div>
+      <div class="risk-grid">
+        <div class="risk-item">
+          <div class="risk-label">currentR</div>
+          <div class="risk-value" id="currentR">N/A</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">MFE R</div>
+          <div class="risk-value" id="mfeR">N/A</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">MAE R</div>
+          <div class="risk-value" id="maeR">N/A</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">reached1R</div>
+          <div class="risk-value" id="reached1R">N/A</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">reached1_5R</div>
+          <div class="risk-value" id="reached15R">N/A</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">reached2R</div>
+          <div class="risk-value" id="reached2R">N/A</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">BE Trigger</div>
+          <div class="risk-value" id="beTriggerPrice">N/A</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">BE Status</div>
+          <div class="risk-value" id="beStatus">N/A</div>
+        </div>
+      </div>
+      <div class="monitor-note" id="tradeMonitorDetail">No open trade</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Missed Trades Today</div>
+      <div class="risk-grid">
+        <div class="risk-item">
+          <div class="risk-label">missedSetupsToday</div>
+          <div class="risk-value" id="missedSetupsToday">N/A</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">bestMissedScore</div>
+          <div class="risk-value" id="bestMissedScore">N/A</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">avgMissedScore</div>
+          <div class="risk-value" id="avgMissedScore">N/A</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">missedByKillSwitch</div>
+          <div class="risk-value" id="missedByKillSwitch">N/A</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">missedByCandleTiming</div>
+          <div class="risk-value" id="missedByCandleTiming">N/A</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">missedByConfidence</div>
+          <div class="risk-value" id="missedByConfidence">N/A</div>
+        </div>
+        <div class="risk-item">
+          <div class="risk-label">missedByOutsideSession</div>
+          <div class="risk-value" id="missedByOutsideSession">N/A</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <span>Kill Switch Status</span>
+        <span id="killSwitchBadge" class="status-chip">N/A</span>
+      </div>
+      <div class="health-grid">
+        <div class="health-row">
+          <span class="health-label">Reason</span>
+          <span class="health-val" id="killSwitchReason">N/A</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">PF5</span>
+          <span class="health-val" id="killSwitchPf5">N/A</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">Reset condition</span>
+          <span class="health-val" id="killSwitchReset">N/A</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <span>Session Status</span>
+        <span id="sessionBadge" class="status-chip">N/A</span>
+      </div>
+      <div class="health-grid">
+        <div class="health-row">
+          <span class="health-label">sessionName</span>
+          <span class="health-val" id="sessionName">N/A</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">isAllowedSession</span>
+          <span class="health-val" id="sessionAllowed">N/A</span>
+        </div>
+        <div class="health-row">
+          <span class="health-label">sessionRejectReason</span>
+          <span class="health-val" id="sessionReject">N/A</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-title">Risk Panel</div>
       <div class="risk-grid">
         <div class="risk-item">
@@ -401,6 +531,347 @@ function formatDubaiTime(ts) {
   return new Date(ts).toLocaleString('en-US', { timeZone: 'Asia/Dubai' });
 }
 
+function finiteNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function firstFinite(...values) {
+  for (const value of values) {
+    const num = finiteNumber(value);
+    if (num !== null) return num;
+  }
+  return null;
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value === null || value === undefined || value === '' ? 'N/A' : String(value);
+}
+
+function setRiskValue(id, value, tone = '') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = value === null || value === undefined || value === '' ? 'N/A' : String(value);
+  el.className = 'risk-value' + (tone ? ' ' + tone : '');
+}
+
+function setHealthValue(id, value, tone = '') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = value === null || value === undefined || value === '' ? 'N/A' : String(value);
+  el.className = 'health-val' + (tone ? ' ' + tone : '');
+}
+
+function setStatusChip(id, label, tone = '') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = label || 'N/A';
+  el.className = 'status-chip' + (tone ? ' ' + tone : '');
+}
+
+function formatR(value, signed = true) {
+  const num = finiteNumber(value);
+  if (num === null) return 'N/A';
+  const prefix = signed && num > 0 ? '+' : '';
+  return prefix + num.toFixed(2) + 'R';
+}
+
+function formatScore(value) {
+  const num = finiteNumber(value);
+  return num === null ? 'N/A' : num.toFixed(2);
+}
+
+function formatPrice(value) {
+  const num = finiteNumber(value);
+  return num === null ? 'N/A' : '$' + num.toFixed(2);
+}
+
+function formatBool(value) {
+  if (value === true) return 'YES';
+  if (value === false) return 'NO';
+  return 'N/A';
+}
+
+function normalizeAction(value) {
+  const action = String(value || '').toUpperCase();
+  return action === 'BUY' || action === 'SELL' ? action : null;
+}
+
+function getLatestLog(logs) {
+  if (!Array.isArray(logs) || logs.length === 0) return null;
+  return [...logs]
+    .filter(log => log && typeof log === 'object')
+    .sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))[0] || null;
+}
+
+function getPrimaryOpenTrade(state) {
+  const openTrades = Array.isArray(state?.openTrades) ? state.openTrades.filter(Boolean) : [];
+  if (!openTrades.length) return null;
+  return [...openTrades].sort((a, b) => Number(b.openedAt || 0) - Number(a.openedAt || 0))[0];
+}
+
+function getTradeAudit(trade) {
+  return trade?.audit && typeof trade.audit === 'object' ? trade.audit : {};
+}
+
+function getInitialRiskDistance(trade) {
+  const audit = getTradeAudit(trade);
+  const entry = firstFinite(trade?.entry, trade?.entryPrice, trade?.actualFillPrice);
+  const action = normalizeAction(trade?.action ?? trade?.direction);
+  const initialStop = firstFinite(trade?.initialStopLoss, audit.initialStopLoss);
+  const currentStop = firstFinite(trade?.stopLoss);
+  const explicit = firstFinite(trade?.initialRiskDistance, audit.initialRiskDistance);
+  if (explicit !== null && explicit > 0) return explicit;
+  if (entry !== null && initialStop !== null) return Math.abs(entry - initialStop);
+  if (entry !== null && currentStop !== null) {
+    const stopStillOnRiskSide = action === 'BUY' ? currentStop < entry : action === 'SELL' ? currentStop > entry : false;
+    if (stopStillOnRiskSide) return Math.abs(entry - currentStop);
+  }
+  return null;
+}
+
+function getLatestDashboardPrice(state, logs) {
+  const chartPoints = Array.isArray(state?.dashboardChart) ? state.dashboardChart : [];
+  for (let i = chartPoints.length - 1; i >= 0; i--) {
+    const price = finiteNumber(chartPoints[i]?.price);
+    if (price !== null) return price;
+  }
+
+  const sortedLogs = Array.isArray(logs)
+    ? [...logs].sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))
+    : [];
+  for (const log of sortedLogs) {
+    const price = firstFinite(log?.goldPrice, log?.price);
+    if (price !== null) return price;
+  }
+  return null;
+}
+
+function getCurrentRForTrade(trade, state, logs) {
+  const action = normalizeAction(trade?.action ?? trade?.direction);
+  const entry = firstFinite(trade?.entry, trade?.entryPrice, trade?.actualFillPrice);
+  const riskDistance = getInitialRiskDistance(trade);
+  const price = getLatestDashboardPrice(state, logs);
+  if (!action || entry === null || riskDistance === null || riskDistance <= 0 || price === null) return null;
+  return action === 'BUY' ? (price - entry) / riskDistance : (entry - price) / riskDistance;
+}
+
+function getBreakEvenInfo(state, logs) {
+  const trade = getPrimaryOpenTrade(state);
+  if (!trade) return { trade: null, trigger: null, status: 'N/A', currentR: null };
+  const action = normalizeAction(trade?.action ?? trade?.direction);
+  const entry = firstFinite(trade?.entry, trade?.entryPrice, trade?.actualFillPrice);
+  const riskDistance = getInitialRiskDistance(trade);
+  const currentR = getCurrentRForTrade(trade, state, logs);
+  const audit = getTradeAudit(trade);
+  const trigger = action && entry !== null && riskDistance !== null && riskDistance > 0
+    ? action === 'BUY' ? entry + riskDistance : entry - riskDistance
+    : null;
+  let status = 'Waiting';
+  if (trade?.breakEvenMoved === true || audit.reached1R === true || (currentR !== null && currentR >= 1)) {
+    status = 'Triggered';
+  } else if (currentR !== null) {
+    status = 'Not reached';
+  }
+  return { trade, trigger, status, currentR };
+}
+
+function getLastClosedTradeR(state, logs) {
+  const outcomes = Array.isArray(state?.recentOutcomes) ? state.recentOutcomes : [];
+  const sortedOutcomes = [...outcomes].sort((a, b) => Number(b.closedAt || 0) - Number(a.closedAt || 0));
+  for (const outcome of sortedOutcomes) {
+    const r = firstFinite(outcome?.exitAudit?.realizedR, outcome?.realizedR, outcome?.audit?.exitAudit?.realizedR);
+    if (r !== null) return r;
+  }
+
+  const sortedLogs = Array.isArray(logs)
+    ? [...logs].sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))
+    : [];
+  for (const log of sortedLogs) {
+    const r = firstFinite(log?.exitAudit?.realizedR, log?.realizedR);
+    if (r !== null) return r;
+  }
+  return null;
+}
+
+function classifyBlockReasons(reason, log = {}) {
+  const raw = String(reason || '');
+  const lower = raw.toLowerCase();
+  const tags = [];
+  const add = (label) => { if (!tags.includes(label)) tags.push(label); };
+
+  if (lower.includes('kill switch') || lower.includes('rolling 5-trade profit factor') || lower.includes('bot disabled') || lower.includes('critical failure') || lower.includes('hard stop') || lower.startsWith('disable:') || (lower.startsWith('pause:') && (lower.includes('profit factor') || lower.includes('cooldown after stop loss')))) add('Kill Switch');
+  if (lower.includes('settlement') || lower.includes('duplicate candle') || lower.includes('already processed') || lower.includes('confirmation candle') || lower.includes('waiting for confirmation') || lower.includes('candle timing')) add('Candle Timing');
+  if (lower.includes('entry strict') || lower.includes('initial reward/risk') || lower.includes('reward/risk') || lower.includes(' rr ') || lower.includes('signal has invalid') || lower.includes('stop loss is not') || lower.includes('clustering blocked')) add('Entry Strict');
+  if (lower.includes('setup confidence') || lower.includes('confidence low') || (lower.includes('confidence') && (lower.includes('below') || lower.includes('weak') || lower.includes('low')))) add('Confidence Low');
+  if (lower.includes('outside allowed trading session') || lower.includes('outside trading hours') || lower.includes('outside_session') || lower.includes('market closed') || lower.includes('weekend') || lower.includes('session') || lower.includes('sleeping')) add('Outside Session');
+  if (lower.includes('sideways')) add('Sideways Regime');
+  if (lower.includes('dead market') || lower.includes('market regime dead') || lower.includes('regime dead') || lower.includes('atr too low') || lower.includes('low atr') || lower.includes('low volatility')) add('Dead Market');
+  if (lower.includes('spread')) add('Spread Block');
+  if (lower.includes('daily cap') || lower.includes('daily trade') || lower.includes('daily loss') || lower.includes('max trades') || lower.includes('drawdown limit')) add('Daily Cap');
+  if (lower.includes('state integrity') || lower.includes('integrity compromised') || lower.includes('critical_save') || lower.includes('reconciliation failed') || lower.includes('lock ownership lost')) add('State Integrity');
+  if (lower.includes('no signal generated') || lower.includes('no clear signal') || lower.includes('no target setup') || (String(log?.signalDetected || '').toUpperCase() === 'NONE' && !tags.length)) add('No Signal');
+
+  return tags;
+}
+
+function reasonBadgeClass(label) {
+  if (['Kill Switch', 'Outside Session', 'Spread Block', 'Daily Cap', 'State Integrity'].includes(label)) return 'badge-red';
+  if (['Candle Timing', 'Entry Strict', 'Confidence Low'].includes(label)) return 'badge-amber';
+  if (['Sideways Regime', 'Dead Market'].includes(label)) return 'badge-blue';
+  if (label === 'No Signal') return '';
+  return 'badge-green';
+}
+
+function renderReasonBadges(reason, log = {}) {
+  const tags = classifyBlockReasons(reason, log);
+  if (!tags.length) return '';
+  const badges = tags
+    .map(label => `<span class="reason-badge ${reasonBadgeClass(label)}">${escapeHtml(label)}</span>`)
+    .join('');
+  return `<span class="reason-badges">${badges}</span>`;
+}
+
+function getSetupScore(log) {
+  return firstFinite(log?.setupConfidenceScore, log?.dbgSetupConfidenceScore);
+}
+
+function isMissedValidSetup(log) {
+  if (!log || typeof log !== 'object' || log.tradeExecuted !== false) return false;
+  return log.setupConfidenceScore !== null && log.setupConfidenceScore !== undefined || log.dbgSetupReady === true;
+}
+
+function isTodayDubaiLog(log) {
+  if (!log?.time) return false;
+  const date = new Date(log.time);
+  if (Number.isNaN(date.getTime())) return false;
+  return getDubaiDateString(date) === getDubaiDateString();
+}
+
+function renderTradeMonitor(state, logs) {
+  const beInfo = getBreakEvenInfo(state, logs);
+  const trade = beInfo.trade;
+  const metricIds = ['currentR', 'mfeR', 'maeR', 'reached1R', 'reached15R', 'reached2R', 'beTriggerPrice', 'beStatus'];
+
+  if (!trade) {
+    metricIds.forEach(id => setRiskValue(id, 'N/A'));
+    setStatusChip('tradeMonitorStatus', 'No open trade');
+    const lastClosedR = getLastClosedTradeR(state, logs);
+    setText('tradeMonitorDetail', 'No open trade | Last closed trade R: ' + formatR(lastClosedR));
+    return;
+  }
+
+  const audit = getTradeAudit(trade);
+  const action = normalizeAction(trade?.action ?? trade?.direction) || 'N/A';
+  const currentR = firstFinite(beInfo.currentR, trade?.currentR, audit.currentR, audit.stopMoveEvents?.at?.(-1)?.currentR);
+  const mfeR = firstFinite(trade?.maxFavorableR, audit.maxFavorableR, audit.mfeR, trade?.takenTradeMfeR);
+  const maeR = firstFinite(trade?.maxAdverseR, audit.maxAdverseR, audit.maeR, trade?.takenTradeMaeR);
+
+  setStatusChip('tradeMonitorStatus', 'OPEN TRADE', 'ok');
+  setRiskValue('currentR', formatR(currentR), currentR === null ? '' : currentR >= 0 ? 't-pos' : 't-neg');
+  setRiskValue('mfeR', formatR(mfeR, false), mfeR === null ? '' : 't-pos');
+  setRiskValue('maeR', formatR(maeR, false), maeR === null ? '' : maeR > 0 ? 't-neg' : '');
+  setRiskValue('reached1R', formatBool(audit.reached1R), audit.reached1R === true ? 't-pos' : audit.reached1R === false ? 't-muted' : '');
+  setRiskValue('reached15R', formatBool(audit.reached1_5R), audit.reached1_5R === true ? 't-pos' : audit.reached1_5R === false ? 't-muted' : '');
+  setRiskValue('reached2R', formatBool(audit.reached2R), audit.reached2R === true ? 't-pos' : audit.reached2R === false ? 't-muted' : '');
+  setRiskValue('beTriggerPrice', formatPrice(beInfo.trigger));
+  setRiskValue('beStatus', beInfo.status, beInfo.status === 'Triggered' ? 't-pos' : beInfo.status === 'Not reached' ? 't-muted' : 't-warn');
+
+  const size = finiteNumber(trade?.size);
+  const entry = firstFinite(trade?.entry, trade?.entryPrice, trade?.actualFillPrice);
+  const deal = trade?.dealId ? String(trade.dealId).slice(-8) : 'N/A';
+  setText('tradeMonitorDetail', `${action} ${size === null ? 'N/A' : size + 'oz'} @ ${formatPrice(entry)} | Deal: ${deal}`);
+}
+
+function renderMissedTrades(logs) {
+  const hasLogs = Array.isArray(logs) && logs.length > 0;
+  const ids = ['missedSetupsToday', 'bestMissedScore', 'avgMissedScore', 'missedByKillSwitch', 'missedByCandleTiming', 'missedByConfidence', 'missedByOutsideSession'];
+  if (!hasLogs) {
+    ids.forEach(id => setRiskValue(id, 'N/A'));
+    return;
+  }
+
+  const missed = logs.filter(log => isTodayDubaiLog(log) && isMissedValidSetup(log));
+  const scores = missed.map(getSetupScore).filter(score => score !== null);
+  const countBy = (label) => missed.filter(log => classifyBlockReasons(log?.reason, log).includes(label)).length;
+  const best = scores.length ? Math.max(...scores) : null;
+  const avg = scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
+
+  setRiskValue('missedSetupsToday', missed.length);
+  setRiskValue('bestMissedScore', formatScore(best));
+  setRiskValue('avgMissedScore', formatScore(avg));
+  setRiskValue('missedByKillSwitch', countBy('Kill Switch'));
+  setRiskValue('missedByCandleTiming', countBy('Candle Timing'));
+  setRiskValue('missedByConfidence', countBy('Confidence Low'));
+  setRiskValue('missedByOutsideSession', countBy('Outside Session'));
+}
+
+function renderKillSwitchStatus(state, logs) {
+  const latest = getLatestLog(logs);
+  const expectancyKill = state?.expectancyKillSwitch && typeof state.expectancyKillSwitch === 'object'
+    ? state.expectancyKillSwitch
+    : {};
+  const directionalCircuit = state?.directionalLossCircuit && typeof state.directionalLossCircuit === 'object'
+    ? state.directionalLossCircuit
+    : {};
+  const activeDirections = Object.entries(directionalCircuit)
+    .filter(([, circuit]) => circuit?.active === true)
+    .map(([direction]) => direction);
+  const latestTags = classifyBlockReasons(latest?.reason, latest || {});
+  const hardStopActive = state?.botEnabled === false || state?.criticalFailure === true || state?.stateIntegrityOk === false;
+  const active = hardStopActive || expectancyKill.active === true || activeDirections.length > 0 || latestTags.includes('Kill Switch');
+  const pf5 = firstFinite(state?.rollingProfitFactor5, latest?.rollingProfitFactor5);
+
+  let reason = 'N/A';
+  if (state?.criticalFailureReason) reason = state.criticalFailureReason;
+  else if (expectancyKill.active === true) reason = state?.performanceReviewReason || latest?.reason || 'PF5 expectancy kill switch active';
+  else if (activeDirections.length > 0) reason = 'Directional loss circuit active: ' + activeDirections.join(', ');
+  else if (hardStopActive) reason = state?.performanceReviewReason || latest?.reason || 'Bot disabled or state blocked';
+  else if (latestTags.includes('Kill Switch')) reason = latest?.reason;
+
+  let resetCondition = 'N/A';
+  if (expectancyKill.active === true) {
+    resetCondition = '1h trend reset / 24h expiry / 6h quality re-entry';
+  } else if (activeDirections.length > 0) {
+    resetCondition = '1h trend reset';
+  } else if (expectancyKill.resetReason === 'TREND_CHANGE') {
+    resetCondition = '1h trend reset';
+  } else if (expectancyKill.resetReason === 'COOLDOWN_EXPIRED') {
+    resetCondition = '24h expiry';
+  } else if (expectancyKill.resetReason === 'QUALITY_REENTRY') {
+    resetCondition = '6h quality re-entry';
+  }
+
+  setStatusChip('killSwitchBadge', active ? 'ACTIVE' : 'INACTIVE', active ? 'err' : 'ok');
+  setHealthValue('killSwitchReason', reason, active ? 'health-err' : '');
+  setHealthValue('killSwitchPf5', pf5 === null ? 'N/A' : pf5.toFixed(2), pf5 !== null && pf5 < 0.7 ? 'health-err' : '');
+  setHealthValue('killSwitchReset', resetCondition, resetCondition === 'N/A' ? '' : 'health-warn');
+}
+
+function renderSessionStatus(logs) {
+  const latest = getLatestLog(logs);
+  const sessionName = latest?.sessionName ?? null;
+  const allowed = latest?.isAllowedSession;
+  const rejectReason = latest?.sessionRejectReason ?? null;
+  const isRollover = String(sessionName || '').toUpperCase().includes('ROLLOVER');
+  const tone = allowed === true ? 'ok' : isRollover ? 'warn' : allowed === false ? 'err' : '';
+  const valueClass = allowed === true ? 'health-ok' : isRollover ? 'health-warn' : allowed === false ? 'health-err' : '';
+
+  setStatusChip('sessionBadge', sessionName || 'N/A', tone);
+  setHealthValue('sessionName', sessionName || 'N/A', valueClass);
+  setHealthValue('sessionAllowed', allowed === true ? 'true' : allowed === false ? 'false' : 'N/A', valueClass);
+  setHealthValue('sessionReject', rejectReason || 'N/A', rejectReason ? valueClass : '');
+}
+
+function renderMonitoringPanels(state, logs, meta) {
+  renderTradeMonitor(state, logs);
+  renderMissedTrades(logs);
+  renderKillSwitchStatus(state, logs);
+  renderSessionStatus(logs);
+}
+
 function initChart() {
   const ctx = document.getElementById('priceChart').getContext('2d');
   chart = new Chart(ctx, {
@@ -435,6 +906,16 @@ function initChart() {
           pointRadius: 0,
           borderDash: [3, 3],
           tension: 0.3,
+          fill: false
+        },
+        {
+          label: 'BE Trigger',
+          data: [],
+          borderColor: '#f59e0b',
+          borderWidth: 1,
+          pointRadius: 0,
+          borderDash: [5, 5],
+          tension: 0,
           fill: false
         }
       ]
@@ -499,11 +980,11 @@ async function refreshDashboard() {
     lastDashboardMeta = data.dashboardMeta || null;
     renderState(data.state, data.dashboardMeta || null);
     renderEnv(data.env || 'demo');
-    if (data.logs && data.logs.length > 0) {
-      lastLogs = data.logs;
-      renderLogs(data.logs, data.dashboardMeta || null, data.state);
-      renderChartFromLogs(data.logs, data.state, data.dashboardMeta || null);
-    }
+    const logs = Array.isArray(data.logs) ? data.logs : [];
+    lastLogs = logs;
+    renderLogs(logs, data.dashboardMeta || null, data.state);
+    renderMonitoringPanels(data.state, logs, data.dashboardMeta || null);
+    renderChartFromLogs(logs, data.state, data.dashboardMeta || null);
     renderAudit(data.lastAudit, data.dailyAuditHistory || []);
   } catch(e) {
     console.error('Dashboard error:', e);
@@ -813,9 +1294,9 @@ function renderLogs(logs, meta, state) {
     if(action === 'NONE' || action === 'SKIP') action = 'NO SIGNAL';
     if(action === 'ERROR') action = 'ERROR';
     
-    let actionHtml = action;
+    let actionHtml = escapeHtml(action);
     if (t.entryType) {
-        actionHtml += `<span style="display:block;font-size:8px;opacity:0.75;margin-top:2px;">${t.entryType}</span>`;
+        actionHtml += `<span style="display:block;font-size:8px;opacity:0.75;margin-top:2px;">${escapeHtml(t.entryType)}</span>`;
     }
 
     let typeClass = 't-muted';
@@ -837,7 +1318,7 @@ function renderLogs(logs, meta, state) {
         reasonColorClass = 't-warn';
     }
 
-    let renderReason = cleanReason;
+    let renderReason = escapeHtml(cleanReason);
     
     const keyPhrases = ['Stale market data', 'Market closed', 'Spread too high', 'Risk limit', 'Drawdown limit', 'Missing data', 'Outside trading hours', 'Spread threshold exceeded'];
     keyPhrases.forEach(kp => {
@@ -850,6 +1331,8 @@ function renderLogs(logs, meta, state) {
     if (t._compressedCount) {
         renderReason += ` <span style="color:var(--gold-light);font-weight:600;font-size:10px;margin-left:4px;">(x${t._compressedCount})</span>`;
     }
+
+    const reasonBadges = renderReasonBadges(cleanReason, t);
 
     const isTradeAction = (t.tradeExecuted || action.includes('BUY') || action.includes('SELL'));
     
@@ -882,7 +1365,7 @@ function renderLogs(logs, meta, state) {
         <span class="${typeClass}" style="line-height:1.1;">${actionHtml}</span>
         <span class="t-muted">${size}</span>
         <span class="t-muted">${price}</span>
-        <span class="trade-reason ${reasonColorClass}" title="${cleanReason}">${renderReason}${inlineDebug}</span>
+        <span class="trade-reason ${reasonColorClass}" title="${escapeHtml(cleanReason)}">${reasonBadges}${renderReason}${inlineDebug}</span>
       </div>
     </div>`;
   }).join('');
@@ -952,7 +1435,13 @@ function renderChartFromLogs(logs, state, meta) {
   // EMA 50 Dataset (Red)
   chart.data.datasets[2].data = ema50s;
 
-  const validPrices = [...prices, ...ema20s.filter(v=>v), ...ema50s.filter(v=>v)];
+  const beInfo = getBreakEvenInfo(state, logs);
+  const beLine = beInfo.trigger !== null ? labels.map(() => beInfo.trigger) : [];
+  if (chart.data.datasets[3]) {
+    chart.data.datasets[3].data = beLine;
+  }
+
+  const validPrices = [...prices, ...ema20s.filter(v=>v), ...ema50s.filter(v=>v), ...beLine.filter(v=>v)];
   const min = Math.min(...validPrices);
   const max = Math.max(...validPrices);
   const pad = (max - min) * 0.1 || 5;
