@@ -32,14 +32,17 @@
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
     .market-time { font-size:11px; color:var(--text2); font-family:var(--mono); }
 
-    .main { max-width:1200px; margin:0 auto; padding:20px 24px; display:grid; grid-template-columns:1fr 320px; gap:16px; }
-    .left { display:flex; flex-direction:column; gap:14px; }
-    .right { display:flex; flex-direction:column; gap:14px; }
+    .main { max-width:1440px; margin:0 auto; padding:18px 22px; display:grid; grid-template-columns:minmax(0, 1fr) minmax(390px, 430px); gap:18px; align-items:start; }
+    .left { display:flex; flex-direction:column; gap:14px; min-width:0; }
+    .right { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; align-content:start; min-width:0; }
+    .right > .card { min-width:0; }
+    .sidebar-full { grid-column:1 / -1; }
 
-    .card { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:16px; }
-    .card-title { font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:var(--text2); margin-bottom:14px; font-family:var(--mono); display:flex; justify-content:space-between; align-items:center; }
+    .card { background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:14px; }
+    .compact-card { padding:12px; }
+    .card-title { font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:var(--text2); margin-bottom:12px; font-family:var(--mono); display:flex; justify-content:space-between; align-items:center; gap:10px; }
 
-    .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+    .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
     .metric { background:var(--bg2); padding:14px 16px; }
     .metric-label { font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); margin-bottom:6px; font-family:var(--mono); }
     .metric-value { font-size:22px; font-weight:500; color:var(--text); font-family:var(--mono); }
@@ -99,12 +102,16 @@
     .setup-banner-text { line-height: 1.4; }
     .setup-banner-sub { font-size: 10px; color: rgba(245,158,11,0.7); margin-top: 1px; }
 
-    .trade-header { display:grid; grid-template-columns:80px 70px 60px 70px 1fr; gap:8px; padding:0 0 8px; border-bottom:1px solid var(--border); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); font-family:var(--mono); }
-    .trade-row-container { padding:12px 0; border-bottom:1px solid rgba(201,168,76,0.15); }
+    .trade-header { display:grid; grid-template-columns:72px 72px 56px 72px 1fr; gap:8px; padding:0 0 8px; border-bottom:1px solid var(--border); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); font-family:var(--mono); }
+    .trade-row-container { padding:8px 0; border-bottom:1px solid rgba(201,168,76,0.12); }
     .trade-row-container:last-child { border-bottom:none; }
-    .trade-row { display:grid; grid-template-columns:80px 70px 60px 70px 1fr; gap:8px; font-size:11px; align-items:start; font-family:var(--mono); }
-    .trade-reason { white-space:normal; word-break:break-word; line-height:1.4; display:block; padding-right:4px; }
-    #tradeLog { max-height:550px; overflow-y:auto; padding-right:8px; }
+    .trade-row { display:grid; grid-template-columns:72px 72px 56px 72px 1fr; gap:8px; font-size:10.5px; align-items:center; font-family:var(--mono); }
+    .trade-reason { white-space:normal; word-break:break-word; line-height:1.35; display:block; padding-right:4px; }
+    #tradeLog { max-height:520px; overflow-y:auto; padding-right:8px; }
+    .trade-row-container.row-executed { border-left:2px solid var(--green); padding-left:8px; margin-left:-8px; background:linear-gradient(90deg, rgba(61,158,95,0.08), transparent 70%); border-radius:6px; }
+    .trade-row-container.row-valid-block { border-left:2px solid var(--amber); padding-left:8px; margin-left:-8px; background:linear-gradient(90deg, rgba(245,158,11,0.07), transparent 70%); border-radius:6px; }
+    .trade-row-container.row-kill { border-left:2px solid var(--red); padding-left:8px; margin-left:-8px; background:linear-gradient(90deg, rgba(192,57,43,0.08), transparent 70%); border-radius:6px; }
+    .trade-row-container.row-candle { border-left:2px solid var(--gold); padding-left:8px; margin-left:-8px; background:linear-gradient(90deg, rgba(201,168,76,0.07), transparent 70%); border-radius:6px; }
     
     .t-buy { color:var(--green); font-weight:500; }
     .t-sell { color:var(--red); font-weight:500; }
@@ -114,31 +121,53 @@
     .t-neg { color:var(--red); }
     .t-muted { color:var(--text2); }
     .empty-log { text-align:center; padding:2rem 0; font-size:12px; color:var(--text2); font-family:var(--mono); }
+    .log-action-chip { display:inline-flex; align-items:center; justify-content:center; padding:2px 6px; border-radius:4px; border:1px solid var(--border); background:var(--bg3); font-size:9px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; line-height:1.1; }
+    .log-action-chip.buy { color:var(--green); background:var(--green-bg); border-color:var(--green-border); }
+    .log-action-chip.sell { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
+    .log-action-chip.error { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
+    .log-entry-type { display:block; font-size:8px; color:var(--text2); margin-top:2px; line-height:1.1; }
 
     .decision-badge { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:500; padding:5px 12px; border-radius:5px; margin-bottom:0; letter-spacing:0.08em; text-transform:uppercase; font-family:var(--mono); }
     .dec-buy { background:var(--green-bg); color:var(--green); border:1px solid var(--green-border); }
     .dec-sell { background:var(--red-bg); color:var(--red); border:1px solid var(--red-border); }
     .dec-skip { background:var(--bg3); color:var(--text2); border:1px solid var(--border); }
 
-    .health-grid { display:flex; flex-direction:column; gap:8px; }
-    .health-row { display:flex; justify-content:space-between; align-items:center; font-size:11px; }
+    .health-grid { display:flex; flex-direction:column; gap:7px; }
+    .health-row { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; font-size:11px; }
     .health-label { color:var(--text2); font-family:var(--mono); }
-    .health-val { font-family:var(--mono); font-size:11px; }
+    .health-val { font-family:var(--mono); font-size:11px; text-align:right; line-height:1.35; }
     .health-ok { color:var(--green); }
     .health-warn { color:var(--gold); }
     .health-err { color:var(--red); }
 
-    .status-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:5px; font-size:9px; font-family:var(--mono); letter-spacing:0.08em; border:1px solid var(--border); background:var(--bg3); color:var(--text3); }
+    .status-card .status-chip, .monitor-card .status-chip { font-size:10px; padding:5px 9px; }
+    .status-chip { display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:5px; font-size:9px; font-family:var(--mono); letter-spacing:0.08em; border:1px solid var(--border); background:var(--bg3); color:var(--text3); text-transform:uppercase; white-space:nowrap; }
     .status-chip.ok { color:var(--green); background:var(--green-bg); border-color:var(--green-border); }
     .status-chip.warn { color:var(--amber); background:var(--amber-bg); border-color:var(--amber-border); }
     .status-chip.err { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
-    .monitor-note { font-size:10px; line-height:1.5; color:var(--text2); margin-top:10px; font-family:var(--mono); }
-    .reason-badges { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:5px; }
-    .reason-badge { display:inline-flex; align-items:center; padding:2px 6px; border-radius:4px; font-size:8px; font-family:var(--mono); font-weight:600; letter-spacing:0.06em; text-transform:uppercase; background:var(--bg4); color:var(--text3); border:1px solid var(--border); }
+    .monitor-note { font-size:10px; line-height:1.45; color:var(--text2); margin-top:9px; font-family:var(--mono); }
+    .reason-badges { display:inline-flex; gap:4px; flex-wrap:wrap; margin:0 6px 0 0; vertical-align:middle; }
+    .reason-badge { display:inline-flex; align-items:center; padding:1px 5px; border-radius:4px; font-size:8px; font-family:var(--mono); font-weight:600; letter-spacing:0.06em; text-transform:uppercase; background:var(--bg4); color:var(--text3); border:1px solid var(--border); }
     .reason-badge.badge-red { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
     .reason-badge.badge-amber { color:var(--amber); background:var(--amber-bg); border-color:var(--amber-border); }
     .reason-badge.badge-blue { color:var(--blue); background:var(--blue-bg); border-color:var(--blue-border); }
     .reason-badge.badge-green { color:var(--green); background:var(--green-bg); border-color:var(--green-border); }
+
+    .empty-state { display:none; padding:8px 0 2px; font-size:11px; line-height:1.45; color:var(--text3); font-family:var(--mono); }
+    .empty-state.show { display:block; }
+    .mini-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
+    .mini-stat { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:8px 9px; min-width:0; }
+    .mini-stat-label { font-size:8.5px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text2); margin-bottom:5px; font-family:var(--mono); }
+    .mini-stat-value { font-size:13px; font-weight:500; color:var(--text); font-family:var(--mono); line-height:1.2; overflow-wrap:anywhere; }
+    .monitor-empty-title { font-size:16px; color:var(--text); font-weight:600; margin-bottom:10px; }
+    .monitor-grid.hidden, .hidden { display:none !important; }
+    .diagnostics-details { margin-top:10px; border-top:1px solid var(--border); padding-top:8px; }
+    .diagnostics-details summary { cursor:pointer; color:var(--text2); font-size:9px; text-transform:uppercase; letter-spacing:0.1em; font-family:var(--mono); list-style:none; }
+    .diagnostics-details summary::-webkit-details-marker { display:none; }
+    .diagnostics-details[open] summary { color:var(--gold); margin-bottom:8px; }
+    .detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:9px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; font-family:var(--mono); }
+    .detail-grid div { font-size:10px; color:var(--text2); }
+    .detail-grid span { color:var(--text); }
 
     .btn-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
     button { font-family:var(--mono); font-size:11px; padding:8px 16px; border-radius:6px; border:1px solid var(--border2); background:transparent; color:var(--text); cursor:pointer; transition:all 0.15s; }
@@ -151,17 +180,28 @@
 
     .next-run { font-size:10px; color:var(--text2); margin-top:8px; font-family:var(--mono); }
     
-    .audit-content { font-size:11px; line-height:1.7; color:var(--text3); font-family:var(--mono); }
+    .audit-summary-grid { margin-bottom:8px; }
+    .audit-content { display:none; max-height:330px; overflow:auto; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); font-size:11px; line-height:1.65; color:var(--text3); font-family:var(--mono); }
+    .audit-content.is-open { display:block; }
     .audit-content h1, .audit-content h2, .audit-content h3 { font-family:var(--font); color:var(--text); margin-top:12px; margin-bottom:6px; font-size:13px; }
     .audit-content strong { color:var(--gold-light); font-weight:600; }
     .audit-content ul, .audit-content ol { margin-left:16px; margin-bottom:12px; }
     .audit-content p { margin-bottom:8px; }
 
+    .audit-toggle { padding:4px 8px; font-size:9px; border-radius:5px; }
+    .audit-meta { font-size:10px; color:var(--text2); margin-top:8px; font-family:var(--mono); line-height:1.4; }
+
+    @media(max-width:1100px) {
+      .main { grid-template-columns:1fr; }
+      .right { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    }
     @media(max-width:900px) {
       .main { grid-template-columns:1fr; padding:12px; }
       .metrics { grid-template-columns:repeat(2,1fr); }
       .indicator-bar { grid-template-columns:repeat(2,1fr); }
       .risk-grid { grid-template-columns:1fr 1fr; }
+      .right { grid-template-columns:1fr; }
+      .trade-header, .trade-row { grid-template-columns:62px 68px 48px 64px 1fr; gap:6px; }
     }
     .badge-relaxed { display:inline-flex; align-items:center; gap:4px; font-size:9px; font-weight:600; padding:2px 6px; border-radius:4px; background:var(--amber-bg); color:var(--amber); border:1px solid var(--amber-border); text-transform:uppercase; font-family:var(--mono); letter-spacing:0.04em;}
     .badge-fallback { display:inline-flex; align-items:center; gap:4px; font-size:9px; font-weight:600; padding:2px 6px; border-radius:4px; background:var(--blue-bg); color:var(--blue); border:1px solid var(--blue-border); text-transform:uppercase; font-family:var(--mono); letter-spacing:0.04em;}
@@ -275,144 +315,114 @@
 
   <div class="right">
 
-    <div class="card">
-      <div class="card-title">Last Decision</div>
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <div id="decisionBadge"></div>
-        <div id="decisionStage" style="font-size:10px; padding:3px 8px; border-radius:4px; background:var(--bg3); color:var(--gold-light); font-family:var(--mono); border:1px solid var(--border);">Stage: —</div>
-      </div>
-      <div style="font-size:11px;line-height:1.7;color:var(--text3);font-family:var(--mono);" id="lastReason">Loading...</div>
-      
-      <div id="breakdownPanel" style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:12px; padding:10px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; font-family:var(--mono);">
-         <div style="font-size:10px;color:var(--text2);">Spread: <span id="bdSpread" style="color:var(--text);">—</span></div>
-         <div style="font-size:10px;color:var(--text2);">ATR: <span id="bdAtr" style="color:var(--text);">—</span></div>
-         <div style="font-size:10px;color:var(--text2);">Session: <span id="bdSession" style="color:var(--text);">—</span></div>
-         <div style="font-size:10px;color:var(--text2);">Data: <span id="bdData" style="color:var(--text);">—</span></div>
-      </div>
-
-      <div id="modeBadges" style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;"></div>
-      <div style="font-size:10px;color:var(--text2);margin-top:10px;font-family:var(--mono);" id="lastRunTime">—</div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">
-        <span>Live Trade Monitor</span>
-        <span id="tradeMonitorStatus" class="status-chip">No open trade</span>
-      </div>
-      <div class="risk-grid">
-        <div class="risk-item">
-          <div class="risk-label">currentR</div>
-          <div class="risk-value" id="currentR">N/A</div>
-        </div>
-        <div class="risk-item">
-          <div class="risk-label">MFE R</div>
-          <div class="risk-value" id="mfeR">N/A</div>
-        </div>
-        <div class="risk-item">
-          <div class="risk-label">MAE R</div>
-          <div class="risk-value" id="maeR">N/A</div>
-        </div>
-        <div class="risk-item">
-          <div class="risk-label">reached1R</div>
-          <div class="risk-value" id="reached1R">N/A</div>
-        </div>
-        <div class="risk-item">
-          <div class="risk-label">reached1_5R</div>
-          <div class="risk-value" id="reached15R">N/A</div>
-        </div>
-        <div class="risk-item">
-          <div class="risk-label">reached2R</div>
-          <div class="risk-value" id="reached2R">N/A</div>
-        </div>
-        <div class="risk-item">
-          <div class="risk-label">BE Trigger</div>
-          <div class="risk-value" id="beTriggerPrice">N/A</div>
-        </div>
-        <div class="risk-item">
-          <div class="risk-label">BE Status</div>
-          <div class="risk-value" id="beStatus">N/A</div>
-        </div>
-      </div>
-      <div class="monitor-note" id="tradeMonitorDetail">No open trade</div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Missed Trades Today</div>
-      <div class="risk-grid">
-        <div class="risk-item">
-          <div class="risk-label">missedSetupsToday</div>
-          <div class="risk-value" id="missedSetupsToday">N/A</div>
-        </div>
-        <div class="risk-item">
-          <div class="risk-label">bestMissedScore</div>
-          <div class="risk-value" id="bestMissedScore">N/A</div>
-        </div>
-        <div class="risk-item">
-          <div class="risk-label">avgMissedScore</div>
-          <div class="risk-value" id="avgMissedScore">N/A</div>
-        </div>
-        <div class="risk-item">
-          <div class="risk-label">missedByKillSwitch</div>
-          <div class="risk-value" id="missedByKillSwitch">N/A</div>
-        </div>
-        <div class="risk-item">
-          <div class="risk-label">missedByCandleTiming</div>
-          <div class="risk-value" id="missedByCandleTiming">N/A</div>
-        </div>
-        <div class="risk-item">
-          <div class="risk-label">missedByConfidence</div>
-          <div class="risk-value" id="missedByConfidence">N/A</div>
-        </div>
-        <div class="risk-item">
-          <div class="risk-label">missedByOutsideSession</div>
-          <div class="risk-value" id="missedByOutsideSession">N/A</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">
-        <span>Kill Switch Status</span>
-        <span id="killSwitchBadge" class="status-chip">N/A</span>
-      </div>
-      <div class="health-grid">
-        <div class="health-row">
-          <span class="health-label">Reason</span>
-          <span class="health-val" id="killSwitchReason">N/A</span>
-        </div>
-        <div class="health-row">
-          <span class="health-label">PF5</span>
-          <span class="health-val" id="killSwitchPf5">N/A</span>
-        </div>
-        <div class="health-row">
-          <span class="health-label">Reset condition</span>
-          <span class="health-val" id="killSwitchReset">N/A</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
+    <div class="card compact-card status-card">
       <div class="card-title">
         <span>Session Status</span>
-        <span id="sessionBadge" class="status-chip">N/A</span>
+        <span id="sessionBadge" class="status-chip">No data</span>
       </div>
       <div class="health-grid">
-        <div class="health-row">
-          <span class="health-label">sessionName</span>
-          <span class="health-val" id="sessionName">N/A</span>
+        <div class="empty-state" id="sessionEmpty">No session data</div>
+        <div class="health-row hide-when-empty" id="sessionNameRow">
+          <span class="health-label">Session</span>
+          <span class="health-val" id="sessionName">—</span>
         </div>
-        <div class="health-row">
-          <span class="health-label">isAllowedSession</span>
-          <span class="health-val" id="sessionAllowed">N/A</span>
+        <div class="health-row hide-when-empty" id="sessionAllowedRow">
+          <span class="health-label">Allowed</span>
+          <span class="health-val" id="sessionAllowed">—</span>
         </div>
-        <div class="health-row">
-          <span class="health-label">sessionRejectReason</span>
-          <span class="health-val" id="sessionReject">N/A</span>
+        <div class="health-row hide-when-empty" id="sessionRejectRow">
+          <span class="health-label">Block</span>
+          <span class="health-val" id="sessionReject">—</span>
         </div>
       </div>
     </div>
 
-    <div class="card">
+    <div class="card compact-card status-card">
+      <div class="card-title">
+        <span>Kill Switch Status</span>
+        <span id="killSwitchBadge" class="status-chip">No data</span>
+      </div>
+      <div class="health-grid">
+        <div class="empty-state" id="killSwitchEmpty">No kill switch data</div>
+        <div class="health-row hide-when-empty" id="killSwitchReasonRow">
+          <span class="health-label">Reason</span>
+          <span class="health-val" id="killSwitchReason">—</span>
+        </div>
+        <div class="health-row hide-when-empty" id="killSwitchPf5Row">
+          <span class="health-label">PF5</span>
+          <span class="health-val" id="killSwitchPf5">—</span>
+        </div>
+        <div class="health-row hide-when-empty" id="killSwitchResetRow">
+          <span class="health-label">Reset</span>
+          <span class="health-val" id="killSwitchReset">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card sidebar-full monitor-card">
+      <div class="card-title">
+        <span>Live Trade Monitor</span>
+        <span id="tradeMonitorStatus" class="status-chip">No active trade</span>
+      </div>
+      <div class="empty-state show" id="tradeMonitorEmpty">
+        <div class="monitor-empty-title">No active trade</div>
+        <div class="mini-grid">
+          <div class="mini-stat hide-when-empty" id="lastTradeRItem">
+            <div class="mini-stat-label">Last Trade R</div>
+            <div class="mini-stat-value" id="lastTradeR">—</div>
+          </div>
+          <div class="mini-stat hide-when-empty" id="lastTradeOutcomeItem">
+            <div class="mini-stat-label">Outcome</div>
+            <div class="mini-stat-value" id="lastTradeOutcome">—</div>
+          </div>
+          <div class="mini-stat hide-when-empty" id="lastTradeMfeItem">
+            <div class="mini-stat-label">Last MFE</div>
+            <div class="mini-stat-value" id="lastTradeMfe">—</div>
+          </div>
+          <div class="mini-stat hide-when-empty" id="lastTradeMaeItem">
+            <div class="mini-stat-label">Last MAE</div>
+            <div class="mini-stat-value" id="lastTradeMae">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="risk-grid monitor-grid hidden" id="tradeMonitorGrid">
+        <div class="risk-item hide-when-empty" id="currentRItem">
+          <div class="risk-label">currentR</div>
+          <div class="risk-value" id="currentR">—</div>
+        </div>
+        <div class="risk-item hide-when-empty" id="mfeRItem">
+          <div class="risk-label">MFE R</div>
+          <div class="risk-value" id="mfeR">—</div>
+        </div>
+        <div class="risk-item hide-when-empty" id="maeRItem">
+          <div class="risk-label">MAE R</div>
+          <div class="risk-value" id="maeR">—</div>
+        </div>
+        <div class="risk-item hide-when-empty" id="reached1RItem">
+          <div class="risk-label">reached1R</div>
+          <div class="risk-value" id="reached1R">—</div>
+        </div>
+        <div class="risk-item hide-when-empty" id="reached15RItem">
+          <div class="risk-label">reached1.5R</div>
+          <div class="risk-value" id="reached15R">—</div>
+        </div>
+        <div class="risk-item hide-when-empty" id="reached2RItem">
+          <div class="risk-label">reached2R</div>
+          <div class="risk-value" id="reached2R">—</div>
+        </div>
+        <div class="risk-item hide-when-empty" id="beTriggerPriceItem">
+          <div class="risk-label">BE Trigger</div>
+          <div class="risk-value" id="beTriggerPrice">—</div>
+        </div>
+        <div class="risk-item hide-when-empty" id="beStatusItem">
+          <div class="risk-label">BE Status</div>
+          <div class="risk-value" id="beStatus">—</div>
+        </div>
+      </div>
+      <div class="monitor-note" id="tradeMonitorDetail">No active trade</div>
+    </div>
+
+    <div class="card sidebar-full">
       <div class="card-title">Risk Panel</div>
       <div class="risk-grid">
         <div class="risk-item">
@@ -440,7 +450,28 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card sidebar-full compact-card">
+      <div class="card-title">Last Decision</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;">
+        <div id="decisionBadge"></div>
+        <div id="decisionStage" style="font-size:10px; padding:3px 8px; border-radius:5px; background:var(--bg3); color:var(--gold-light); font-family:var(--mono); border:1px solid var(--border);">Stage: —</div>
+      </div>
+      <div style="font-size:11px;line-height:1.55;color:var(--text3);font-family:var(--mono);" id="lastReason">Loading...</div>
+
+      <details class="diagnostics-details">
+        <summary>Diagnostics</summary>
+        <div id="breakdownPanel" class="detail-grid">
+           <div>Spread: <span id="bdSpread">—</span></div>
+           <div>ATR: <span id="bdAtr">—</span></div>
+           <div>Session: <span id="bdSession">—</span></div>
+           <div>Data: <span id="bdData">—</span></div>
+        </div>
+        <div id="modeBadges" style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;"></div>
+        <div style="font-size:10px;color:var(--text2);margin-top:9px;font-family:var(--mono);line-height:1.4;" id="lastRunTime">—</div>
+      </details>
+    </div>
+
+    <div class="card sidebar-full compact-card">
       <div class="card-title">Margin &amp; Exposure</div>
       <div class="risk-grid">
         <div class="risk-item">
@@ -467,7 +498,42 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card compact-card">
+      <div class="card-title">Missed Trades Today</div>
+      <div class="empty-state" id="missedEmpty">No missed setup data</div>
+      <div class="mini-grid" id="missedGrid">
+        <div class="mini-stat hide-when-empty" id="missedSetupsTodayItem">
+          <div class="mini-stat-label">Setups</div>
+          <div class="mini-stat-value" id="missedSetupsToday">—</div>
+        </div>
+        <div class="mini-stat hide-when-empty" id="bestMissedScoreItem">
+          <div class="mini-stat-label">Best Score</div>
+          <div class="mini-stat-value" id="bestMissedScore">—</div>
+        </div>
+        <div class="mini-stat hide-when-empty" id="avgMissedScoreItem">
+          <div class="mini-stat-label">Avg Score</div>
+          <div class="mini-stat-value" id="avgMissedScore">—</div>
+        </div>
+        <div class="mini-stat hide-when-empty" id="missedByKillSwitchItem">
+          <div class="mini-stat-label">Kill</div>
+          <div class="mini-stat-value" id="missedByKillSwitch">—</div>
+        </div>
+        <div class="mini-stat hide-when-empty" id="missedByCandleTimingItem">
+          <div class="mini-stat-label">Candle</div>
+          <div class="mini-stat-value" id="missedByCandleTiming">—</div>
+        </div>
+        <div class="mini-stat hide-when-empty" id="missedByConfidenceItem">
+          <div class="mini-stat-label">Confidence</div>
+          <div class="mini-stat-value" id="missedByConfidence">—</div>
+        </div>
+        <div class="mini-stat hide-when-empty" id="missedByOutsideSessionItem">
+          <div class="mini-stat-label">Session</div>
+          <div class="mini-stat-value" id="missedByOutsideSession">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card compact-card">
       <div class="card-title">System Health</div>
       <div class="health-grid">
         <div class="health-row">
@@ -483,39 +549,57 @@
           <span class="health-val" id="healthMarket">—</span>
         </div>
         <div class="health-row">
-          <span class="health-label">Trading day</span>
-          <span class="health-val" id="healthDay">—</span>
-        </div>
-        <div class="health-row">
-          <span class="health-label">Current cycle</span>
-          <span class="health-val" id="healthCurrentCycle">—</span>
-        </div>
-        <div class="health-row">
-          <span class="health-label">Last valid data</span>
-          <span class="health-val" id="healthLastValid">—</span>
-        </div>
-        <div class="health-row">
           <span class="health-label">Data freshness</span>
           <span class="health-val" id="healthFreshness">—</span>
-        </div>
-        <div class="health-row">
-          <span class="health-label">Scheduler</span>
-          <span class="health-val" id="healthScheduler">—</span>
         </div>
         <div class="health-row">
           <span class="health-label">Strategy ver</span>
           <span class="health-val health-ok"><span id="stratVer">v1.5</span> <span id="relaxedBadge" class="badge-relaxed" style="display:none; margin-left:8px; font-size:8px;">Relaxed</span></span>
         </div>
+        <details class="diagnostics-details">
+          <summary>More health</summary>
+          <div class="health-grid">
+            <div class="health-row">
+              <span class="health-label">Trading day</span>
+              <span class="health-val" id="healthDay">—</span>
+            </div>
+            <div class="health-row">
+              <span class="health-label">Current cycle</span>
+              <span class="health-val" id="healthCurrentCycle">—</span>
+            </div>
+            <div class="health-row">
+              <span class="health-label">Last valid data</span>
+              <span class="health-val" id="healthLastValid">—</span>
+            </div>
+            <div class="health-row">
+              <span class="health-label">Scheduler</span>
+              <span class="health-val" id="healthScheduler">—</span>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="btn-row">
         <button class="primary" id="refreshBtn" onclick="handleRefresh()">↻ Refresh</button>
       </div>
     </div>
 
-    <div class="card" id="auditCard" style="display:none">
-      <div class="card-title">Daily Audit</div>
+    <div class="card sidebar-full compact-card" id="auditCard" style="display:none">
+      <div class="card-title">
+        <span>Daily Audit</span>
+        <button class="audit-toggle" id="auditToggle" onclick="toggleAuditDetails()">Show details</button>
+      </div>
+      <div class="mini-grid audit-summary-grid" id="auditSummaryGrid">
+        <div class="mini-stat"><div class="mini-stat-label">Cycles</div><div class="mini-stat-value" id="auditCycles">—</div></div>
+        <div class="mini-stat"><div class="mini-stat-label">Trades</div><div class="mini-stat-value" id="auditTrades">—</div></div>
+        <div class="mini-stat"><div class="mini-stat-label">Setups</div><div class="mini-stat-value" id="auditSetups">—</div></div>
+        <div class="mini-stat"><div class="mini-stat-label">PF</div><div class="mini-stat-value" id="auditPf">—</div></div>
+      </div>
+      <div class="mini-stat">
+        <div class="mini-stat-label">Top Blocker</div>
+        <div class="mini-stat-value" id="auditTopBlocker">—</div>
+      </div>
+      <div class="audit-meta" id="auditDate">—</div>
       <div class="audit-content" id="auditReport">—</div>
-      <div style="font-size:10px;color:var(--text2);margin-top:8px;font-family:var(--mono);" id="auditDate">—</div>
     </div>
 
   </div>
@@ -525,6 +609,7 @@
 let chart;
 let lastLogs = [];
 let lastDashboardMeta = null;
+let auditDetailsOpen = false;
 
 function formatDubaiTime(ts) {
   if (!ts) return '—';
@@ -545,53 +630,88 @@ function firstFinite(...values) {
   return null;
 }
 
-function setText(id, value) {
+function isDisplayMissing(value) {
+  return value === null || value === undefined || value === '' || value === 'N/A';
+}
+
+function setHidden(id, hidden) {
   const el = document.getElementById(id);
-  if (el) el.textContent = value === null || value === undefined || value === '' ? 'N/A' : String(value);
+  if (el) el.classList.toggle('hidden', !!hidden);
+}
+
+function setEmptyState(id, show) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('show', !!show);
+}
+
+function syncEmptyWrapper(el, missing) {
+  const wrapper = el?.closest?.('.hide-when-empty');
+  if (wrapper) wrapper.classList.toggle('hidden', !!missing);
+}
+
+function setText(id, value, fallback = '—') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const missing = isDisplayMissing(value);
+  el.textContent = missing ? fallback : String(value);
+  syncEmptyWrapper(el, missing);
 }
 
 function setRiskValue(id, value, tone = '') {
   const el = document.getElementById(id);
   if (!el) return;
-  el.textContent = value === null || value === undefined || value === '' ? 'N/A' : String(value);
+  const missing = isDisplayMissing(value);
+  el.textContent = missing ? '—' : String(value);
   el.className = 'risk-value' + (tone ? ' ' + tone : '');
+  syncEmptyWrapper(el, missing);
 }
 
 function setHealthValue(id, value, tone = '') {
   const el = document.getElementById(id);
   if (!el) return;
-  el.textContent = value === null || value === undefined || value === '' ? 'N/A' : String(value);
+  const missing = isDisplayMissing(value);
+  el.textContent = missing ? '—' : String(value);
   el.className = 'health-val' + (tone ? ' ' + tone : '');
+  syncEmptyWrapper(el, missing);
+}
+
+function setMiniValue(id, value, tone = '') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const missing = isDisplayMissing(value);
+  el.textContent = missing ? '—' : String(value);
+  el.className = 'mini-stat-value' + (tone ? ' ' + tone : '');
+  syncEmptyWrapper(el, missing);
 }
 
 function setStatusChip(id, label, tone = '') {
   const el = document.getElementById(id);
   if (!el) return;
-  el.textContent = label || 'N/A';
+  el.textContent = isDisplayMissing(label) ? 'NO DATA' : String(label);
   el.className = 'status-chip' + (tone ? ' ' + tone : '');
 }
 
 function formatR(value, signed = true) {
   const num = finiteNumber(value);
-  if (num === null) return 'N/A';
+  if (num === null) return null;
   const prefix = signed && num > 0 ? '+' : '';
   return prefix + num.toFixed(2) + 'R';
 }
 
 function formatScore(value) {
   const num = finiteNumber(value);
-  return num === null ? 'N/A' : num.toFixed(2);
+  return num === null ? null : num.toFixed(2);
 }
 
 function formatPrice(value) {
   const num = finiteNumber(value);
-  return num === null ? 'N/A' : '$' + num.toFixed(2);
+  return num === null ? null : '$' + num.toFixed(2);
 }
 
 function formatBool(value) {
   if (value === true) return 'YES';
   if (value === false) return 'NO';
-  return 'N/A';
+  return null;
 }
 
 function normalizeAction(value) {
@@ -660,7 +780,7 @@ function getCurrentRForTrade(trade, state, logs) {
 
 function getBreakEvenInfo(state, logs) {
   const trade = getPrimaryOpenTrade(state);
-  if (!trade) return { trade: null, trigger: null, status: 'N/A', currentR: null };
+  if (!trade) return { trade: null, trigger: null, status: null, currentR: null };
   const action = normalizeAction(trade?.action ?? trade?.direction);
   const entry = firstFinite(trade?.entry, trade?.entryPrice, trade?.actualFillPrice);
   const riskDistance = getInitialRiskDistance(trade);
@@ -696,6 +816,52 @@ function getLastClosedTradeR(state, logs) {
   return null;
 }
 
+function formatOutcomeLabel(outcome, r, pnl) {
+  const raw = outcome?.exitAudit?.exitReasonClass || outcome?.exitReason || outcome?.reason || outcome?.status;
+  if (raw) return String(raw).replace(/_/g, ' ');
+  if (r !== null) return r > 0 ? 'WIN' : r < 0 ? 'LOSS' : 'FLAT';
+  if (pnl !== null) return pnl > 0 ? 'WIN' : pnl < 0 ? 'LOSS' : 'FLAT';
+  return null;
+}
+
+function getLastTradeSnapshot(state, logs) {
+  const outcomes = Array.isArray(state?.recentOutcomes) ? state.recentOutcomes : [];
+  const sortedOutcomes = [...outcomes]
+    .filter(Boolean)
+    .sort((a, b) => Number(b.closedAt || b.closedCandleTime || 0) - Number(a.closedAt || a.closedCandleTime || 0));
+
+  if (sortedOutcomes.length) {
+    const outcome = sortedOutcomes[0];
+    const r = firstFinite(outcome?.exitAudit?.realizedR, outcome?.realizedR, outcome?.audit?.exitAudit?.realizedR);
+    const pnl = firstFinite(outcome?.exitAudit?.realizedPnl, outcome?.pnl, outcome?.realizedPnl);
+    return {
+      r,
+      outcome: formatOutcomeLabel(outcome, r, pnl),
+      mfeR: firstFinite(outcome?.exitAudit?.mfeR, outcome?.audit?.mfeR, outcome?.audit?.exitAudit?.mfeR),
+      maeR: firstFinite(outcome?.exitAudit?.maeR, outcome?.audit?.maeR, outcome?.audit?.exitAudit?.maeR),
+    };
+  }
+
+  const sortedLogs = Array.isArray(logs)
+    ? [...logs].filter(Boolean).sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))
+    : [];
+  const closedLog = sortedLogs.find(log =>
+    log?.entryType === 'closure' ||
+    String(log?.reason || '').startsWith('CLOSED:') ||
+    log?.exitAudit
+  );
+  if (!closedLog) return null;
+
+  const r = firstFinite(closedLog?.exitAudit?.realizedR, closedLog?.realizedR);
+  const pnl = firstFinite(closedLog?.exitAudit?.realizedPnl, closedLog?.pnl);
+  return {
+    r,
+    outcome: formatOutcomeLabel(closedLog, r, pnl),
+    mfeR: firstFinite(closedLog?.exitAudit?.mfeR, closedLog?.mfeR),
+    maeR: firstFinite(closedLog?.exitAudit?.maeR, closedLog?.maeR),
+  };
+}
+
 function classifyBlockReasons(reason, log = {}) {
   const raw = String(reason || '');
   const lower = raw.toLowerCase();
@@ -718,6 +884,8 @@ function classifyBlockReasons(reason, log = {}) {
 }
 
 function reasonBadgeClass(label) {
+  if (label === 'Executed') return 'badge-green';
+  if (label === 'Valid Setup') return 'badge-amber';
   if (['Kill Switch', 'Outside Session', 'Spread Block', 'Daily Cap', 'State Integrity'].includes(label)) return 'badge-red';
   if (['Candle Timing', 'Entry Strict', 'Confidence Low'].includes(label)) return 'badge-amber';
   if (['Sideways Regime', 'Dead Market'].includes(label)) return 'badge-blue';
@@ -727,6 +895,8 @@ function reasonBadgeClass(label) {
 
 function renderReasonBadges(reason, log = {}) {
   const tags = classifyBlockReasons(reason, log);
+  if (log?.tradeExecuted === true && !tags.includes('Executed')) tags.unshift('Executed');
+  if (log?.tradeExecuted !== true && isMissedValidSetup(log) && !tags.includes('Valid Setup')) tags.unshift('Valid Setup');
   if (!tags.length) return '';
   const badges = tags
     .map(label => `<span class="reason-badge ${reasonBadgeClass(label)}">${escapeHtml(label)}</span>`)
@@ -756,15 +926,25 @@ function renderTradeMonitor(state, logs) {
   const metricIds = ['currentR', 'mfeR', 'maeR', 'reached1R', 'reached15R', 'reached2R', 'beTriggerPrice', 'beStatus'];
 
   if (!trade) {
-    metricIds.forEach(id => setRiskValue(id, 'N/A'));
-    setStatusChip('tradeMonitorStatus', 'No open trade');
-    const lastClosedR = getLastClosedTradeR(state, logs);
-    setText('tradeMonitorDetail', 'No open trade | Last closed trade R: ' + formatR(lastClosedR));
+    metricIds.forEach(id => setRiskValue(id, null));
+    setHidden('tradeMonitorGrid', true);
+    setEmptyState('tradeMonitorEmpty', true);
+    setStatusChip('tradeMonitorStatus', 'No active trade');
+
+    const snapshot = getLastTradeSnapshot(state, logs);
+    const lastR = snapshot?.r ?? null;
+    setMiniValue('lastTradeR', formatR(lastR), lastR === null ? '' : lastR >= 0 ? 't-pos' : 't-neg');
+    setMiniValue('lastTradeOutcome', snapshot?.outcome || null, lastR === null ? '' : lastR >= 0 ? 't-pos' : 't-neg');
+    setMiniValue('lastTradeMfe', formatR(snapshot?.mfeR, false), snapshot?.mfeR === null || snapshot?.mfeR === undefined ? '' : 't-pos');
+    setMiniValue('lastTradeMae', formatR(snapshot?.maeR, false), snapshot?.maeR === null || snapshot?.maeR === undefined ? '' : 't-neg');
+    setText('tradeMonitorDetail', 'No active trade');
     return;
   }
 
+  setHidden('tradeMonitorGrid', false);
+  setEmptyState('tradeMonitorEmpty', false);
   const audit = getTradeAudit(trade);
-  const action = normalizeAction(trade?.action ?? trade?.direction) || 'N/A';
+  const action = normalizeAction(trade?.action ?? trade?.direction) || 'TRADE';
   const currentR = firstFinite(beInfo.currentR, trade?.currentR, audit.currentR, audit.stopMoveEvents?.at?.(-1)?.currentR);
   const mfeR = firstFinite(trade?.maxFavorableR, audit.maxFavorableR, audit.mfeR, trade?.takenTradeMfeR);
   const maeR = firstFinite(trade?.maxAdverseR, audit.maxAdverseR, audit.maeR, trade?.takenTradeMaeR);
@@ -781,31 +961,47 @@ function renderTradeMonitor(state, logs) {
 
   const size = finiteNumber(trade?.size);
   const entry = firstFinite(trade?.entry, trade?.entryPrice, trade?.actualFillPrice);
-  const deal = trade?.dealId ? String(trade.dealId).slice(-8) : 'N/A';
-  setText('tradeMonitorDetail', `${action} ${size === null ? 'N/A' : size + 'oz'} @ ${formatPrice(entry)} | Deal: ${deal}`);
+  const detailParts = [
+    action,
+    size === null ? null : size + 'oz',
+    formatPrice(entry) ? '@ ' + formatPrice(entry) : null,
+    trade?.dealId ? 'Deal: ' + String(trade.dealId).slice(-8) : null,
+  ].filter(Boolean);
+  setText('tradeMonitorDetail', detailParts.join(' | '));
 }
 
 function renderMissedTrades(logs) {
   const hasLogs = Array.isArray(logs) && logs.length > 0;
   const ids = ['missedSetupsToday', 'bestMissedScore', 'avgMissedScore', 'missedByKillSwitch', 'missedByCandleTiming', 'missedByConfidence', 'missedByOutsideSession'];
   if (!hasLogs) {
-    ids.forEach(id => setRiskValue(id, 'N/A'));
+    ids.forEach(id => setMiniValue(id, null));
+    setHidden('missedGrid', true);
+    setEmptyState('missedEmpty', true);
     return;
   }
 
   const missed = logs.filter(log => isTodayDubaiLog(log) && isMissedValidSetup(log));
+  if (!missed.length) {
+    ids.forEach(id => setMiniValue(id, null));
+    setHidden('missedGrid', true);
+    setEmptyState('missedEmpty', true);
+    return;
+  }
+
+  setHidden('missedGrid', false);
+  setEmptyState('missedEmpty', false);
   const scores = missed.map(getSetupScore).filter(score => score !== null);
   const countBy = (label) => missed.filter(log => classifyBlockReasons(log?.reason, log).includes(label)).length;
   const best = scores.length ? Math.max(...scores) : null;
   const avg = scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null;
 
-  setRiskValue('missedSetupsToday', missed.length);
-  setRiskValue('bestMissedScore', formatScore(best));
-  setRiskValue('avgMissedScore', formatScore(avg));
-  setRiskValue('missedByKillSwitch', countBy('Kill Switch'));
-  setRiskValue('missedByCandleTiming', countBy('Candle Timing'));
-  setRiskValue('missedByConfidence', countBy('Confidence Low'));
-  setRiskValue('missedByOutsideSession', countBy('Outside Session'));
+  setMiniValue('missedSetupsToday', missed.length);
+  setMiniValue('bestMissedScore', formatScore(best));
+  setMiniValue('avgMissedScore', formatScore(avg));
+  setMiniValue('missedByKillSwitch', countBy('Kill Switch') || null, 't-neg');
+  setMiniValue('missedByCandleTiming', countBy('Candle Timing') || null, 't-warn');
+  setMiniValue('missedByConfidence', countBy('Confidence Low') || null, 't-warn');
+  setMiniValue('missedByOutsideSession', countBy('Outside Session') || null, 't-neg');
 }
 
 function renderKillSwitchStatus(state, logs) {
@@ -824,14 +1020,14 @@ function renderKillSwitchStatus(state, logs) {
   const active = hardStopActive || expectancyKill.active === true || activeDirections.length > 0 || latestTags.includes('Kill Switch');
   const pf5 = firstFinite(state?.rollingProfitFactor5, latest?.rollingProfitFactor5);
 
-  let reason = 'N/A';
+  let reason = null;
   if (state?.criticalFailureReason) reason = state.criticalFailureReason;
   else if (expectancyKill.active === true) reason = state?.performanceReviewReason || latest?.reason || 'PF5 expectancy kill switch active';
   else if (activeDirections.length > 0) reason = 'Directional loss circuit active: ' + activeDirections.join(', ');
   else if (hardStopActive) reason = state?.performanceReviewReason || latest?.reason || 'Bot disabled or state blocked';
   else if (latestTags.includes('Kill Switch')) reason = latest?.reason;
 
-  let resetCondition = 'N/A';
+  let resetCondition = null;
   if (expectancyKill.active === true) {
     resetCondition = '1h trend reset / 24h expiry / 6h quality re-entry';
   } else if (activeDirections.length > 0) {
@@ -846,8 +1042,9 @@ function renderKillSwitchStatus(state, logs) {
 
   setStatusChip('killSwitchBadge', active ? 'ACTIVE' : 'INACTIVE', active ? 'err' : 'ok');
   setHealthValue('killSwitchReason', reason, active ? 'health-err' : '');
-  setHealthValue('killSwitchPf5', pf5 === null ? 'N/A' : pf5.toFixed(2), pf5 !== null && pf5 < 0.7 ? 'health-err' : '');
-  setHealthValue('killSwitchReset', resetCondition, resetCondition === 'N/A' ? '' : 'health-warn');
+  setHealthValue('killSwitchPf5', pf5 === null ? null : pf5.toFixed(2), pf5 !== null && pf5 < 0.7 ? 'health-err' : '');
+  setHealthValue('killSwitchReset', resetCondition, resetCondition ? 'health-warn' : '');
+  setEmptyState('killSwitchEmpty', !reason && pf5 === null && !resetCondition);
 }
 
 function renderSessionStatus(logs) {
@@ -858,11 +1055,13 @@ function renderSessionStatus(logs) {
   const isRollover = String(sessionName || '').toUpperCase().includes('ROLLOVER');
   const tone = allowed === true ? 'ok' : isRollover ? 'warn' : allowed === false ? 'err' : '';
   const valueClass = allowed === true ? 'health-ok' : isRollover ? 'health-warn' : allowed === false ? 'health-err' : '';
+  const hasData = !!sessionName || allowed === true || allowed === false || !!rejectReason;
 
-  setStatusChip('sessionBadge', sessionName || 'N/A', tone);
-  setHealthValue('sessionName', sessionName || 'N/A', valueClass);
-  setHealthValue('sessionAllowed', allowed === true ? 'true' : allowed === false ? 'false' : 'N/A', valueClass);
-  setHealthValue('sessionReject', rejectReason || 'N/A', rejectReason ? valueClass : '');
+  setStatusChip('sessionBadge', sessionName || (allowed === true ? 'Allowed' : allowed === false ? 'Blocked' : null), tone);
+  setHealthValue('sessionName', sessionName || null, valueClass);
+  setHealthValue('sessionAllowed', allowed === true ? 'YES' : allowed === false ? 'NO' : null, valueClass);
+  setHealthValue('sessionReject', rejectReason || null, rejectReason ? valueClass : '');
+  setEmptyState('sessionEmpty', !hasData);
 }
 
 function renderMonitoringPanels(state, logs, meta) {
@@ -1248,9 +1447,9 @@ function renderLogs(logs, meta, state) {
     document.getElementById('indicatorBar').className = 'indicator-bar' + (latestHasValidEma ? '' : ' stale');
 
     const safeParse = (val, dec) => {
-      if (val === undefined || val === null || val === '—' || val === '') return '<span style="color:var(--text3);font-size:11px;">N/A</span>';
+      if (val === undefined || val === null || val === '—' || val === '') return '<span style="color:var(--text3);font-size:11px;">—</span>';
       const p = parseFloat(val);
-      if (isNaN(p)) return '<span style="color:var(--text3);font-size:11px;">N/A</span>';
+      if (isNaN(p)) return '<span style="color:var(--text3);font-size:11px;">—</span>';
       return p.toFixed(dec);
     };
 
@@ -1264,7 +1463,7 @@ function renderLogs(logs, meta, state) {
       document.getElementById('trend1h').textContent = currentTrend1h.toUpperCase();
       document.getElementById('trend1h').className = 'ind-value ' + (currentTrend1h.toLowerCase().includes('up') ? 'up' : currentTrend1h.toLowerCase().includes('down') ? 'down' : '');
     } else {
-      document.getElementById('trend1h').innerHTML = '<span style="color:var(--text3);font-size:11px;">N/A</span>';
+      document.getElementById('trend1h').innerHTML = '<span style="color:var(--text3);font-size:11px;">—</span>';
       document.getElementById('trend1h').className = 'ind-value';
     }
 
@@ -1275,7 +1474,7 @@ function renderLogs(logs, meta, state) {
     if (currentAtrAvg !== undefined && currentAtrAvg !== null && currentAtrAvg !== '') {
       document.getElementById('atrAvg').textContent = 'Avg: ' + parseFloat(currentAtrAvg).toFixed(2);
     } else {
-      document.getElementById('atrAvg').textContent = 'Avg: N/A';
+      document.getElementById('atrAvg').textContent = 'Avg: —';
     }
 
     const setupBanner = document.getElementById('setupReadyBanner');
@@ -1293,10 +1492,14 @@ function renderLogs(logs, meta, state) {
     let action = t.signalDetected || 'NO SIGNAL';
     if(action === 'NONE' || action === 'SKIP') action = 'NO SIGNAL';
     if(action === 'ERROR') action = 'ERROR';
-    
-    let actionHtml = escapeHtml(action);
+
+    let actionChipClass = 'log-action-chip';
+    if (action.includes('BUY')) actionChipClass += ' buy';
+    else if (action.includes('SELL')) actionChipClass += ' sell';
+    else if (action.includes('ERROR') || action.includes('FAIL')) actionChipClass += ' error';
+    let actionHtml = `<span class="${actionChipClass}">${escapeHtml(action)}</span>`;
     if (t.entryType) {
-        actionHtml += `<span style="display:block;font-size:8px;opacity:0.75;margin-top:2px;">${escapeHtml(t.entryType)}</span>`;
+        actionHtml += `<span class="log-entry-type">${escapeHtml(t.entryType)}</span>`;
     }
 
     let typeClass = 't-muted';
@@ -1306,7 +1509,7 @@ function renderLogs(logs, meta, state) {
 
     const timeStr = new Date(t.time).toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour:'2-digit', minute:'2-digit' });
     
-    let cleanReason = t.reason ? t.reason.replace(/^SKIP:\s*/i, '') : (t.tradeExecuted ? 'TRADED' : 'No target setup');
+    let cleanReason = t.reason ? String(t.reason) : (t.tradeExecuted ? 'TRADED' : 'No target setup');
     
     let rLower = cleanReason.toLowerCase();
     let reasonColorClass = 't-muted';
@@ -1320,7 +1523,7 @@ function renderLogs(logs, meta, state) {
 
     let renderReason = escapeHtml(cleanReason);
     
-    const keyPhrases = ['Stale market data', 'Market closed', 'Spread too high', 'Risk limit', 'Drawdown limit', 'Missing data', 'Outside trading hours', 'Spread threshold exceeded'];
+    const keyPhrases = ['Stale market data', 'Market closed', 'Spread too high', 'Risk limit', 'Drawdown limit', 'Missing data', 'Outside trading hours', 'Outside allowed trading session', 'Spread threshold exceeded', 'Kill switch', 'Waiting for candle settlement'];
     keyPhrases.forEach(kp => {
         const regex = new RegExp(`(${kp})`, 'gi');
         renderReason = renderReason.replace(regex, '<strong style="color:var(--gold-light); font-weight:600;">$1</strong>');
@@ -1333,15 +1536,19 @@ function renderLogs(logs, meta, state) {
     }
 
     const reasonBadges = renderReasonBadges(cleanReason, t);
-
-    const isTradeAction = (t.tradeExecuted || action.includes('BUY') || action.includes('SELL'));
+    const reasonTags = classifyBlockReasons(cleanReason, t);
+    const rowClasses = ['trade-row-container'];
+    if (t.tradeExecuted === true) rowClasses.push('row-executed');
+    else if (reasonTags.includes('Kill Switch')) rowClasses.push('row-kill');
+    else if (reasonTags.includes('Candle Timing')) rowClasses.push('row-candle');
+    else if (isMissedValidSetup(t)) rowClasses.push('row-valid-block');
     
     let price = '<span style="color:var(--text3);font-size:10px;">—</span>';
     let size = '<span style="color:var(--text3);font-size:10px;">—</span>';
     
     if (t.tradeExecuted) {
-        price = t.entryPrice ? '$' + parseFloat(t.entryPrice).toFixed(2) : (t.price ? '$' + parseFloat(t.price).toFixed(2) : '<span style="color:var(--text3);font-size:10px;">N/A</span>');
-        size  = t.size ? t.size + 'oz' : '<span style="color:var(--text3);font-size:10px;">N/A</span>';
+        price = t.entryPrice ? '$' + parseFloat(t.entryPrice).toFixed(2) : (t.price ? '$' + parseFloat(t.price).toFixed(2) : '<span style="color:var(--text3);font-size:10px;">—</span>');
+        size  = t.size ? t.size + 'oz' : '<span style="color:var(--text3);font-size:10px;">—</span>';
     } else if (action.includes('BUY') || action.includes('SELL')) {
         price = t.entryPrice ? '$' + parseFloat(t.entryPrice).toFixed(2) : (t.price ? '$' + parseFloat(t.price).toFixed(2) : '<span style="color:var(--text3);font-size:10px;">—</span>');
         size  = t.size ? t.size + 'oz' : '<span style="color:var(--text3);font-size:10px;">—</span>';
@@ -1359,8 +1566,8 @@ function renderLogs(logs, meta, state) {
         }
     }
 
-    return `<div class="trade-row-container">
-      <div class="trade-row" style="border-bottom:none;">
+    return `<div class="${rowClasses.join(' ')}">
+      <div class="trade-row">
         <span class="t-muted">${timeStr}</span>
         <span class="${typeClass}" style="line-height:1.1;">${actionHtml}</span>
         <span class="t-muted">${size}</span>
@@ -1481,9 +1688,50 @@ function escapeHtml(value) {
 }
 
 function formatAuditValue(value) {
-  if (value === null || value === undefined || value === '') return 'N/A';
+  if (value === null || value === undefined || value === '' || value === 'N/A') return '—';
   if (Array.isArray(value)) return value.length ? value.join(', ') : 'None';
   return String(value);
+}
+
+function auditMetric(audit, ...keys) {
+  for (const key of keys) {
+    const value = audit?.[key];
+    if (!isDisplayMissing(value)) return value;
+  }
+  return null;
+}
+
+function getAuditProfitFactor(audit) {
+  return auditMetric(audit, 'profitFactor', 'pfStr');
+}
+
+function getAuditTopBlocker(audit) {
+  const topRejects = Array.isArray(audit?.topRejects) ? audit.topRejects : [];
+  if (topRejects.length) {
+    const top = topRejects[0];
+    if (Array.isArray(top)) return `${top[0]} (${top[1]})`;
+    if (typeof top === 'object') return `${top.reason || top.name || 'Blocker'}${top.count ? ` (${top.count})` : ''}`;
+    return String(top);
+  }
+
+  const text = [audit?.conclusion, audit?.report].filter(Boolean).join('\n');
+  const rejectionMatch = text.match(/Top Rejections:\s*\n\s*(?:[-\u2022]\s*)?([^:\n]+):\s*(\d+)/i);
+  if (rejectionMatch) return `${rejectionMatch[1].trim()} (${rejectionMatch[2]})`;
+  const conclusionMatch = text.match(/blocked mainly by "([^"]+)"/i) || text.match(/main filter[^"]*"([^"]+)"/i);
+  if (conclusionMatch) return conclusionMatch[1].trim();
+  return 'None';
+}
+
+function syncAuditDetails() {
+  const report = document.getElementById('auditReport');
+  const toggle = document.getElementById('auditToggle');
+  if (report) report.classList.toggle('is-open', auditDetailsOpen);
+  if (toggle) toggle.textContent = auditDetailsOpen ? 'Hide details' : 'Show details';
+}
+
+function toggleAuditDetails() {
+  auditDetailsOpen = !auditDetailsOpen;
+  syncAuditDetails();
 }
 
 function buildAuditSummaryMarkdown(audit) {
@@ -1525,10 +1773,16 @@ function renderAudit(lastAudit, auditHistory = []) {
   const today = getDubaiDateString();
   if (!latestAudit) {
     document.getElementById('auditCard').style.display = 'block';
+    setMiniValue('auditCycles', null);
+    setMiniValue('auditTrades', null);
+    setMiniValue('auditSetups', null);
+    setMiniValue('auditPf', null);
+    setMiniValue('auditTopBlocker', 'None');
     document.getElementById('auditReport').innerHTML = marked.parse(
       `**No daily audit available yet for today (${escapeHtml(today)}).**\n\nLatest available audit date: **None**`
     );
     document.getElementById('auditDate').textContent = 'Audit date: None';
+    syncAuditDetails();
     return;
   }
 
@@ -1542,11 +1796,17 @@ function renderAudit(lastAudit, auditHistory = []) {
     : buildAuditSummaryMarkdown(latestAudit);
 
   document.getElementById('auditCard').style.display = 'block';
+  setMiniValue('auditCycles', formatAuditValue(auditMetric(latestAudit, 'totalCycles', 'totalDecisions')));
+  setMiniValue('auditTrades', formatAuditValue(auditMetric(latestAudit, 'trades', 'tradesExecuted')));
+  setMiniValue('auditSetups', formatAuditValue(auditMetric(latestAudit, 'setups')));
+  setMiniValue('auditPf', formatAuditValue(getAuditProfitFactor(latestAudit)));
+  setMiniValue('auditTopBlocker', getAuditTopBlocker(latestAudit));
   document.getElementById('auditReport').innerHTML = marked.parse(staleNotice + report);
   document.getElementById('auditDate').textContent =
     'Audit date: ' + auditDate +
     (latestAudit.generatedAt ? ' | Generated: ' + formatDubaiTime(latestAudit.generatedAt) : '') +
     (sortedAudits.length ? ' | Stored audits: ' + sortedAudits.length : '');
+  syncAuditDetails();
 }
 
 function updateMarketTime() {
