@@ -1,5 +1,5 @@
 import { getCapitalSession }               from '../lib/session.js';
-import { getMarketData }                   from '../lib/market_data.js';
+import { calculateCronSettlementDelayMs, getMarketData } from '../lib/market_data.js';
 import { calculateIndicators }             from '../lib/indicators.js';
 import { generateSignal, STRATEGY_VERSION } from '../lib/strategy.js';
 import { checkRisk, calculateDrawdown, getAdaptiveSpreadLimit, resetDirectionalLossCircuitOnTrendReset }              from '../lib/risk.js';
@@ -34,6 +34,20 @@ import { computeTailLossStats }            from '../lib/stats.js';
 const ALERT_THROTTLE_MS = 60 * 60 * 1000; // 1 hour
 const DEBUG_SYNC_RECON = process.env.DEBUG_SYNC_RECON === 'true';
 const MARKET_CLOSED_LOG_THROTTLE_MS = 60 * 60 * 1000; // 1 hour
+
+async function alignCronJobSettlementWindow(schedulerSource) {
+  if (schedulerSource !== 'cron-job') return 0;
+
+  const delayMs = calculateCronSettlementDelayMs(Date.now());
+  if (delayMs <= 0) return 0;
+
+  console.log(
+    `[CRON] Runtime settlement alignment: delaying ${delayMs}ms so market data fetch starts ` +
+    `near 8.5s after the 5m candle close`
+  );
+  await new Promise(resolve => setTimeout(resolve, delayMs));
+  return delayMs;
+}
 
 
 /**
@@ -1326,6 +1340,9 @@ export default async function handler(req, res) {
     // DIAGNOSTIC CORE END
 
     // ── Step 5 & 6: Fetch market data and Indicators ─────────────────────────
+    // cron-job.org can arrive a little early at :05-:06 after the 5m boundary.
+    // Wait in-runtime so the settlement guard remains strict at 7s.
+    await alignCronJobSettlementWindow(schedulerSource);
     const marketData = await getMarketData(session, botState);
     cycleStatus.data = marketData.dataStatus ?? (marketData.skip ? 'FAIL' : 'OK');
     botState.currentCycleTime = Date.now();

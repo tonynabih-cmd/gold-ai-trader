@@ -332,20 +332,41 @@ section('Blocked setup tracking');
     action: 'BUY',
     entryPrice: 2000,
     stopLoss: 1990,
+    takeProfit: 2022,
+    setupConfidenceScore: 61,
+    setupConfidence: { score: 61, rawScore: 66 },
+    initialRewardRisk: 2.2,
+    setupQuality: { confidenceOk: true, rewardOk: true },
   };
   const first = updateBlockedSetupTracking(
     botState,
     {
       signal,
       tradeExecuted: false,
-      reason: 'SKIP: Setup confidence score 54.00 below minimum 55',
-      indicators: { lastCandle: { close: 2000 } },
+      reason: 'PAUSE: Rolling 5-trade profit factor kill switch active — waiting for 1h trend reset',
+      indicators: { lastCandle: { close: 2000 }, trend1h: 'UP' },
+      signalDebug: {
+        dbgSetupConfidenceScore: 61,
+        dbgRawSetupConfidenceScore: 66,
+        dbgInitialRewardRisk: 2.2,
+        confidencePass: true,
+        rrPass: true,
+        marketRegime: 'NORMAL',
+      },
     },
     new Date('2026-05-04T12:00:00.000Z')
   );
   assert(first.blockedSetupId === 'blocked_setup_1', `blocked setup id stored (got ${first.blockedSetupId})`);
   assert(first.blockedSetupDirection === 'BUY', `blocked setup direction stored (got ${first.blockedSetupDirection})`);
-  assert(first.blockedSetupReason.includes('Setup confidence'), `blocked setup reason stored (got ${first.blockedSetupReason})`);
+  assert(first.blockedSetupReason.includes('profit factor kill switch'), `blocked setup reason stored (got ${first.blockedSetupReason})`);
+  assert(first.setupConfidenceScore === 61, `blocked setup confidence stored (got ${first.setupConfidenceScore})`);
+  assert(first.rawSetupConfidenceScore === 66, `blocked setup raw confidence stored (got ${first.rawSetupConfidenceScore})`);
+  assert(first.initialRewardRisk === 2.2, `blocked setup RR stored (got ${first.initialRewardRisk})`);
+  assert(first.entryPrice === 2000 && first.stopLoss === 1990 && first.takeProfit === 2022, 'blocked setup prices stored');
+  assert(first.direction === 'BUY', `blocked setup direction field stored (got ${first.direction})`);
+  assert(first.marketRegime === 'NORMAL', `blocked setup marketRegime stored (got ${first.marketRegime})`);
+  assert(first.trend1h === 'UP', `blocked setup trend1h stored (got ${first.trend1h})`);
+  assert(first.confidencePass === true && first.rrPass === true, 'blocked setup pass flags stored');
   assert(botState.blockedSetupTracking.length === 1, 'blocked setup tracking stores without trade execution');
 
   const updated = updateBlockedSetupTracking(
