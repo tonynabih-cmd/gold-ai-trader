@@ -24,7 +24,7 @@ import {
 } from '../lib/execution.js';
 import { saveLog, getLogs }                from '../lib/logger.js';
 import { loadState, saveState, saveStateWithOptions, saveStateCritical, saveAudit, dailyReset, acquireCandleLock, validateStateIntegrity, createLockOwnerToken, verifyCandleLockOwnership, renewCandleLock, releaseCandleLock, pingRedis, CANDLE_LOCK_TTL_SECONDS } from '../lib/state.js';
-import { sendAlert, checkPerformance }     from '../lib/monitor.js';
+import { sendAlert, checkPerformance, ALERT_SEVERITY } from '../lib/monitor.js';
 import { fetchWithTimeout }                from '../lib/fetch.js';
 import { latestStrategyVersionFromLogs }   from '../lib/daily_audit.js';
 import { buildExecutionPolicy }            from '../lib/execution_policy.js';
@@ -598,8 +598,7 @@ function buildDashboardChartSnapshot(candles, indicators) {
 function detectAuditAnomalies(audit, dayLogs, botState) {
   const anomalies = [];
   const {
-    totalCycles, trades, setups, noSignalPct,
-    totalRejects, topRejects, dupSkips, staleSkips, brokerErrors,
+    totalCycles, dupSkips, staleSkips, brokerErrors,
     avgATR, avgATRav,
   } = audit;
 
@@ -616,47 +615,25 @@ function detectAuditAnomalies(audit, dayLogs, botState) {
     anomalies.push(`Low cycle count: ${totalCycles} (expected ~288). Bot may have been intermittent.`);
   }
 
-  // ── 3. Zero setups in 24h ────────────────────────────────────────────────
-  if (totalCycles > 0 && setups === 0) {
-    anomalies.push('No setups detected in 24h. This may reflect strict filters or quiet market conditions.');
-  }
+  // Strategy quietness (no setups, no trades, high NO_SIGNAL, dominant rejection)
+  // is telemetry only. It remains in the saved daily audit, not Telegram anomalies.
 
-  // ── 4. Setups present but no trades ──────────────────────────────────────
-  if (setups > 0 && trades === 0) {
-    const topRej = topRejects.length > 0 ? topRejects[0][0] : 'unknown';
-    anomalies.push(`${setups} setup(s) detected but 0 trades executed — blocked mainly by: ${topRej}.`);
-  }
-
-  // ── 5. NO_SIGNAL rate above 95% ──────────────────────────────────────────
-  if (totalCycles > 0 && parseFloat(noSignalPct) > 95) {
-    anomalies.push(`NO_SIGNAL rate extremely high: ${noSignalPct}% — strategy is rarely generating signals.`);
-  }
-
-  // ── 6. Single rejection reason dominates (>70% of all logged rejections) ─
-  if (topRejects.length > 0 && totalRejects > 0) {
-    const [topName, topCount] = topRejects[0];
-    const domPct = (topCount / totalRejects) * 100;
-    if (domPct > 70) {
-      anomalies.push(`One rejection dominates: "${topName}" accounts for ${domPct.toFixed(0)}% of all blocked setups.`);
-    }
-  }
-
-  // ── 7. Duplicate candle skips elevated (>20% of cycles) ─────────────────
+  // ── Duplicate candle skips elevated (>20% of cycles) ────────────────────
   if (totalCycles > 0 && dupSkips / totalCycles > 0.20) {
     anomalies.push(`Duplicate candle skips elevated: ${dupSkips} (${((dupSkips / totalCycles) * 100).toFixed(1)}% of cycles) — possible cron scheduling issue.`);
   }
 
-  // ── 8. Stale candle skips elevated (>15% of cycles) ─────────────────────
+  // ── Stale candle skips elevated (>15% of cycles) ────────────────────────
   if (totalCycles > 0 && staleSkips / totalCycles > 0.15) {
     anomalies.push(`Stale candle skips elevated: ${staleSkips} (${((staleSkips / totalCycles) * 100).toFixed(1)}% of cycles) — infrastructure latency may be reducing valid entries.`);
   }
 
-  // ── 9. Broker/account errors ─────────────────────────────────────────────
+  // ── Broker/account errors ───────────────────────────────────────────────
   if (brokerErrors > 0) {
     anomalies.push(`Broker errors detected: ${brokerErrors} log(s) contain a brokerResponse error object.`);
   }
 
-  // ── 10. Missing EMA/ATR telemetry in many logs ───────────────────────────
+  // ── Missing EMA/ATR telemetry in many logs ──────────────────────────────
   const indicatorLogs = dayLogs.filter(l => 
     typeof l.ema20 === 'number' &&
     typeof l.ema50 === 'number' &&
@@ -670,7 +647,7 @@ function detectAuditAnomalies(audit, dayLogs, botState) {
     anomalies.push(`High missing indicator rate: ${missingIndicatorPct.toFixed(0)}% of cycles had no valid EMA/ATR data — market data may be failing frequently.`);
   }
 
-  // ── 11. ATR much higher than ATR average (volatile spike) ────────────────
+  // ── ATR much higher than ATR average (volatile spike) ───────────────────
   if (avgATR !== null && avgATRav !== null && avgATR > avgATRav * 1.8) {
     anomalies.push(`ATR spike detected: avg ATR ${avgATR.toFixed(2)} is ${((avgATR / avgATRav) * 100 - 100).toFixed(0)}% above its own average (${avgATRav.toFixed(2)}) — market was unusually volatile.`);
   }
@@ -876,7 +853,7 @@ async function generateLocalAudit(logs, botState) {
   }).catch(() => {});
 
   console.log('[AUDIT] Sending daily rule-based audit to Telegram');
-  await sendAlert(msg);
+  await sendAlert(msg, { severity: ALERT_SEVERITY.INFO });
 
   // ── Anomaly detection — fires one extra alert only when anomalies exist ───
   if (anomalies.length > 0) {
@@ -884,7 +861,12 @@ async function generateLocalAudit(logs, botState) {
       `🚨 AUDIT ANOMALIES (${date})\n` +
       anomalies.map(a => `- ${a}`).join('\n');
     console.log(`[AUDIT] ${anomalies.length} anomalie(s) detected — sending alert`);
-    await sendAlert(anomalyMsg);
+    await sendAlert(anomalyMsg, {
+      severity: ALERT_SEVERITY.WARNING,
+      id: `daily_audit_anomalies:${date}`,
+      dedupeKey: `daily_audit_anomalies:${date}`,
+      botState,
+    });
   } else {
     console.log('[AUDIT] No anomalies detected.');
   }
@@ -910,12 +892,12 @@ async function detectRealtimeIssues(recentLogs, botState) {
     const totalCycles = recentLogs.length;
     if (totalCycles < 20) return false;
 
-    const issues = [];
-    
-    // Track counts
     const trades = recentLogs.filter(l => l.tradeExecuted === true).length;
     const setups = recentLogs.filter(l => l.dbgSetupReady === true).length;
     const sigNone = recentLogs.filter(l => !l.signalDetected || l.signalDetected === 'NONE').length;
+    const allowedSessionCycles = recentLogs.filter(l => l.isAllowedSession === true).length;
+    const activeRegimeCycles = recentLogs.filter(l => ['ACTIVE', 'NORMAL'].includes(String(l.marketRegime || l.regime || '').toUpperCase())).length;
+    const blockedSetupLogs = recentLogs.filter(l => l.dbgSetupReady === true && l.tradeExecuted !== true);
     
     const dupSkips = recentLogs.filter(l =>
       typeof l.reason === 'string' && (
@@ -940,61 +922,139 @@ async function detectRealtimeIssues(recentLogs, botState) {
       typeof l.atrAverage === 'number'
     );
 
-    // Use conservative thresholds to avoid noise at startup or during sparse cycles
-    if (setups === 0) {
-      issues.push({ id: 'no_setups', msg: '⚠️ No setups detected in last 30 cycles.' });
+    const reasonCounts = {};
+    for (const log of blockedSetupLogs) {
+      const reason = log.dbgRejectReason || log.blockedSetupReason || log.reason || 'unknown';
+      reasonCounts[reason] = (reasonCounts[reason] || 0) + 1;
     }
-    
-    if (setups > 0 && trades === 0) {
-      issues.push({ id: 'no_trades', msg: '⚠️ Setups detected but no trades executed recently.' });
-    }
+    const topBlockers = Object.entries(reasonCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
 
-    if ((sigNone / totalCycles) > 0.95) {
-      issues.push({ id: 'high_no_signal', msg: '⚠️ NO_SIGNAL rate extremely high in recent cycles.' });
-    }
+    botState.realtimeTelemetry = {
+      updatedAt: new Date().toISOString(),
+      windowCycles: totalCycles,
+      windowMinutes: totalCycles * 5,
+      setups,
+      blockedSetups: blockedSetupLogs.length,
+      executedTrades: trades,
+      noSignalCycles: sigNone,
+      noSignalPct: Number(((sigNone / totalCycles) * 100).toFixed(1)),
+      duplicateSkips: dupSkips,
+      staleSkips,
+      brokerErrors,
+      allowedSessionCycles,
+      activeRegimeCycles,
+      topBlockers,
+    };
+    let stateModified = true;
+
+    const issues = [];
 
     if ((dupSkips / totalCycles) > 0.25) {
-      issues.push({ id: 'high_dups', msg: '⚠️ High duplicate candle skips — check lastProcessedCandle logic.' });
+      issues.push({
+        id: 'high_dups',
+        severity: ALERT_SEVERITY.WARNING,
+        msg:
+          `⚠️ Duplicate candle skips elevated over last ${totalCycles} cycles.\n` +
+          `duplicates: ${dupSkips} | cycles: ${totalCycles}\n` +
+          `Check scheduler overlap or lastProcessedCandle handling.`,
+      });
     }
 
     if ((staleSkips / totalCycles) > 0.20) {
-      issues.push({ id: 'high_stale', msg: '⚠️ High stale rate — check scheduler timing.' });
+      issues.push({
+        id: 'high_stale',
+        severity: ALERT_SEVERITY.WARNING,
+        msg:
+          `⚠️ Market data stale rate elevated over last ${totalCycles} cycles.\n` +
+          `stale: ${staleSkips} | cycles: ${totalCycles}\n` +
+          `Check broker data freshness and scheduler timing.`,
+      });
     }
 
     const missingIndicatorPct = (totalCycles - indicatorLogs.length) / totalCycles;
     if (missingIndicatorPct > 0.50) {
-      issues.push({ id: 'missing_indicators', msg: '⚠️ Missing indicator data in many recent cycles.' });
+      issues.push({
+        id: 'missing_indicators',
+        severity: ALERT_SEVERITY.WARNING,
+        msg:
+          `⚠️ Indicator telemetry missing in many recent cycles.\n` +
+          `missing: ${totalCycles - indicatorLogs.length} | cycles: ${totalCycles}\n` +
+          `Check market data and indicator pipeline health.`,
+      });
     }
 
     if (brokerErrors > 0) {
-      issues.push({ id: 'broker_errors', msg: '⚠️ Broker errors detected in recent cycles.' });
+      issues.push({
+        id: 'broker_errors',
+        severity: ALERT_SEVERITY.WARNING,
+        msg:
+          `⚠️ Broker errors detected in recent cycles.\n` +
+          `brokerErrors: ${brokerErrors} | cycles: ${totalCycles}\n` +
+          `Review brokerResponse entries in the audit logs.`,
+      });
     }
 
-    if (issues.length === 0) return false;
+    const aggregationWindowMs = 3 * 60 * 60 * 1000;
+    const windowStart = Date.now() - aggregationWindowMs;
+    const aggregationLogs = recentLogs.filter(l => {
+      const t = l.time ? new Date(l.time).getTime() : 0;
+      return t >= windowStart;
+    });
+    const aggregationCycles = aggregationLogs.length;
+    const aggregationSetups = aggregationLogs.filter(l => l.dbgSetupReady === true).length;
+    const aggregationTrades = aggregationLogs.filter(l => l.tradeExecuted === true).length;
+    const aggregationAllowed = aggregationLogs.filter(l => l.isAllowedSession === true).length;
+    const aggregationActive = aggregationLogs.filter(l => ['ACTIVE', 'NORMAL'].includes(String(l.marketRegime || l.regime || '').toUpperCase())).length;
+    const extremeDrought =
+      aggregationCycles >= 36 &&
+      aggregationSetups === 0 &&
+      aggregationAllowed / aggregationCycles >= 0.80 &&
+      aggregationActive / aggregationCycles >= 0.80;
 
-    // Enforce cooldowns
-    const now = Date.now();
-    const COOLDOWN_MS = 60 * 60 * 1000; // 60 minutes
-    if (!botState.lastRealtimeAlertAtByType) {
-      botState.lastRealtimeAlertAtByType = {};
+    if (extremeDrought) {
+      const noSignalCount = aggregationLogs.filter(l => !l.signalDetected || l.signalDetected === 'NONE').length;
+      issues.push({
+        id: 'extreme_setup_drought',
+        severity: ALERT_SEVERITY.WARNING,
+        msg:
+          `⚠️ Setup drought during active/allowed market conditions.\n` +
+          `window: 3h | cycles: ${aggregationCycles}\n` +
+          `setups: ${aggregationSetups} | executed trades: ${aggregationTrades} | NO_SIGNAL: ${noSignalCount}\n` +
+          `allowed session cycles: ${aggregationAllowed} | ACTIVE/NORMAL regime cycles: ${aggregationActive}`,
+      });
     }
 
-    const activeIssues = [];
-    let stateModified = false;
-
-    for (const issue of issues) {
-      const lastAlertAt = botState.lastRealtimeAlertAtByType[issue.id] || 0;
-      if (now - lastAlertAt > COOLDOWN_MS) {
-        activeIssues.push(issue.msg);
-        botState.lastRealtimeAlertAtByType[issue.id] = now;
-        stateModified = true;
+    const activeIssueKeys = new Set(issues.map(issue => `realtime:${issue.id}`));
+    const realtimeAlertIds = [
+      'realtime:high_dups',
+      'realtime:high_stale',
+      'realtime:missing_indicators',
+      'realtime:broker_errors',
+      'realtime:extreme_setup_drought',
+    ];
+    if (botState.alertRegistry && typeof botState.alertRegistry === 'object') {
+      for (const key of realtimeAlertIds) {
+        if (!activeIssueKeys.has(key) && botState.alertRegistry[key]?.active === true) {
+          botState.alertRegistry[key].active = false;
+          botState.alertRegistry[key].resolvedAt = Date.now();
+          stateModified = true;
+        }
       }
     }
 
-    if (activeIssues.length > 0) {
-      const msg = `🚨 REALTIME ALERT\n\n` + activeIssues.join('\n');
-      console.log(`[REALTIME] Triggering alert with ${activeIssues.length} issues.`);
-      await sendAlert(msg).catch(() => {});
+    if (issues.length === 0) return stateModified;
+
+    for (const issue of issues) {
+      const msg = `REALTIME ${issue.severity}\n\n${issue.msg}`;
+      const result = await sendAlert(msg, {
+        id: `realtime:${issue.id}`,
+        dedupeKey: `realtime:${issue.id}`,
+        severity: issue.severity,
+        botState,
+      }).catch(() => null);
+      if (result?.stateModified) stateModified = true;
     }
 
     return stateModified;
@@ -1772,7 +1832,7 @@ export default async function handler(req, res) {
   } finally {
     try {
       if (typeof botState !== 'undefined' && botState) {
-        const recentLogs = await getLogs(30);
+        const recentLogs = await getLogs(48);
         const stateModified = await detectRealtimeIssues(recentLogs, botState);
         if (stateModified) {
           await saveState(botState);
