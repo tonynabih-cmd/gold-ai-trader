@@ -26,10 +26,13 @@ function base(overrides = {}) {
 
 console.log('\n── Deterministic market regime classifier ──');
 
-assert(classifyMarketRegime(base({ atr: 0.69, atrAverage: 1.0 })) === 'DEAD', 'DEAD from atrRatio < 0.70');
+assert(classifyMarketRegime(base({ atr: 0.59, atrAverage: 1.0 })) === 'DEAD', 'DEAD from atrRatio < 0.60');
 assert(classifyMarketRegime(base({ atr: 0.59, atrAverage: 0.59 })) === 'DEAD', 'DEAD from atr14_5m < 0.60');
-assert(classifyMarketRegime(base({ atr: 2.21, atrAverage: 1.0 })) === 'EXTREME', 'EXTREME from atrRatio > 2.20');
-assert(classifyMarketRegime(base({ atr: 1.0, atrAverage: 1.0, currEMA20: 2000.17, currEMA50: 2000 })) === 'SIDEWAYS', 'SIDEWAYS from emaSpreadAtr < 0.18');
+assert(classifyMarketRegime(base({ atr: 0.65, atrAverage: 1.0 })) === 'SOFT_DEAD', 'SOFT_DEAD from atrRatio 0.60-0.70');
+assert(classifyMarketRegime(base({ atr: 2.21, atrAverage: 1.0 })) === 'SOFT_EXTREME', 'SOFT_EXTREME from atrRatio > 2.20');
+assert(classifyMarketRegime(base({ atr: 2.61, atrAverage: 1.0 })) === 'EXTREME', 'EXTREME from atrRatio > 2.60');
+assert(classifyMarketRegime(base({ atr: 1.0, atrAverage: 1.0, currEMA20: 2000.17, currEMA50: 2000 })) === 'SOFT_SIDEWAYS', 'SOFT_SIDEWAYS from emaSpreadAtr 0.14-0.18');
+assert(classifyMarketRegime(base({ atr: 1.0, atrAverage: 1.0, currEMA20: 2000.13, currEMA50: 2000 })) === 'SIDEWAYS', 'SIDEWAYS from emaSpreadAtr < 0.14');
 assert(classifyMarketRegime(base({ atr: 1.2, atrAverage: 1.0 })) === 'ACTIVE', 'ACTIVE from atrRatio between 1.20 and 2.20');
 assert(classifyMarketRegime(base({ atr: 1.19, atrAverage: 1.0 })) === 'NORMAL', 'NORMAL fallback below ACTIVE threshold');
 assert(classifyMarketRegime(base({ atr: NaN })) === null, 'invalid ATR returns null regime');
@@ -53,6 +56,9 @@ assert(closed.regimeRejectReason === null, 'market-closed override creates no re
 
 assert(isAllowedMarketRegime('NORMAL') === true, 'NORMAL is allowed');
 assert(isAllowedMarketRegime('ACTIVE') === true, 'ACTIVE is allowed');
+assert(isAllowedMarketRegime('SOFT_DEAD') === true, 'SOFT_DEAD is allowed at reduced risk');
+assert(isAllowedMarketRegime('SOFT_SIDEWAYS') === true, 'SOFT_SIDEWAYS is allowed at reduced risk');
+assert(isAllowedMarketRegime('SOFT_EXTREME') === true, 'SOFT_EXTREME is allowed at reduced risk');
 assert(isAllowedMarketRegime('DEAD') === false, 'DEAD is blocked');
 assert(isAllowedMarketRegime('SIDEWAYS') === false, 'SIDEWAYS is blocked');
 assert(isAllowedMarketRegime('EXTREME') === false, 'EXTREME is blocked');

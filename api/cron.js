@@ -14,7 +14,9 @@ import {
   fetchCurrentGoldPrice,
   USD_AED_PEG,
   modifyTradeStopLoss,
+  closePartialPosition,
   calculateProgressiveStopPlan,
+  calculateScaleOutManagementPlan,
   createTradePathAudit,
   updateTradePathAudit,
   recordStopMoveAuditEvent,
@@ -330,6 +332,7 @@ async function reconcilePositions(session, botState) {
         action:          brokerDirection,
         entry:           brokerEntry,
         size:            brokerSize,
+        initialSize:     brokerSize,
         stopLoss:        Number(pos.position?.stopLevel ?? 0) || null,
         takeProfit:      Number(pos.position?.limitLevel ?? 0) || null,
         atr:             null,
@@ -343,6 +346,20 @@ async function reconcilePositions(session, botState) {
         breakEvenMoved:  false,
         profitLockStage: null,
         lastStopLockR:   null,
+        exitPlanVersion: 'adopted',
+        managementState: 'OPEN_FULL',
+        partial1Filled: false,
+        partial2Filled: false,
+        remainingSize: brokerSize,
+        realizedPartialR: 0,
+        unrealizedR: 0,
+        bestRBeforeFirstPartial: null,
+        mfeBeforeTP1: null,
+        timeToTP1Ms: null,
+        timeToBETriggerMs: null,
+        trailActivated: false,
+        trailStop: null,
+        partialCloseEvents: [],
         missingCount:    0,
       };
       adoptedTrade.audit = createTradePathAudit(adoptedTrade);
@@ -1195,6 +1212,115 @@ export default async function handler(req, res) {
         for (let i = 0; i < botState.openTrades.length; i++) {
           const t = botState.openTrades[i];
           updateTradePathAudit(t, livePrice);
+          const scalePlan = calculateScaleOutManagementPlan(t, livePrice, {
+            minStopDistance: livePrice.minStopDistance,
+          });
+
+          if (scalePlan.shouldManage) {
+            let partialResult = null;
+            let stopResult = null;
+
+            if (scalePlan.actionType === 'PARTIAL_CLOSE') {
+              partialResult = await closePartialPosition(session, t.dealId, {
+                size: scalePlan.closeSize,
+              });
+
+              if (!partialResult.success) {
+                console.warn(`[TRADE_MGMT] Partial close rejected for ${t.dealId} (${scalePlan.stageLabel}): ${partialResult.reason}`);
+                continue;
+              }
+
+              const initialSize = Number(t.initialSize ?? t.size);
+              const closedSize = Number(partialResult.closedSize ?? scalePlan.closeSize);
+              t.size = Number(Math.max(0, Number(t.size) - closedSize).toFixed(2));
+              t.remainingSize = t.size;
+              t.initialSize = Number.isFinite(initialSize) && initialSize > 0 ? initialSize : t.size + closedSize;
+              t.partialCloseEvents = Array.isArray(t.partialCloseEvents) ? t.partialCloseEvents : [];
+              t.partialCloseEvents.push({
+                at: Date.now(),
+                stageKey: scalePlan.stageKey,
+                closedSize,
+                currentR: Number(scalePlan.currentRMultiple.toFixed(4)),
+                closePct: scalePlan.closePct,
+              });
+              if (scalePlan.stageKey === 'tp1_40_at_0_6r') {
+                t.partial1Filled = true;
+                t.mfeBeforeTP1 = t.audit?.mfeR ?? null;
+                t.bestRBeforeFirstPartial = t.audit?.mfeR ?? null;
+                t.timeToTP1Ms = t.openedAt ? Date.now() - Number(t.openedAt) : null;
+              }
+              if (scalePlan.stageKey === 'tp2_35_at_1_2r') {
+                t.partial2Filled = true;
+              }
+              t.realizedPartialR = Number((Number(t.realizedPartialR || 0) + (scalePlan.closePct * scalePlan.currentRMultiple)).toFixed(4));
+            }
+
+            if (Number.isFinite(scalePlan.stopLevel)) {
+              const takeProfit = Number(t.takeProfit);
+              stopResult = await modifyTradeStopLoss(session, t.dealId, {
+                stopLevel: scalePlan.stopLevel,
+                profitLevel: Number.isFinite(takeProfit) ? parseFloat(takeProfit.toFixed(2)) : null
+              });
+              if (stopResult.success) {
+                t.stopLoss = scalePlan.stopLevel;
+                t.breakEvenMoved = (
+                  scalePlan.action === 'BUY'
+                    ? scalePlan.stopLevel >= scalePlan.entry
+                    : scalePlan.stopLevel <= scalePlan.entry
+                ) || Boolean(t.breakEvenMoved);
+                if (scalePlan.stageKey === 'be_plus_spread_at_0_9r' && !t.timeToBETriggerMs) {
+                  t.timeToBETriggerMs = t.openedAt ? Date.now() - Number(t.openedAt) : null;
+                }
+                if (scalePlan.stageKey === 'atr_trail_after_1_5r') {
+                  t.trailActivated = true;
+                  t.trailStop = scalePlan.trailStop ?? scalePlan.stopLevel;
+                }
+                recordStopMoveAuditEvent(t, {
+                  ...scalePlan,
+                  triggerR: scalePlan.currentRMultiple,
+                });
+              } else {
+                console.warn(`[TRADE_MGMT] Scale-out stop modification rejected for ${t.dealId} (${scalePlan.stageLabel}): ${stopResult.reason}`);
+              }
+            }
+
+            t.managementState = scalePlan.nextState || t.managementState || 'OPEN_FULL';
+            if (scalePlan.nextState === 'TP1_FILLED' || scalePlan.nextState === 'BE_ARMED' || scalePlan.nextState === 'TP2_FILLED' || scalePlan.nextState === 'RUNNER_TRAILING') {
+              t.partial1Filled = true;
+            }
+            if (scalePlan.nextState === 'TP2_FILLED' || scalePlan.nextState === 'RUNNER_TRAILING') {
+              t.partial2Filled = true;
+            }
+            t.profitLockStage = scalePlan.stageKey;
+            t.lastStopLockR = scalePlan.lockedR;
+            t.unrealizedR = Number(scalePlan.currentRMultiple.toFixed(4));
+
+            await saveLog({
+              signal: { id: t.tradeId, action: t.action, entryType: 'trade_management', strategyVersion: t.strategyVersion || STRATEGY_VERSION },
+              indicators: null,
+              botState: { ...botState },
+              tradeExecuted: false,
+              reason: `Scale-out Management Applied (${scalePlan.stageLabel})`,
+              result: {
+                dealId: t.dealId ?? null,
+                dealReference: t.dealReference ?? null,
+                actionType: scalePlan.actionType,
+                closeSize: scalePlan.closeSize ?? null,
+                dbgPreviousStop: scalePlan.currentStopLoss,
+                dbgNewStop: scalePlan.stopLevel ?? null,
+                dbgCurrentR: scalePlan.currentRMultiple,
+                dbgLockedR: scalePlan.lockedR,
+                managementState: t.managementState,
+                partialResult,
+                stopResult,
+                audit: t.audit ?? null,
+              }
+            });
+
+            await saveStateCritical(botState, `scaleout_management:${t.dealId}:${scalePlan.stageKey}`);
+            continue;
+          }
+
           const plan = calculateProgressiveStopPlan(t, livePrice, {
             minStopDistance: livePrice.minStopDistance,
           });

@@ -193,7 +193,7 @@ section('Rules 3/4/5: Weekend and trading hours');
 section('Market regime entry filter');
 {
   const deadByRatio = checkRisk(makeSignal(), makeBotState(), makeIndicators({
-    atr: 0.69,
+    atr: 0.59,
     atrAverage: 1.0,
     currEMA20: 2001,
     currEMA50: 2000,
@@ -203,13 +203,13 @@ section('Market regime entry filter');
   const sideways = checkRisk(makeSignal(), makeBotState(), makeIndicators({
     atr: 1.0,
     atrAverage: 1.0,
-    currEMA20: 2000.17,
+    currEMA20: 2000.13,
     currEMA50: 2000,
   }));
   assert(sideways === 'SKIP: Market regime SIDEWAYS blocks new entries', `SIDEWAYS blocks new entries (got: ${sideways})`);
 
   const extreme = checkRisk(makeSignal(), makeBotState(), makeIndicators({
-    atr: 2.21,
+    atr: 2.61,
     atrAverage: 1.0,
     currEMA20: 2003,
     currEMA50: 2000,
@@ -416,29 +416,29 @@ section('PF kill switch dominance');
     }),
     makeIndicators({ trend1h: 'UP' })
   );
-  assert(result.includes('kill switch active'), `PF kill switch still overrides passing RR/confidence (got: ${result})`);
+  assert(result === 'APPROVED', `PF5 recovery mode allows reduced-risk continuation when quality passes (got: ${result})`);
 }
 
 section('High-quality override gate');
 {
   assert(HIGH_QUALITY_OVERRIDE_SCORE_THRESHOLD === 70, `override score threshold is 70 (got: ${HIGH_QUALITY_OVERRIDE_SCORE_THRESHOLD})`);
-  assert(HIGH_QUALITY_OVERRIDE_RR_THRESHOLD === 2.5, `override RR threshold is 2.5 (got: ${HIGH_QUALITY_OVERRIDE_RR_THRESHOLD})`);
+  assert(HIGH_QUALITY_OVERRIDE_RR_THRESHOLD === 1.8, `override RR threshold is 1.8 (got: ${HIGH_QUALITY_OVERRIDE_RR_THRESHOLD})`);
 
   const highQualitySignal = makeSignal({ setupConfidenceScore: 70, score: 70, takeProfit: 2025 });
   const highQualityResult = checkRisk(highQualitySignal, makeActiveExpectancyKillState(), makeIndicators());
   assert(highQualityResult === 'APPROVED', `high-quality override clears PF pause only when safety gates pass (got: ${highQualityResult})`);
-  assert(highQualitySignal.highQualityOverride === true, 'highQualityOverride logs true for score 70 and 2.5R with safety gates passing');
+  assert(highQualitySignal.highQualityOverride === true, 'highQualityOverride logs true for score 70 and v1.6 RR with safety gates passing');
   assert(highQualitySignal.highQualityOverrideReason === 'ALL_HIGH_QUALITY_SAFETY_GATES_PASSED', `highQualityOverrideReason logs pass reason (got: ${highQualitySignal.highQualityOverrideReason})`);
 
   const lowScoreSignal = makeSignal({ setupConfidenceScore: 69, score: 69, takeProfit: 2025 });
   const lowScoreResult = checkRisk(lowScoreSignal, makeActiveExpectancyKillState(), makeIndicators());
-  assert(lowScoreResult.includes('kill switch active'), `score below 70 does not clear PF pause (got: ${lowScoreResult})`);
+  assert(lowScoreResult === 'APPROVED', `score 69 can trade in recovery because recovery threshold is 65 (got: ${lowScoreResult})`);
   assert(lowScoreSignal.highQualityOverride === false && lowScoreSignal.highQualityOverrideReason.includes('SCORE_BELOW_70'), `score block is logged (got: ${lowScoreSignal.highQualityOverrideReason})`);
 
-  const lowRrSignal = makeSignal({ setupConfidenceScore: 80, takeProfit: 2024 });
+  const lowRrSignal = makeSignal({ setupConfidenceScore: 80, takeProfit: 2017 });
   const lowRrResult = checkRisk(lowRrSignal, makeActiveExpectancyKillState(), makeIndicators());
-  assert(lowRrResult.includes('kill switch active'), `RR below 2.5 does not clear PF pause (got: ${lowRrResult})`);
-  assert(lowRrSignal.highQualityOverride === false && lowRrSignal.highQualityOverrideReason.includes('RR_BELOW_2_5'), `RR block is logged (got: ${lowRrSignal.highQualityOverrideReason})`);
+  assert(lowRrResult.includes('below minimum 1.80R'), `RR below 1.8 remains blocked (got: ${lowRrResult})`);
+  assert(lowRrSignal.highQualityOverride === false && lowRrSignal.highQualityOverrideReason.includes('RR_BELOW_OVERRIDE'), `RR block is logged (got: ${lowRrSignal.highQualityOverrideReason})`);
 
   const hardStopSignal = makeSignal({ setupConfidenceScore: 80, takeProfit: 2025 });
   const hardStopResult = checkRisk(hardStopSignal, makeBotState({ criticalFailure: true }), makeIndicators());
@@ -515,7 +515,7 @@ section('Same-direction pullback clustering');
 
 section('Minimum setup confidence gate');
 {
-  assert(MIN_RR_V2 === 2.0, `MIN_RR_V2 is 2.0 (got: ${MIN_RR_V2})`);
+  assert(MIN_RR_V2 === 1.8, `MIN_RR_V2 is 1.8 (got: ${MIN_RR_V2})`);
   assert(SETUP_CONFIDENCE_MIN_V2 === 55, `SETUP_CONFIDENCE_MIN_V2 is 55 (got: ${SETUP_CONFIDENCE_MIN_V2})`);
 
   const rConfidence54 = checkRisk(makeSignal({ setupConfidenceScore: 54 }), makeBotState(), makeIndicators());
@@ -524,11 +524,11 @@ section('Minimum setup confidence gate');
   const rConfidence55 = checkRisk(makeSignal({ setupConfidenceScore: 55 }), makeBotState(), makeIndicators());
   assert(rConfidence55 === 'APPROVED', `Confidence 55 is allowed if all other conditions pass (got: ${rConfidence55})`);
 
-  const rLowReward = checkRisk(makeSignal({ takeProfit: 2019.9 }), makeBotState(), makeIndicators());
-  assert(rLowReward.includes('1.9900 (raw 1.990000000000009)R below minimum 2.00R'), `RR 1.99 is blocked (got: ${rLowReward})`);
+  const rLowReward = checkRisk(makeSignal({ takeProfit: 2017.9 }), makeBotState(), makeIndicators());
+  assert(rLowReward.includes('below minimum 1.80R'), `RR below 1.8 is blocked (got: ${rLowReward})`);
 
-  const rBoundaryReward = checkRisk(makeSignal({ takeProfit: 2020 }), makeBotState(), makeIndicators());
-  assert(rBoundaryReward === 'APPROVED', `RR 2.00 is allowed if all other conditions pass (got: ${rBoundaryReward})`);
+  const rBoundaryReward = checkRisk(makeSignal({ takeProfit: 2018 }), makeBotState(), makeIndicators());
+  assert(rBoundaryReward === 'APPROVED', `RR 1.80 is allowed if all other conditions pass (got: ${rBoundaryReward})`);
 
   const allowedPolicy = buildExecutionPolicy(rConfidence55, 'NORMAL', 12345);
   assert(allowedPolicy.decision === 'ALLOW', `Execution policy reaches ALLOW only after all risk gates pass (got: ${allowedPolicy.decision})`);

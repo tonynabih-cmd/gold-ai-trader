@@ -66,9 +66,9 @@ function makeIndicators(overrides = {}) {
     lastCandle: {
       time: now,
       open: 2000.0,
-      high: 2002.2,
+      high: 2002.0,
       low: 1999.5,
-      close: 2001.2,
+      close: 2001.8,
     },
     trendWindowStartTime: now - 30 * 60 * 1000,
     recentOutcomes: [],
@@ -195,9 +195,9 @@ section('Layer 2 BUY pullback with 2-step confirmation');
     lastCandle: {
       time: Date.now(),
       open: 1999.8,
-      high: 2002.2,
+      high: 2002.0,
       low: 1999.0,
-      close: 2001.2,
+      close: 2001.8,
     },
   });
 
@@ -329,12 +329,12 @@ section('Missing prior EMA expansion is confidence penalty, not hard reject');
 
   if (result.signal) {
     assert(result.signal.emaExpansionMissing === true, 'emaExpansionMissing is logged on signal');
-    assert(result.signal.emaExpansionPenalty === -10, `emaExpansionPenalty is -10 (got ${result.signal.emaExpansionPenalty})`);
+    assert(result.signal.emaExpansionPenalty === -5, `emaExpansionPenalty is -5 (got ${result.signal.emaExpansionPenalty})`);
     assert(result.signal.emaExpansionHandledAs === 'CONFIDENCE_PENALTY', `emaExpansionHandledAs is CONFIDENCE_PENALTY (got ${result.signal.emaExpansionHandledAs})`);
     assert(result.signal.setupConfidence?.penalties?.some(reason => reason.includes('No prior EMA expansion')), 'EMA expansion penalty reason is retained');
     assert(
-      Number((result.signal.setupConfidence.rawScore - result.signal.setupConfidenceScore).toFixed(2)) === 10,
-      `Final confidence reflects only the -10 EMA expansion penalty (${result.signal.setupConfidence.rawScore} -> ${result.signal.setupConfidenceScore})`
+      Number((result.signal.setupConfidence.rawScore - result.signal.setupConfidenceScore).toFixed(2)) === 5,
+      `Final confidence reflects only the -5 EMA expansion penalty (${result.signal.setupConfidence.rawScore} -> ${result.signal.setupConfidenceScore})`
     );
 
     const risk = checkRisk(
@@ -375,7 +375,7 @@ section('Layer 2 SELL pullback with 2-step confirmation');
       open: 1995.2,
       high: 1995.3,
       low: 1992.8,
-      close: 1993.6,
+      close: 1993.0,
     },
   });
 
@@ -668,9 +668,9 @@ section('Signal structure validation');
       {
         time: Date.now(),
         open: 2000.0,
-        high: 2002.2,
+        high: 2002.0,
         low: 1999.5,
-        close: 2001.2,
+        close: 2001.8,
       },
     ],
   }), make1mCandles());

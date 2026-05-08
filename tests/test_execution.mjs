@@ -5,6 +5,7 @@
 
 import {
   calculatePositionSize,
+  calculateScaleOutManagementPlan,
   calculateProgressiveStopPlan,
   createTradePathAudit,
   updateTradePathAudit,
@@ -307,6 +308,52 @@ section('Progressive stop locking: safety guards');
     { minStopDistance: 0.5 }
   );
   assert(!unknownInitialRisk.shouldModify && unknownInitialRisk.reason === 'UNKNOWN_INITIAL_RISK', `Moved stop without recorded initial risk is skipped safely (got ${unknownInitialRisk.reason})`);
+}
+
+section('v1.6 scale-out management plan');
+{
+  const baseTrade = {
+    action: 'BUY',
+    entry: 2000,
+    stopLoss: 1990,
+    initialStopLoss: 1990,
+    initialSize: 0.10,
+    size: 0.10,
+    atr: 5,
+    managementState: 'OPEN_FULL',
+  };
+
+  const tp1 = calculateScaleOutManagementPlan(baseTrade, { bid: 2006, offer: 2006.5 }, { minStopDistance: 0.5 });
+  assert(tp1.shouldManage && tp1.actionType === 'PARTIAL_CLOSE', `0.6R schedules TP1 partial close (got ${tp1.actionType}/${tp1.reason})`);
+  assert(tp1.closeSize === 0.04, `TP1 closes 40% of initial 0.10 size (got ${tp1.closeSize})`);
+  assert(tp1.stopLevel === 1997.5, `TP1 protection moves stop to -0.25R (got ${tp1.stopLevel})`);
+  assert(tp1.nextState === 'TP1_FILLED', `TP1 next state is TP1_FILLED (got ${tp1.nextState})`);
+
+  const be = calculateScaleOutManagementPlan(
+    { ...baseTrade, size: 0.06, partial1Filled: true, managementState: 'TP1_FILLED', stopLoss: 1997.5 },
+    { bid: 2009, offer: 2009.5 },
+    { minStopDistance: 0.5 }
+  );
+  assert(be.shouldManage && be.actionType === 'MODIFY_STOP', `0.9R after TP1 schedules BE stop (got ${be.actionType}/${be.reason})`);
+  assert(be.stopLevel === 2000.5, `BE stop includes spread buffer (got ${be.stopLevel})`);
+  assert(be.nextState === 'BE_ARMED', `BE next state is BE_ARMED (got ${be.nextState})`);
+
+  const tp2 = calculateScaleOutManagementPlan(
+    { ...baseTrade, size: 0.06, partial1Filled: true, managementState: 'BE_ARMED', stopLoss: 2000.5 },
+    { bid: 2012, offer: 2012.5 },
+    { minStopDistance: 0.5 }
+  );
+  assert(tp2.shouldManage && tp2.actionType === 'PARTIAL_CLOSE', `1.2R schedules TP2 partial close (got ${tp2.actionType}/${tp2.reason})`);
+  assert(tp2.closeSize === 0.03, `TP2 closes 35% rounded down while preserving runner (got ${tp2.closeSize})`);
+  assert(tp2.stopLevel === 2003.5, `TP2 locks +0.35R stop (got ${tp2.stopLevel})`);
+
+  const trail = calculateScaleOutManagementPlan(
+    { ...baseTrade, size: 0.03, partial1Filled: true, partial2Filled: true, managementState: 'TP2_FILLED', stopLoss: 2003.5 },
+    { bid: 2016, offer: 2016.5 },
+    { minStopDistance: 0.5 }
+  );
+  assert(trail.shouldManage && trail.stageKey === 'atr_trail_after_1_5r', `1.5R schedules ATR runner trail (got ${trail.stageKey}/${trail.reason})`);
+  assert(trail.stopLevel === 2012, `0.8 ATR runner trail sets stop at 2012 (got ${trail.stopLevel})`);
 }
 
 // ── Section 10: Passive trade-path audit telemetry ───────────────────────────

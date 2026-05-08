@@ -46,9 +46,9 @@ function makeIndicators(overrides = {}) {
     lastCandle: {
       time: now,
       open: 1999.8,
-      high: 2002.2,
+      high: 2002.0,
       low: 1999.0,
-      close: 2001.2,
+      close: 2001.8,
     },
   };
   return { ...base, ...overrides };
@@ -89,8 +89,8 @@ assert(CYCLE_LOG_RETENTION_LIMIT >= 5000, `cycle log retention keeps at least 50
   assert(diagnostics.lastSwingHigh === null, 'missing BOS swing high logs null');
   assert(diagnostics.lastSwingLow === null, 'missing BOS swing low logs null');
   assert(diagnostics.bosBreakDistanceAtr === null, 'missing BOS distance logs null');
-  assert(diagnostics.rrCandidate === 2.5, `rrCandidate mirrors setup RR (got ${diagnostics.rrCandidate})`);
-  assert(diagnostics.rrThresholdUsed === 2.0, `rrThresholdUsed logs v2 threshold (got ${diagnostics.rrThresholdUsed})`);
+  assert(diagnostics.rrCandidate === 1.8, `rrCandidate mirrors setup RR (got ${diagnostics.rrCandidate})`);
+  assert(diagnostics.rrThresholdUsed === 1.8, `rrThresholdUsed logs v2 threshold (got ${diagnostics.rrThresholdUsed})`);
   assert(diagnostics.confidenceThresholdUsed === 55, `confidenceThresholdUsed logs v2 threshold (got ${diagnostics.confidenceThresholdUsed})`);
   assert(diagnostics.rrPass === true, 'rrPass logs true when RR meets v2 threshold');
   assert(diagnostics.confidencePass === true, 'confidencePass logs true when setup confidence meets v2 threshold');
@@ -126,11 +126,11 @@ section('Null-safe diagnostics');
   assert(diagnostics.lastSwingHigh === null, 'missing lastSwingHigh logs null');
   assert(diagnostics.lastSwingLow === null, 'missing lastSwingLow logs null');
   assert(diagnostics.bosBreakDistanceAtr === null, 'missing bosBreakDistanceAtr logs null');
-  assert(diagnostics.rrThresholdUsed === 2.0, `missing signal still logs rrThresholdUsed (got ${diagnostics.rrThresholdUsed})`);
+  assert(diagnostics.rrThresholdUsed === 1.8, `missing signal still logs rrThresholdUsed (got ${diagnostics.rrThresholdUsed})`);
   assert(diagnostics.confidenceThresholdUsed === 55, `missing signal still logs confidenceThresholdUsed (got ${diagnostics.confidenceThresholdUsed})`);
   assert(diagnostics.rrPass === null, 'missing RR logs null rrPass');
   assert(diagnostics.confidencePass === null, 'missing confidence logs null confidencePass');
-  assert(diagnostics.strategyVersion === 'v1.5', 'missing signal falls back to active strategyVersion');
+  assert(diagnostics.strategyVersion === 'v1.6-exit-first', 'missing signal falls back to active strategyVersion');
 }
 
 section('RR and confidence calibration logging');
@@ -157,7 +157,7 @@ section('RR and confidence calibration logging');
     new Date('2026-05-04T12:30:00.000Z')
   );
 
-  assert(diagnostics.rrThresholdUsed === 2.0, `rrThresholdUsed is null-safe and calibrated (got ${diagnostics.rrThresholdUsed})`);
+  assert(diagnostics.rrThresholdUsed === 2.0, `explicit setup rrThresholdUsed is preserved (got ${diagnostics.rrThresholdUsed})`);
   assert(diagnostics.confidenceThresholdUsed === 55, `confidenceThresholdUsed is null-safe and calibrated (got ${diagnostics.confidenceThresholdUsed})`);
   assert(diagnostics.rrPass === false, 'rrPass logs false below threshold');
   assert(diagnostics.confidencePass === false, 'confidencePass logs false below threshold');
@@ -177,7 +177,7 @@ section('RR and confidence calibration logging');
   );
   assert(boundary.confidenceThresholdUsed === 55, `boundary confidence uses threshold 55 (got ${boundary.confidenceThresholdUsed})`);
   assert(boundary.confidencePass === true, 'confidencePass logs true at score 55');
-  assert(boundary.rrPass === true, 'rrPass remains true at the unchanged 2.00R threshold');
+  assert(boundary.rrPass === true, 'rrPass remains true above the v1.6 threshold');
 }
 
 section('EMA expansion penalty telemetry');
@@ -195,7 +195,7 @@ section('EMA expansion penalty telemetry');
 
   assert(generated.signal !== null, 'missing EMA expansion still produces signal telemetry');
   assert(diagnostics.emaExpansionMissing === true, 'emaExpansionMissing logs true');
-  assert(diagnostics.emaExpansionPenalty === -10, `emaExpansionPenalty logs -10 (got ${diagnostics.emaExpansionPenalty})`);
+  assert(diagnostics.emaExpansionPenalty === -5, `emaExpansionPenalty logs -5 (got ${diagnostics.emaExpansionPenalty})`);
   assert(diagnostics.emaExpansionHandledAs === 'CONFIDENCE_PENALTY', `emaExpansionHandledAs logs CONFIDENCE_PENALTY (got ${diagnostics.emaExpansionHandledAs})`);
   assert(diagnostics.penaltyReason.includes('No prior EMA expansion'), `penaltyReason includes EMA expansion reason (got ${diagnostics.penaltyReason})`);
   assert(diagnostics.rejectStage === null, 'EMA expansion penalty does not become a regime hard rejection');
@@ -210,7 +210,7 @@ section('Regime threshold telemetry and confidence buckets');
   );
   assert(dead.regimeBlockType === 'DEAD', `DEAD regime block type logs (got ${dead.regimeBlockType})`);
   assert(dead.atrRatioValue === 0.5, `atrRatioValue logs raw ratio (got ${dead.atrRatioValue})`);
-  assert(dead.atrDeadDistance === -0.2, `atrDeadDistance logs threshold distance (got ${dead.atrDeadDistance})`);
+  assert(dead.atrDeadDistance === -0.1, `atrDeadDistance logs threshold distance (got ${dead.atrDeadDistance})`);
 
   const sideways = buildV2Diagnostics(
     { signal: null, indicators: makeIndicators({ currEMA20: 2000, currEMA50: 1999.5, atr: 5, atrAverage: 5 }), signalDebug: null, reason: 'SKIP: Market regime SIDEWAYS blocks new entries' },
@@ -218,7 +218,7 @@ section('Regime threshold telemetry and confidence buckets');
     new Date('2026-05-04T12:30:00.000Z')
   );
   assert(sideways.regimeBlockType === 'SIDEWAYS', `SIDEWAYS regime block type logs (got ${sideways.regimeBlockType})`);
-  assert(sideways.sidewaysDistance === -0.08, `sidewaysDistance logs threshold distance (got ${sideways.sidewaysDistance})`);
+  assert(sideways.sidewaysDistance === -0.04, `sidewaysDistance logs threshold distance (got ${sideways.sidewaysDistance})`);
 
   const extreme = buildV2Diagnostics(
     { signal: null, indicators: makeIndicators({ atr: 12, atrAverage: 4 }), signalDebug: null, reason: 'SKIP: Market regime EXTREME blocks new entries' },
@@ -226,7 +226,7 @@ section('Regime threshold telemetry and confidence buckets');
     new Date('2026-05-04T12:30:00.000Z')
   );
   assert(extreme.regimeBlockType === 'EXTREME', `EXTREME regime block type logs (got ${extreme.regimeBlockType})`);
-  assert(extreme.atrExtremeDistance === -0.8, `atrExtremeDistance logs threshold distance (got ${extreme.atrExtremeDistance})`);
+  assert(extreme.atrExtremeDistance === -0.4, `atrExtremeDistance logs threshold distance (got ${extreme.atrExtremeDistance})`);
 
   const lowConfidence = buildV2Diagnostics(
     { signal: { setupConfidenceScore: 64 }, indicators: null, signalDebug: null, reason: 'SKIP' },
@@ -524,9 +524,9 @@ section('Telemetry does not alter strategy decision fields');
   if (generated.signal) {
     assert(generated.signal.action === 'BUY', `action unchanged (got ${generated.signal.action})`);
     assert(generated.signal.entryType === 'pullback', `entryType unchanged (got ${generated.signal.entryType})`);
-    assert(generated.signal.entryPrice === 2001.2, `entryPrice unchanged (got ${generated.signal.entryPrice})`);
-    assert(generated.signal.stopLoss === 1993.7, `stopLoss unchanged (got ${generated.signal.stopLoss})`);
-    assert(generated.signal.takeProfit === 2019.95, `takeProfit unchanged (got ${generated.signal.takeProfit})`);
+    assert(generated.signal.entryPrice === 2001.8, `entryPrice unchanged (got ${generated.signal.entryPrice})`);
+    assert(generated.signal.stopLoss === 1994.3, `stopLoss unchanged (got ${generated.signal.stopLoss})`);
+    assert(generated.signal.takeProfit === 2015.3, `takeProfit unchanged (got ${generated.signal.takeProfit})`);
   }
 }
 
