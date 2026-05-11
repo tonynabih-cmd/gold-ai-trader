@@ -30,6 +30,7 @@ import { latestStrategyVersionFromLogs }   from '../lib/daily_audit.js';
 import { buildExecutionPolicy }            from '../lib/execution_policy.js';
 import { classifyMarketRegime }            from '../lib/market_regime.js';
 import { computeTailLossStats }            from '../lib/stats.js';
+import { repairExpiredKillSwitch } from '../lib/kill_switch.js';
 
 // How long to suppress repeated Telegram alerts for persistent disabled/critical states.
 // Prevents flooding Telegram every 5 minutes while the bot awaits manual intervention.
@@ -1139,6 +1140,23 @@ export default async function handler(req, res) {
   try {
     // -- Step 1: Load state + daily reset --
     botState = await loadState();
+    invocationStateVersion = Number.isFinite(Number(botState.stateVersion))
+      ? Number(botState.stateVersion)
+      : 0;
+    const killSwitchRepair = repairExpiredKillSwitch(botState, Date.now());
+    if (killSwitchRepair.repaired) {
+      const savedRepair = await saveStateWithOptions(botState, { expectedVersion: invocationStateVersion });
+      if (savedRepair) {
+        invocationStateVersion = Number.isFinite(Number(botState.stateVersion))
+          ? Number(botState.stateVersion)
+          : invocationStateVersion + 1;
+      }
+      console.warn('[KILL_SWITCH] Repaired expired/invalid expectancy kill switch', {
+        reason: killSwitchRepair.reason,
+        before: killSwitchRepair.before,
+        after: killSwitchRepair.after,
+      });
+    }
     let indicators = null;
     botState.currentCycleTime = Date.now();
     botState.currentCycleReason = '';
@@ -1161,10 +1179,6 @@ export default async function handler(req, res) {
     }
 
     botState = dailyReset(botState);
-    invocationStateVersion = Number.isFinite(Number(botState.stateVersion))
-      ? Number(botState.stateVersion)
-      : 0;
-
     const marketClosed = isGoldMarketClosed();
     if (marketClosed.closed) {
       const reason = marketClosed.reason;

@@ -986,7 +986,8 @@ function shortReasonLabel(reason, log = {}) {
 
 function resetLabelFromReason(reason) {
   if (reason === 'TREND_CHANGE') return '1h trend';
-  if (reason === 'COOLDOWN_EXPIRED') return '24h';
+  if (reason === 'COOLDOWN_EXPIRED' || reason === '24H_EXPIRED') return '24h';
+  if (reason === 'INVALID_ACTIVATED_AT_REPAIRED') return 'invalid activation repaired';
   if (reason === 'QUALITY_REENTRY') return '6h quality re-entry';
   return null;
 }
@@ -1004,7 +1005,7 @@ function getKillSwitchSummary(state, logs) {
     .map(([direction]) => direction);
   const latestTags = classifyBlockReasons(latest?.reason, latest || {});
   const hardStopActive = state?.botEnabled === false || state?.criticalFailure === true || state?.stateIntegrityOk === false;
-  const active = hardStopActive || expectancyKill.active === true || activeDirections.length > 0 || latestTags.includes('Kill Switch');
+  const active = hardStopActive || expectancyKill.active === true || activeDirections.length > 0;
   const pf5 = firstFinite(state?.rollingProfitFactor5, latest?.rollingProfitFactor5);
 
   let reason = null;
@@ -1013,7 +1014,6 @@ function getKillSwitchSummary(state, logs) {
   else if (state?.botEnabled === false) reason = 'Bot disabled';
   else if (activeDirections.length > 0) reason = 'Directional ' + activeDirections.join('/');
   else if (expectancyKill.active === true) reason = 'PF5 below threshold';
-  else if (latestTags.includes('Kill Switch')) reason = shortReasonLabel(latest?.reason, latest || {});
   else if (active && pf5 !== null && pf5 < PF5_KILL_THRESHOLD) reason = 'PF5 below threshold';
 
   let resetCondition = null;

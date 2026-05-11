@@ -6,7 +6,7 @@
     "node": "20.x"
   },
   "scripts": {
-    "test": "node tests/test_market_data.mjs && node tests/test_indicators.mjs && node tests/test_market_regime.mjs && node tests/test_strategy.mjs && node tests/test_session_filter.mjs && node tests/test_logger.mjs && node tests/test_risk.mjs && node tests/test_execution.mjs && node tests/test_sync.mjs && node tests/test_monitor.mjs",
+    "test": "node tests/test_market_data.mjs && node tests/test_indicators.mjs && node tests/test_market_regime.mjs && node tests/test_strategy.mjs && node tests/test_session_filter.mjs && node tests/test_logger.mjs && node tests/test_risk.mjs && node tests/test_kill_switch_repair.mjs && node tests/test_execution.mjs && node tests/test_sync.mjs && node tests/test_monitor.mjs",
     "audit:reconciled": "node audit_reconciled.mjs"
   },
   "dependencies": {

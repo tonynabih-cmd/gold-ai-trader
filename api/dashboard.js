@@ -3,9 +3,11 @@
 /* global process */
 
 import { loadState } from '../lib/state.js';
+import { saveState } from '../lib/state.js';
 import { getLogs }   from '../lib/logger.js';
 import { latestStrategyVersionFromLogs } from '../lib/daily_audit.js';
 import { Redis }     from '@upstash/redis';
+import { buildKillSwitchDiagnostics, repairExpiredKillSwitch } from '../lib/kill_switch.js';
 
 const redis = new Redis({
   url:   process.env.KV_REST_API_URL,
@@ -57,12 +59,18 @@ async function getDailyAuditHistory() {
 
 export default async function handler(req, res) {
   try {
+    const nowMs = Date.now();
     const [state, logs, dailyAuditHistory, legacyLastAudit] = await Promise.all([
       loadState(),
       getLogs(),
       getDailyAuditHistory(),
       redis.get('last_audit').catch(() => null),
     ]);
+    const repair = repairExpiredKillSwitch(state, nowMs);
+    if (repair.repaired) {
+      await saveState(state);
+    }
+    const killSwitchDiagnostics = buildKillSwitchDiagnostics(state, nowMs);
 
     const normalizedDailyAuditHistory = normalizeAuditVersions(dailyAuditHistory, logs);
     const normalizedLegacyLastAudit = legacyLastAudit
@@ -72,6 +80,8 @@ export default async function handler(req, res) {
 
     return res.json({
       state,
+      killSwitchDiagnostics,
+      killSwitchRepairedThisRequest: repair.repaired,
       logs,
       lastAudit,
       dailyAuditHistory: normalizedDailyAuditHistory,
