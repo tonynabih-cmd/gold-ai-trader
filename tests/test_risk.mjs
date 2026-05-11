@@ -114,6 +114,21 @@ function makeActiveExpectancyKillState(overrides = {}) {
   });
 }
 
+function makeLowPf5Outcomes() {
+  const base = ALLOWED_NOW.getTime() - 3 * 24 * 60 * 60 * 1000;
+  return [
+    { pnl: 0.03, action: 'SELL', exitReason: 'NON_LOSS', closedAt: base, dealId: 'PF5_A' },
+    { pnl: -1.73, action: 'SELL', exitReason: 'STOP_LOSS', closedAt: base + 5 * 60 * 1000, dealId: 'PF5_B' },
+    { pnl: -1.72, action: 'SELL', exitReason: 'STOP_LOSS', closedAt: base + 10 * 60 * 1000, dealId: 'PF5_C' },
+    { pnl: 3.71, action: 'SELL', exitReason: 'NON_LOSS', closedAt: base + 15 * 60 * 1000, dealId: 'PF5_D' },
+    { pnl: -2.78, action: 'SELL', exitReason: 'STOP_LOSS', closedAt: base + 20 * 60 * 1000, dealId: 'PF5_E' },
+  ];
+}
+
+function makeWindowKey(outcomes) {
+  return outcomes.map(o => o.dealId || `${o.action}:${o.closedAt}:${o.pnl}`).join('|');
+}
+
 // ── Pre-setup: ensure required env vars are set ───────────────────────────────
 process.env.BOT_ENABLED = 'true';
 process.env.MAX_SPREAD  = '0.5';
@@ -417,6 +432,47 @@ section('PF kill switch dominance');
     makeIndicators({ trend1h: 'UP' })
   );
   assert(result === 'APPROVED', `PF5 recovery mode allows reduced-risk continuation when quality passes (got: ${result})`);
+}
+
+section('PF5 kill switch activation and 24h expiry');
+{
+  const outcomes = makeLowPf5Outcomes();
+  const activationState = makeBotState({ recentOutcomes: outcomes });
+  checkRisk(makeSignal(), activationState, makeIndicators());
+  assert(activationState.expectancyKillSwitch?.active === true, 'PF5 kill switch activates when PF5 is below 0.70');
+  assert(activationState.expectancyKillSwitch?.activatedAt === ALLOWED_NOW.getTime(), 'PF5 kill switch sets activatedAt on inactive→active transition');
+
+  const existingActivatedAt = ALLOWED_NOW.getTime() - (2 * 60 * 60 * 1000);
+  const stableState = makeBotState({
+    recentOutcomes: outcomes,
+    expectancyKillSwitch: {
+      active: true,
+      mode: 'RECOVERY',
+      activatedAt: existingActivatedAt,
+      activationTrend: 'UP',
+      windowKey: makeWindowKey(outcomes),
+      suppressedWindowKey: null,
+    },
+  });
+  checkRisk(makeSignal(), stableState, makeIndicators({ trend1h: 'UP' }));
+  assert(stableState.expectancyKillSwitch.activatedAt === existingActivatedAt, 'PF5 kill switch does not refresh activatedAt while already active');
+
+  const oldActivatedAt = ALLOWED_NOW.getTime() - (24 * 60 * 60 * 1000) - 1000;
+  const expiredState = makeBotState({
+    recentOutcomes: outcomes,
+    expectancyKillSwitch: {
+      active: true,
+      mode: 'RECOVERY',
+      activatedAt: oldActivatedAt,
+      activationTrend: 'UP',
+      windowKey: makeWindowKey(outcomes),
+      suppressedWindowKey: null,
+    },
+  });
+  const expiredResult = checkRisk(makeSignal(), expiredState, makeIndicators({ trend1h: 'UP' }));
+  assert(expiredState.expectancyKillSwitch.active === false, 'PF5 kill switch force-resets after 24h');
+  assert(expiredState.expectancyKillSwitch.resetReason === '24H_EXPIRED', `PF5 kill switch 24h reset reason is 24H_EXPIRED (got: ${expiredState.expectancyKillSwitch.resetReason})`);
+  assert(expiredResult === 'APPROVED', `24h expiry releases the PF5 trade block for normal risk checks (got: ${expiredResult})`);
 }
 
 section('High-quality override gate');

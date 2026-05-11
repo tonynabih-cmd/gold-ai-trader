@@ -1,6 +1,6 @@
 // tests/test_logger.mjs — Unit tests for passive v2 diagnostic log fields.
 
-import { buildV2Diagnostics, CYCLE_LOG_RETENTION_LIMIT, LOGGER_EXPORT_FIELDS, normalizeLogDiagnostics, updateBlockedSetupTracking, V2_DIAGNOSTIC_FIELDS } from '../lib/logger.js';
+import { buildKillSwitchDiagnostics, buildV2Diagnostics, CYCLE_LOG_RETENTION_LIMIT, LOGGER_EXPORT_FIELDS, normalizeLogDiagnostics, updateBlockedSetupTracking, V2_DIAGNOSTIC_FIELDS } from '../lib/logger.js';
 import { generateSignal } from '../lib/strategy.js';
 
 let passed = 0;
@@ -322,6 +322,32 @@ section('BOS diagnostics');
   assert(diagnostics.lastSwingHigh === 106, `lastSwingHigh logs fractal level (got ${diagnostics.lastSwingHigh})`);
   assert(diagnostics.lastSwingLow === 94, `lastSwingLow logs fractal level (got ${diagnostics.lastSwingLow})`);
   assert(diagnostics.bosBreakDistanceAtr === 0.05, `bosBreakDistanceAtr logs distance (got ${diagnostics.bosBreakDistanceAtr})`);
+}
+
+section('Kill-switch diagnostics');
+{
+  const now = new Date('2026-05-05T10:30:00.000Z');
+  const activatedAt = new Date('2026-05-04T10:30:00.000Z').getTime();
+  const diagnostics = buildKillSwitchDiagnostics(
+    {
+      rollingProfitFactor5: 0.66,
+      expectancyKillSwitch: {
+        active: true,
+        activatedAt,
+        resetReason: null,
+      },
+    },
+    {},
+    now
+  );
+  assert(diagnostics.killSwitchActive === true, 'killSwitchActive logs active expectancy kill switch state');
+  assert(diagnostics.killSwitchActivatedAt === '2026-05-04T10:30:00.000Z', `killSwitchActivatedAt logs UTC activation time (got ${diagnostics.killSwitchActivatedAt})`);
+  assert(diagnostics.currentTimeUTC === '2026-05-05T10:30:00.000Z', `currentTimeUTC logs current cron timestamp (got ${diagnostics.currentTimeUTC})`);
+  assert(diagnostics.hoursSinceActivation === 24, `hoursSinceActivation logs elapsed hours (got ${diagnostics.hoursSinceActivation})`);
+  assert(diagnostics.resetReason === null, `resetReason logs null before reset (got ${diagnostics.resetReason})`);
+  assert(diagnostics.pfValueUsed === 0.66, `pfValueUsed logs PF5 value (got ${diagnostics.pfValueUsed})`);
+  assert(diagnostics.pfThresholdUsed === 0.7, `pfThresholdUsed logs PF5 threshold (got ${diagnostics.pfThresholdUsed})`);
+  assert(diagnostics.killSwitchPolicy === 'PF5_0.70_24H_EXPIRY', `killSwitchPolicy logs policy tag (got ${diagnostics.killSwitchPolicy})`);
 }
 
 section('Blocked setup tracking');

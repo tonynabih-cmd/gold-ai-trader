@@ -986,7 +986,7 @@ function shortReasonLabel(reason, log = {}) {
 
 function resetLabelFromReason(reason) {
   if (reason === 'TREND_CHANGE') return '1h trend';
-  if (reason === 'COOLDOWN_EXPIRED') return '24h';
+  if (reason === '24H_EXPIRED' || reason === 'COOLDOWN_EXPIRED') return '24h';
   if (reason === 'QUALITY_REENTRY') return '6h quality re-entry';
   return null;
 }
