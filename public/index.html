@@ -754,7 +754,7 @@ function getFallbackDecisionLog(state, meta) {
   const chart = Array.isArray(state?.dashboardChart) ? state.dashboardChart : [];
   const latestPoint = chart.length ? chart[chart.length - 1] : null;
   return {
-    signalDetected: fallback.signalDetected || 'NONE',
+    signalDetected: fallback.signalDetected ?? 'NONE',
     tradeExecuted: fallback.tradeExecuted === true,
     reason: fallback.reason ?? state?.currentCycleReason ?? null,
     time: fallback.time ?? (state?.lastHeartbeat ? new Date(state.lastHeartbeat).toISOString() : null),
