@@ -622,6 +622,7 @@ let lastLogs = [];
 let lastDashboardMeta = null;
 let auditDetailsOpen = false;
 const PF5_KILL_THRESHOLD = 0.70;
+const STATE_ONLY_SESSION_LABEL = 'STATE_ONLY';
 
 function formatDubaiTime(ts) {
   if (!ts) return '—';
@@ -1283,7 +1284,7 @@ function renderKillSwitchStatus(state, logs) {
 
 function renderSessionStatus(state, logs, meta) {
   const latest = getLatestCycleRecord(logs, meta, state);
-  const sessionName = latest?.sessionName ?? (state?.schedulerSource ? 'STATE_ONLY' : null);
+  const sessionName = latest?.sessionName ?? (state?.schedulerSource ? STATE_ONLY_SESSION_LABEL : null);
   const allowed = latest?.isAllowedSession ?? (state?.botEnabled === false ? false : null);
   const rejectReason = latest?.sessionRejectReason ?? state?.currentCycleReason ?? null;
   const isRollover = String(sessionName || '').toUpperCase().includes('ROLLOVER');
