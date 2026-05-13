@@ -4,7 +4,8 @@
 
 import { loadState } from '../lib/state.js';
 import { saveState } from '../lib/state.js';
-import { getLogs }   from '../lib/logger.js';
+import { BOT_STATE_KEY } from '../lib/state.js';
+import { getLogsWithDebug, CYCLE_LOG_PRIMARY_KEY }   from '../lib/logger.js';
 import { latestStrategyVersionFromLogs } from '../lib/daily_audit.js';
 import { Redis }     from '@upstash/redis';
 import { buildKillSwitchDiagnostics, repairExpiredKillSwitch } from '../lib/kill_switch.js';
@@ -60,12 +61,13 @@ async function getDailyAuditHistory() {
 export default async function handler(req, res) {
   try {
     const nowMs = Date.now();
-    const [state, logs, dailyAuditHistory, legacyLastAudit] = await Promise.all([
+    const [state, logPayload, dailyAuditHistory, legacyLastAudit] = await Promise.all([
       loadState(),
-      getLogs(),
+      getLogsWithDebug(),
       getDailyAuditHistory(),
       redis.get('last_audit').catch(() => null),
     ]);
+    const logs = Array.isArray(logPayload?.logs) ? logPayload.logs : [];
     const repair = repairExpiredKillSwitch(state, nowMs);
     if (repair.repaired) {
       await saveState(state);
@@ -77,6 +79,17 @@ export default async function handler(req, res) {
       ? normalizeAuditVersions([legacyLastAudit], logs)[0]
       : null;
     const lastAudit = normalizedDailyAuditHistory[0] || normalizedLegacyLastAudit || null;
+    const latestLog = logs.length ? logs[logs.length - 1] : null;
+    const inferredDecisionReason = state?.currentCycleReason || (state?.botEnabled === false ? 'Bot disabled via state' : null);
+    const inferredDecisionTime = Number(state?.currentCycleTime) > 0
+      ? state.currentCycleTime
+      : (Number(state?.lastHeartbeat) > 0 ? state.lastHeartbeat : null);
+    const lastDecisionSource = latestLog
+      ? 'logs'
+      : inferredDecisionReason || inferredDecisionTime
+        ? 'state'
+        : 'none';
+    const lastLogTime = latestLog?.time || null;
 
     return res.json({
       state,
@@ -92,7 +105,34 @@ export default async function handler(req, res) {
         dataFreshnessStatus: state.dataFreshnessStatus ?? 'UNKNOWN',
         chartUpdatedThisCycle: state.chartUpdatedThisCycle === true,
         schedulerSource: state.schedulerSource ?? 'unknown',
+        fallbackLastDecision: latestLog
+          ? null
+          : {
+              signalDetected: 'NONE',
+              tradeExecuted: false,
+              reason: inferredDecisionReason ?? null,
+              time: inferredDecisionTime ? new Date(inferredDecisionTime).toISOString() : null,
+              currentCycleTime: inferredDecisionTime,
+              lastValidDataTime: state.lastValidDataTime ?? null,
+              dataFreshnessStatus: state.dataFreshnessStatus ?? 'UNKNOWN',
+              chartUpdatedThisCycle: state.chartUpdatedThisCycle === true,
+              schedulerSource: state.schedulerSource ?? 'unknown',
+              sessionName: null,
+              isAllowedSession: null,
+              sessionRejectReason: null,
+              ema20: null,
+              ema50: null,
+              atr: null,
+              atrAverage: null,
+              trend1h: null,
+            },
       },
+      loggerKeyUsed: logPayload?.keyUsed || CYCLE_LOG_PRIMARY_KEY,
+      loggerCount: logPayload?.count ?? logs.length,
+      stateKeyUsed: BOT_STATE_KEY,
+      hasState: Boolean(state && typeof state === 'object'),
+      lastDecisionSource,
+      lastLogTime,
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });

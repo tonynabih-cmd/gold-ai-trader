@@ -747,6 +747,38 @@ function getLatestLog(logs) {
     .sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))[0] || null;
 }
 
+function getFallbackDecisionLog(state, meta) {
+  const fallback = meta?.fallbackLastDecision && typeof meta.fallbackLastDecision === 'object'
+    ? { ...meta.fallbackLastDecision }
+    : {};
+  const chart = Array.isArray(state?.dashboardChart) ? state.dashboardChart : [];
+  const latestPoint = chart.length ? chart[chart.length - 1] : null;
+  return {
+    signalDetected: fallback.signalDetected || 'NONE',
+    tradeExecuted: fallback.tradeExecuted === true,
+    reason: fallback.reason ?? state?.currentCycleReason ?? null,
+    time: fallback.time ?? (state?.lastHeartbeat ? new Date(state.lastHeartbeat).toISOString() : null),
+    currentCycleTime: fallback.currentCycleTime ?? state?.currentCycleTime ?? null,
+    lastValidDataTime: fallback.lastValidDataTime ?? state?.lastValidDataTime ?? null,
+    dataFreshnessStatus: fallback.dataFreshnessStatus ?? state?.dataFreshnessStatus ?? 'UNKNOWN',
+    chartUpdatedThisCycle: fallback.chartUpdatedThisCycle ?? state?.chartUpdatedThisCycle ?? false,
+    schedulerSource: fallback.schedulerSource ?? state?.schedulerSource ?? 'unknown',
+    sessionName: fallback.sessionName ?? null,
+    isAllowedSession: fallback.isAllowedSession ?? null,
+    sessionRejectReason: fallback.sessionRejectReason ?? null,
+    ema20: fallback.ema20 ?? latestPoint?.ema20 ?? null,
+    ema50: fallback.ema50 ?? latestPoint?.ema50 ?? null,
+    atr: fallback.atr ?? null,
+    atrAverage: fallback.atrAverage ?? null,
+    trend1h: fallback.trend1h ?? null,
+  };
+}
+
+function getLatestCycleRecord(logs, meta, state) {
+  const latest = getLatestLog(logs);
+  return latest || getFallbackDecisionLog(state, meta);
+}
+
 function getPrimaryOpenTrade(state) {
   const openTrades = Array.isArray(state?.openTrades) ? state.openTrades.filter(Boolean) : [];
   if (!openTrades.length) return null;
@@ -1249,11 +1281,11 @@ function renderKillSwitchStatus(state, logs) {
   setEmptyState('killSwitchEmpty', !summary.reason && summary.pf5 === null && !summary.resetCondition);
 }
 
-function renderSessionStatus(logs) {
-  const latest = getLatestLog(logs);
-  const sessionName = latest?.sessionName ?? null;
-  const allowed = latest?.isAllowedSession;
-  const rejectReason = latest?.sessionRejectReason ?? null;
+function renderSessionStatus(state, logs, meta) {
+  const latest = getLatestCycleRecord(logs, meta, state);
+  const sessionName = latest?.sessionName ?? (state?.schedulerSource ? 'STATE_ONLY' : null);
+  const allowed = latest?.isAllowedSession ?? (state?.botEnabled === false ? false : null);
+  const rejectReason = latest?.sessionRejectReason ?? state?.currentCycleReason ?? null;
   const isRollover = String(sessionName || '').toUpperCase().includes('ROLLOVER');
   const tone = allowed === true ? 'ok' : isRollover ? 'warn' : allowed === false ? 'err' : '';
   const valueClass = allowed === true ? 'health-ok' : isRollover ? 'health-warn' : allowed === false ? 'health-err' : '';
@@ -1270,7 +1302,7 @@ function renderMonitoringPanels(state, logs, meta) {
   renderTradeMonitor(state, logs);
   renderMissedTrades(logs);
   renderKillSwitchStatus(state, logs);
-  renderSessionStatus(logs);
+  renderSessionStatus(state, logs, meta);
 }
 
 function initChart() {
@@ -1534,11 +1566,7 @@ function renderLogs(logs, meta, state) {
   console.log("Total logs:", logs.length);
   const log = document.getElementById('tradeLog');
   const d = [...logs].sort((a, b) => new Date(b.time) - new Date(a.time));
-
-  if (!d.length) {
-    log.innerHTML = '<div class="empty-log">No decisions yet — bot runs every minute.</div>';
-    return;
-  }
+  const fallbackLatest = getLatestCycleRecord(logs, meta, state);
 
   // Log compression logic
   const display = [];
@@ -1568,7 +1596,7 @@ function renderLogs(logs, meta, state) {
      display.push(current);
   }
 
-  const lastRaw = display[0];
+  const lastRaw = display[0] || fallbackLatest;
   if (lastRaw) {
     // 1. Normalize latest log payload to only current active fields
     const latestLog = {
@@ -1728,6 +1756,11 @@ function renderLogs(logs, meta, state) {
       setupBanner.style.display = 'none';
       setupReason.textContent = '';
     }
+  }
+
+  if (!display.length) {
+    log.innerHTML = '<div class="empty-log">No logger history yet — showing live state fallback.</div>';
+    return;
   }
 
   log.innerHTML = display.map(t => {

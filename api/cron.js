@@ -1222,6 +1222,16 @@ export default async function handler(req, res) {
     // ── State kill switch (fast path) ────────────────────────────────────────
     if (botState.botEnabled === false) {
       const now = Date.now();
+      botState.currentCycleTime = now;
+      botState.currentCycleReason = 'Bot disabled via state (drawdown or performance threshold)';
+      botState.lastHeartbeat = now;
+      await saveLog({
+        signal: null,
+        indicators: null,
+        botState,
+        tradeExecuted: false,
+        reason: 'SKIP: Bot disabled via state (drawdown or performance threshold)',
+      }).catch(() => {});
       if (!botState.lastDisabledAlert || (now - botState.lastDisabledAlert) > ALERT_THROTTLE_MS) {
         botState.lastDisabledAlert = now;
         await saveState(botState);
@@ -1232,6 +1242,16 @@ export default async function handler(req, res) {
 
     if (botState.criticalFailure === true) {
       const now = Date.now();
+      botState.currentCycleTime = now;
+      botState.currentCycleReason = `Critical failure active: ${botState.criticalFailureReason || 'manual review required'}`;
+      botState.lastHeartbeat = now;
+      await saveLog({
+        signal: null,
+        indicators: null,
+        botState,
+        tradeExecuted: false,
+        reason: `SKIP: Critical failure active: ${botState.criticalFailureReason || 'manual review required'}`,
+      }).catch(() => {});
       if (!botState.lastCriticalAlert || (now - botState.lastCriticalAlert) > ALERT_THROTTLE_MS) {
         botState.lastCriticalAlert = now;
         await saveState(botState);
