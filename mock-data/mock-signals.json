@@ -1,0 +1,21 @@
+[
+  {
+    "id": "mock-signal-001",
+    "symbol": "XAUUSD",
+    "direction": "MOCK_BUY",
+    "confidence": "mock_value",
+    "createdAt": "2099-01-01T12:00:00.000Z",
+    "reason": "Private signal logic omitted in public version.",
+    "executionEnabled": false
+  },
+  {
+    "id": "mock-signal-002",
+    "symbol": "XAUUSD",
+    "direction": "MOCK_SELL",
+    "confidence": "mock_value",
+    "createdAt": "2099-01-02T12:00:00.000Z",
+    "reason": "Mock signal for dashboard display only.",
+    "executionEnabled": false
+  }
+]
+

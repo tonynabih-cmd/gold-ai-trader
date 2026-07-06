@@ -1,0 +1,23 @@
+{
+  "period": "mock_period",
+  "summary": {
+    "totalMockTrades": 12,
+    "simulatedOnly": true,
+    "performanceLabel": "mock_performance_summary",
+    "notes": "Fake performance example. No real profit, loss, balance, or backtest data."
+  },
+  "series": [
+    {
+      "label": "mock-week-1",
+      "value": 10
+    },
+    {
+      "label": "mock-week-2",
+      "value": 12
+    },
+    {
+      "label": "mock-week-3",
+      "value": 11
+    }
+  ]
+}
